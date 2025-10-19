@@ -9,11 +9,11 @@ router = APIRouter(prefix="/deploy", tags=["deploy"])
 
 
 class DeployRequest(BaseModel):
-    site_name: str = Field(..., description="Site adı")
+    site_name: str = Field(..., description="Site name")
     image: str = Field(..., description="Docker image")
-    domain: str = Field(..., description="Domain adı")
+    domain: str = Field(..., description="Domain name")
     port: Optional[int] = Field(default=None, description="Port")
-    command: Optional[str] = Field(default=None, description="Başlangıç komutu")
+    command: Optional[str] = Field(default=None, description="Start command")
     environment: Optional[Dict[str, str]] = Field(default=None, description="Environment variables")
     volumes: Optional[Dict[str, Dict[str, str]]] = Field(default=None, description="Volume mapping")
     labels: Optional[Dict[str, str]] = Field(default=None, description="Container labels")
@@ -25,7 +25,7 @@ async def create(
     token: str = Depends(verify_token)
 ) -> Dict[str, Any]:
     try:
-        logger.info(f"Deploy isteği: {request.site_name} - {request.image}")
+        logger.info(f"Deploy request: {request.site_name} - {request.image}")
         
         docker_service = DockerService()
         
@@ -49,21 +49,21 @@ async def create(
             labels=labels
         )
         
-        logger.info(f"Container oluşturuldu: {request.site_name}")
+        logger.info(f"Container created: {request.site_name}")
         
         return {
             "status": "success",
-            "message": f"Site oluşturuldu: {request.site_name}",
+            "message": f"Site created: {request.site_name}",
             "container": container,
             "domain": request.domain,
             "port": request.port
         }
         
     except Exception as e:
-        logger.error(f"Deploy hatası: {str(e)}")
+        logger.error(f"Deploy error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Deploy hatası: {str(e)}"
+            detail=f"Deploy error: {str(e)}"
         )
 
 

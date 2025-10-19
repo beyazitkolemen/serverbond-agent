@@ -45,10 +45,10 @@ class SystemService:
                 }
             }
             
-            logger.debug("Sistem bilgileri toplandı")
+            logger.debug("System information collected")
             return result
         except Exception as e:
-            logger.error(f"Sistem bilgisi toplama hatası: {str(e)}")
+            logger.error(f"System info collection error: {str(e)}")
             raise
     
     @staticmethod
@@ -61,7 +61,7 @@ class SystemService:
                 "freq": psutil.cpu_freq()._asdict() if psutil.cpu_freq() else None
             }
         except Exception as e:
-            logger.error(f"CPU bilgisi toplama hatası: {str(e)}")
+            logger.error(f"CPU info collection error: {str(e)}")
             raise
     
     @staticmethod
@@ -90,7 +90,7 @@ class SystemService:
                 }
             }
         except Exception as e:
-            logger.error(f"Bellek bilgisi toplama hatası: {str(e)}")
+            logger.error(f"Memory info collection error: {str(e)}")
             raise
     
     @staticmethod
@@ -120,7 +120,7 @@ class SystemService:
                 "io_counters": psutil.disk_io_counters()._asdict() if psutil.disk_io_counters() else None
             }
         except Exception as e:
-            logger.error(f"Disk bilgisi toplama hatası: {str(e)}")
+            logger.error(f"Disk info collection error: {str(e)}")
             raise
     
     @staticmethod
@@ -151,5 +151,5 @@ class SystemService:
                 "interfaces": interfaces
             }
         except Exception as e:
-            logger.error(f"Network bilgisi toplama hatası: {str(e)}")
+            logger.error(f"Network info collection error: {str(e)}")
             raise

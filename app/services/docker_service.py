@@ -8,9 +8,9 @@ class DockerService:
     def __init__(self):
         try:
             self.client = docker.from_env()
-            logger.info("Docker client başarıyla bağlandı")
+            logger.info("Docker client connected successfully")
         except DockerException as e:
-            logger.error(f"Docker client bağlantı hatası: {str(e)}")
+            logger.error(f"Docker client connection error: {str(e)}")
             raise
     
     def list_containers(self, all: bool = True) -> List[Dict[str, Any]]:
@@ -30,16 +30,16 @@ class DockerService:
                     "labels": container.labels
                 })
             
-            logger.info(f"{len(result)} container listelendi")
+            logger.info(f"{len(result)} containers listed")
             return result
         except DockerException as e:
-            logger.error(f"Container listeleme hatası: {str(e)}")
+            logger.error(f"Container listing error: {str(e)}")
             raise
     
     def get_container(self, container_id: str) -> Dict[str, Any]:
         try:
             container = self.client.containers.get(container_id)
-            logger.info(f"Container bulundu: {container.name}")
+            logger.info(f"Container found: {container.name}")
             
             return {
                 "id": container.id,
@@ -54,10 +54,10 @@ class DockerService:
                 "config": container.attrs.get("Config")
             }
         except NotFound:
-            logger.error(f"Container bulunamadı: {container_id}")
+            logger.error(f"Container not found: {container_id}")
             raise
         except DockerException as e:
-            logger.error(f"Container getirme hatası: {str(e)}")
+            logger.error(f"Container fetch error: {str(e)}")
             raise
     
     def create_container(
@@ -72,12 +72,12 @@ class DockerService:
         **kwargs
     ) -> Dict[str, Any]:
         try:
-            logger.info(f"Container oluşturuluyor: {name or 'unnamed'} (image: {image})")
+            logger.info(f"Creating container: {name or 'unnamed'} (image: {image})")
             
             try:
                 self.client.images.get(image)
             except NotFound:
-                logger.info(f"Image pull ediliyor: {image}")
+                logger.info(f"Pulling image: {image}")
                 self.client.images.pull(image)
             
             container = self.client.containers.run(
@@ -91,7 +91,7 @@ class DockerService:
                 **kwargs
             )
             
-            logger.info(f"Container oluşturuldu: {container.name} ({container.short_id})")
+            logger.info(f"Container created: {container.name} ({container.short_id})")
             
             return {
                 "id": container.id,
@@ -101,61 +101,61 @@ class DockerService:
                 "image": image
             }
         except APIError as e:
-            logger.error(f"Container oluşturma hatası: {str(e)}")
+            logger.error(f"Container creation error: {str(e)}")
             raise
         except DockerException as e:
-            logger.error(f"Container oluşturma hatası: {str(e)}")
+            logger.error(f"Container creation error: {str(e)}")
             raise
     
     def start_container(self, container_id: str) -> Dict[str, str]:
         try:
             container = self.client.containers.get(container_id)
             container.start()
-            logger.info(f"Container başlatıldı: {container.name}")
+            logger.info(f"Container started: {container.name}")
             
             return {
                 "status": "success",
-                "message": f"Container başlatıldı: {container.name}"
+                "message": f"Container started: {container.name}"
             }
         except NotFound:
-            logger.error(f"Container bulunamadı: {container_id}")
+            logger.error(f"Container not found: {container_id}")
             raise
         except DockerException as e:
-            logger.error(f"Container başlatma hatası: {str(e)}")
+            logger.error(f"Container start error: {str(e)}")
             raise
     
     def stop_container(self, container_id: str, timeout: int = 10) -> Dict[str, str]:
         try:
             container = self.client.containers.get(container_id)
             container.stop(timeout=timeout)
-            logger.info(f"Container durduruldu: {container.name}")
+            logger.info(f"Container stopped: {container.name}")
             
             return {
                 "status": "success",
-                "message": f"Container durduruldu: {container.name}"
+                "message": f"Container stopped: {container.name}"
             }
         except NotFound:
-            logger.error(f"Container bulunamadı: {container_id}")
+            logger.error(f"Container not found: {container_id}")
             raise
         except DockerException as e:
-            logger.error(f"Container durdurma hatası: {str(e)}")
+            logger.error(f"Container stop error: {str(e)}")
             raise
     
     def restart_container(self, container_id: str, timeout: int = 10) -> Dict[str, str]:
         try:
             container = self.client.containers.get(container_id)
             container.restart(timeout=timeout)
-            logger.info(f"Container yeniden başlatıldı: {container.name}")
+            logger.info(f"Container restarted: {container.name}")
             
             return {
                 "status": "success",
-                "message": f"Container yeniden başlatıldı: {container.name}"
+                "message": f"Container restarted: {container.name}"
             }
         except NotFound:
-            logger.error(f"Container bulunamadı: {container_id}")
+            logger.error(f"Container not found: {container_id}")
             raise
         except DockerException as e:
-            logger.error(f"Container yeniden başlatma hatası: {str(e)}")
+            logger.error(f"Container restart error: {str(e)}")
             raise
     
     def remove_container(self, container_id: str, force: bool = False) -> Dict[str, str]:
@@ -163,17 +163,17 @@ class DockerService:
             container = self.client.containers.get(container_id)
             container_name = container.name
             container.remove(force=force)
-            logger.info(f"Container silindi: {container_name}")
+            logger.info(f"Container removed: {container_name}")
             
             return {
                 "status": "success",
-                "message": f"Container silindi: {container_name}"
+                "message": f"Container removed: {container_name}"
             }
         except NotFound:
-            logger.error(f"Container bulunamadı: {container_id}")
+            logger.error(f"Container not found: {container_id}")
             raise
         except DockerException as e:
-            logger.error(f"Container silme hatası: {str(e)}")
+            logger.error(f"Container remove error: {str(e)}")
             raise
     
     def exec_command(
@@ -185,7 +185,7 @@ class DockerService:
     ) -> Dict[str, Any]:
         try:
             container = self.client.containers.get(container_id)
-            logger.info(f"Komut çalıştırılıyor: {container.name} - {command}")
+            logger.info(f"Executing command: {container.name} - {command}")
             
             exec_result = container.exec_run(
                 cmd=command,
@@ -201,10 +201,10 @@ class DockerService:
                 "success": exec_result.exit_code == 0
             }
         except NotFound:
-            logger.error(f"Container bulunamadı: {container_id}")
+            logger.error(f"Container not found: {container_id}")
             raise
         except DockerException as e:
-            logger.error(f"Komut çalıştırma hatası: {str(e)}")
+            logger.error(f"Command execution error: {str(e)}")
             raise
     
     def get_container_logs(
@@ -216,13 +216,13 @@ class DockerService:
         try:
             container = self.client.containers.get(container_id)
             logs = container.logs(tail=tail, timestamps=timestamps)
-            logger.info(f"Container logları alındı: {container.name}")
+            logger.info(f"Container logs retrieved: {container.name}")
             return logs.decode('utf-8') if logs else ""
         except NotFound:
-            logger.error(f"Container bulunamadı: {container_id}")
+            logger.error(f"Container not found: {container_id}")
             raise
         except DockerException as e:
-            logger.error(f"Log alma hatası: {str(e)}")
+            logger.error(f"Log retrieval error: {str(e)}")
             raise
     
     def get_container_stats(self, container_id: str) -> Dict[str, Any]:
@@ -252,8 +252,8 @@ class DockerService:
                 "network": stats.get("networks", {})
             }
         except NotFound:
-            logger.error(f"Container bulunamadı: {container_id}")
+            logger.error(f"Container not found: {container_id}")
             raise
         except DockerException as e:
-            logger.error(f"İstatistik alma hatası: {str(e)}")
+            logger.error(f"Stats retrieval error: {str(e)}")
             raise

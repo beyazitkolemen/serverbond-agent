@@ -10,18 +10,18 @@ router = APIRouter(prefix="/containers", tags=["containers"])
 
 
 class ContainerCreateRequest(BaseModel):
-    image: str = Field(..., description="Docker image adı")
-    name: Optional[str] = Field(default=None, description="Container adı")
-    command: Optional[str] = Field(default=None, description="Çalıştırılacak komut")
-    environment: Optional[Dict[str, str]] = Field(default=None, description="Ortam değişkenleri")
+    image: str = Field(..., description="Docker image name")
+    name: Optional[str] = Field(default=None, description="Container name")
+    command: Optional[str] = Field(default=None, description="Command to run")
+    environment: Optional[Dict[str, str]] = Field(default=None, description="Environment variables")
     ports: Optional[Dict[str, int]] = Field(default=None, description="Port mapping")
     volumes: Optional[Dict[str, Dict[str, str]]] = Field(default=None, description="Volume mapping")
 
 
 class ContainerExecRequest(BaseModel):
-    command: str = Field(..., description="Çalıştırılacak komut")
-    workdir: Optional[str] = Field(default=None, description="Çalışma dizini")
-    user: Optional[str] = Field(default=None, description="Kullanıcı")
+    command: str = Field(..., description="Command to execute")
+    workdir: Optional[str] = Field(default=None, description="Working directory")
+    user: Optional[str] = Field(default=None, description="User")
 
 
 @router.get("/")
@@ -32,13 +32,13 @@ async def list_containers(
     try:
         docker_service = DockerService()
         containers = docker_service.list_containers(all=all)
-        logger.info(f"{len(containers)} container listelendi")
+        logger.info(f"{len(containers)} containers listed")
         return containers
     except Exception as e:
-        logger.error(f"Container listeleme hatası: {str(e)}")
+        logger.error(f"Container listing error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Container listeleme hatası: {str(e)}"
+            detail=f"Container listing error: {str(e)}"
         )
 
 
@@ -54,13 +54,13 @@ async def get_container(
     except NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Container bulunamadı: {container_id}"
+            detail=f"Container not found: {container_id}"
         )
     except Exception as e:
-        logger.error(f"Container getirme hatası: {str(e)}")
+        logger.error(f"Container fetch error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Container getirme hatası: {str(e)}"
+            detail=f"Container fetch error: {str(e)}"
         )
 
 
@@ -81,16 +81,16 @@ async def create_container(
         )
         return container
     except APIError as e:
-        logger.error(f"Container oluşturma hatası: {str(e)}")
+        logger.error(f"Container creation error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Container oluşturma hatası: {str(e)}"
+            detail=f"Container creation error: {str(e)}"
         )
     except Exception as e:
-        logger.error(f"Container oluşturma hatası: {str(e)}")
+        logger.error(f"Container creation error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Container oluşturma hatası: {str(e)}"
+            detail=f"Container creation error: {str(e)}"
         )
 
 
@@ -106,13 +106,13 @@ async def start_container(
     except NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Container bulunamadı: {container_id}"
+            detail=f"Container not found: {container_id}"
         )
     except Exception as e:
-        logger.error(f"Container başlatma hatası: {str(e)}")
+        logger.error(f"Container start error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Container başlatma hatası: {str(e)}"
+            detail=f"Container start error: {str(e)}"
         )
 
 
@@ -129,13 +129,13 @@ async def stop_container(
     except NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Container bulunamadı: {container_id}"
+            detail=f"Container not found: {container_id}"
         )
     except Exception as e:
-        logger.error(f"Container durdurma hatası: {str(e)}")
+        logger.error(f"Container stop error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Container durdurma hatası: {str(e)}"
+            detail=f"Container stop error: {str(e)}"
         )
 
 
@@ -152,13 +152,13 @@ async def restart_container(
     except NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Container bulunamadı: {container_id}"
+            detail=f"Container not found: {container_id}"
         )
     except Exception as e:
-        logger.error(f"Container yeniden başlatma hatası: {str(e)}")
+        logger.error(f"Container restart error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Container yeniden başlatma hatası: {str(e)}"
+            detail=f"Container restart error: {str(e)}"
         )
 
 
@@ -175,13 +175,13 @@ async def remove_container(
     except NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Container bulunamadı: {container_id}"
+            detail=f"Container not found: {container_id}"
         )
     except Exception as e:
-        logger.error(f"Container silme hatası: {str(e)}")
+        logger.error(f"Container remove error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Container silme hatası: {str(e)}"
+            detail=f"Container remove error: {str(e)}"
         )
 
 
@@ -203,13 +203,13 @@ async def exec_command(
     except NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Container bulunamadı: {container_id}"
+            detail=f"Container not found: {container_id}"
         )
     except Exception as e:
-        logger.error(f"Komut çalıştırma hatası: {str(e)}")
+        logger.error(f"Command execution error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Komut çalıştırma hatası: {str(e)}"
+            detail=f"Command execution error: {str(e)}"
         )
 
 
@@ -231,13 +231,13 @@ async def get_logs(
     except NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Container bulunamadı: {container_id}"
+            detail=f"Container not found: {container_id}"
         )
     except Exception as e:
-        logger.error(f"Log alma hatası: {str(e)}")
+        logger.error(f"Log retrieval error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Log alma hatası: {str(e)}"
+            detail=f"Log retrieval error: {str(e)}"
         )
 
 
@@ -253,11 +253,11 @@ async def get_stats(
     except NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Container bulunamadı: {container_id}"
+            detail=f"Container not found: {container_id}"
         )
     except Exception as e:
-        logger.error(f"İstatistik alma hatası: {str(e)}")
+        logger.error(f"Stats retrieval error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"İstatistik alma hatası: {str(e)}"
+            detail=f"Stats retrieval error: {str(e)}"
         )

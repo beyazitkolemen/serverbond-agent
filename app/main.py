@@ -12,7 +12,7 @@ from app.api.routes import deploy, containers, system
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="Docker container yönetimi ve site deployment için Python agent",
+    description="Python agent for Docker container management and site deployment",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
@@ -30,7 +30,7 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     logger.info("=" * 60)
-    logger.info(f"{settings.PROJECT_NAME} başlatılıyor...")
+    logger.info(f"{settings.PROJECT_NAME} is starting...")
     logger.info(f"API Host: {settings.API_HOST}")
     logger.info(f"API Port: {settings.API_PORT}")
     logger.info(f"Log Level: {settings.LOG_LEVEL}")
@@ -39,25 +39,25 @@ async def startup_event():
     try:
         from app.services.docker_service import DockerService
         docker_service = DockerService()
-        logger.info("✓ Docker bağlantısı başarılı")
+        logger.info("✓ Docker connection successful")
     except Exception as e:
-        logger.error(f"✗ Docker bağlantı hatası: {str(e)}")
-        logger.warning("Agent çalışmaya devam edecek ancak Docker işlemleri yapılamayacak")
+        logger.error(f"✗ Docker connection error: {str(e)}")
+        logger.warning("Agent will continue running but Docker operations will not be available")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    logger.info(f"{settings.PROJECT_NAME} kapatılıyor...")
+    logger.info(f"{settings.PROJECT_NAME} is shutting down...")
 
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Beklenmeyen hata: {str(exc)}")
+    logger.error(f"Unexpected error: {str(exc)}")
     return JSONResponse(
         status_code=500,
         content={
             "status": "error",
-            "message": "Sunucu hatası",
+            "message": "Server error",
             "detail": str(exc)
         }
     )
@@ -69,7 +69,7 @@ async def root():
         "name": settings.PROJECT_NAME,
         "version": "1.0.0",
         "status": "running",
-        "message": "ServerBond Agent çalışıyor",
+        "message": "ServerBond Agent is running",
         "docs": "/docs",
         "endpoints": {
             "deploy": "/deploy",
@@ -87,7 +87,7 @@ app.include_router(system.router)
 if __name__ == "__main__":
     import uvicorn
     
-    logger.info("Uvicorn ile başlatılıyor...")
+    logger.info("Starting with uvicorn...")
     uvicorn.run(
         "app.main:app",
         host=settings.API_HOST,

@@ -19,7 +19,7 @@ class SiteService:
         labels: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         try:
-            logger.info(f"Site deploy ediliyor: {site_name}")
+            logger.info(f"Deploying site: {site_name}")
             
             ports = {}
             if port:
@@ -41,16 +41,16 @@ class SiteService:
                 labels=site_labels
             )
             
-            logger.info(f"Site deploy edildi: {site_name}")
+            logger.info(f"Site deployed: {site_name}")
             
             return {
                 "status": "success",
-                "message": f"Site oluşturuldu: {site_name}",
+                "message": f"Site created: {site_name}",
                 "container": container,
                 "domain": domain,
                 "port": port
             }
             
         except Exception as e:
-            logger.error(f"Site deploy hatası: {str(e)}")
+            logger.error(f"Site deployment error: {str(e)}")
             raise

@@ -11,13 +11,13 @@ router = APIRouter(prefix="/system", tags=["system"])
 async def get_system_info(token: str = Depends(verify_token)) -> Dict[str, Any]:
     try:
         system_info = SystemService.get_system_info()
-        logger.debug("Sistem bilgileri döndürüldü")
+        logger.debug("System information returned")
         return {"status": "success", "data": system_info}
     except Exception as e:
-        logger.error(f"Sistem bilgisi alma hatası: {str(e)}")
+        logger.error(f"System info retrieval error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Sistem bilgisi alma hatası: {str(e)}"
+            detail=f"System info retrieval error: {str(e)}"
         )
 
 
@@ -27,10 +27,10 @@ async def get_cpu_info(token: str = Depends(verify_token)) -> Dict[str, Any]:
         cpu_info = SystemService.get_cpu_info()
         return {"status": "success", "data": cpu_info}
     except Exception as e:
-        logger.error(f"CPU bilgisi alma hatası: {str(e)}")
+        logger.error(f"CPU info retrieval error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"CPU bilgisi alma hatası: {str(e)}"
+            detail=f"CPU info retrieval error: {str(e)}"
         )
 
 
@@ -40,10 +40,10 @@ async def get_memory_info(token: str = Depends(verify_token)) -> Dict[str, Any]:
         memory_info = SystemService.get_memory_info()
         return {"status": "success", "data": memory_info}
     except Exception as e:
-        logger.error(f"Bellek bilgisi alma hatası: {str(e)}")
+        logger.error(f"Memory info retrieval error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Bellek bilgisi alma hatası: {str(e)}"
+            detail=f"Memory info retrieval error: {str(e)}"
         )
 
 
@@ -53,10 +53,10 @@ async def get_disk_info(token: str = Depends(verify_token)) -> Dict[str, Any]:
         disk_info = SystemService.get_disk_info()
         return {"status": "success", "data": disk_info}
     except Exception as e:
-        logger.error(f"Disk bilgisi alma hatası: {str(e)}")
+        logger.error(f"Disk info retrieval error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Disk bilgisi alma hatası: {str(e)}"
+            detail=f"Disk info retrieval error: {str(e)}"
         )
 
 
@@ -66,13 +66,13 @@ async def get_network_info(token: str = Depends(verify_token)) -> Dict[str, Any]
         network_info = SystemService.get_network_info()
         return {"status": "success", "data": network_info}
     except Exception as e:
-        logger.error(f"Network bilgisi alma hatası: {str(e)}")
+        logger.error(f"Network info retrieval error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Network bilgisi alma hatası: {str(e)}"
+            detail=f"Network info retrieval error: {str(e)}"
         )
 
 
 @router.get("/health")
 async def health_check() -> Dict[str, str]:
-    return {"status": "healthy", "message": "ServerBond Agent çalışıyor"}
+    return {"status": "healthy", "message": "ServerBond Agent is running"}
