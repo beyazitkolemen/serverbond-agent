@@ -1,34 +1,16 @@
-"""
-Sistem bilgisi servisi
-"""
 import psutil
 from typing import Dict, Any
 from app.core.logger import logger
 
 
 class SystemService:
-    """Sistem bilgilerini toplayan servis sınıfı"""
-    
     @staticmethod
     def get_system_info() -> Dict[str, Any]:
-        """
-        Sistem bilgilerini getirir (CPU, RAM, Disk)
-        
-        Returns:
-            Dict: Sistem bilgileri
-        """
         try:
-            # CPU bilgileri
             cpu_percent = psutil.cpu_percent(interval=1)
             cpu_count = psutil.cpu_count()
-            
-            # Bellek bilgileri
             memory = psutil.virtual_memory()
-            
-            # Disk bilgileri
             disk = psutil.disk_usage('/')
-            
-            # Network bilgileri
             network = psutil.net_io_counters()
             
             result = {
@@ -65,19 +47,12 @@ class SystemService:
             
             logger.debug("Sistem bilgileri toplandı")
             return result
-            
         except Exception as e:
             logger.error(f"Sistem bilgisi toplama hatası: {str(e)}")
             raise
     
     @staticmethod
     def get_cpu_info() -> Dict[str, Any]:
-        """
-        Sadece CPU bilgilerini getirir
-        
-        Returns:
-            Dict: CPU bilgileri
-        """
         try:
             return {
                 "percent": psutil.cpu_percent(interval=1),
@@ -91,12 +66,6 @@ class SystemService:
     
     @staticmethod
     def get_memory_info() -> Dict[str, Any]:
-        """
-        Sadece bellek bilgilerini getirir
-        
-        Returns:
-            Dict: Bellek bilgileri
-        """
         try:
             memory = psutil.virtual_memory()
             swap = psutil.swap_memory()
@@ -126,12 +95,6 @@ class SystemService:
     
     @staticmethod
     def get_disk_info() -> Dict[str, Any]:
-        """
-        Disk bilgilerini getirir
-        
-        Returns:
-            Dict: Disk bilgileri
-        """
         try:
             partitions = []
             for partition in psutil.disk_partitions():
@@ -162,12 +125,6 @@ class SystemService:
     
     @staticmethod
     def get_network_info() -> Dict[str, Any]:
-        """
-        Network bilgilerini getirir
-        
-        Returns:
-            Dict: Network bilgileri
-        """
         try:
             io_counters = psutil.net_io_counters()
             interfaces = {}
@@ -196,4 +153,3 @@ class SystemService:
         except Exception as e:
             logger.error(f"Network bilgisi toplama hatası: {str(e)}")
             raise
-
