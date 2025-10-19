@@ -5,35 +5,52 @@ from app.core.security import verify_token
 from app.services.docker_service import DockerService
 from app.core.logger import logger
 from docker.errors import NotFound, APIError
+import os
 
-router = APIRouter(prefix="/containers", tags=["containers"])
-
-
-class ContainerCreateRequest(BaseModel):
-    image: str = Field(..., description="Docker image name")
-    name: Optional[str] = Field(default=None, description="Container name")
-    command: Optional[str] = Field(default=None, description="Command to run")
-    environment: Optional[Dict[str, str]] = Field(default=None, description="Environment variables")
-    ports: Optional[Dict[str, int]] = Field(default=None, description="Port mapping")
-    volumes: Optional[Dict[str, Dict[str, str]]] = Field(default=None, description="Volume mapping")
+router = APIRouter(tags=["containers"])
 
 
-class ContainerExecRequest(BaseModel):
+class ExecRequest(BaseModel):
+    container: str = Field(..., description="Container name or ID")
     command: str = Field(..., description="Command to execute")
-    workdir: Optional[str] = Field(default=None, description="Working directory")
-    user: Optional[str] = Field(default=None, description="User")
 
 
-@router.get("/")
-async def list_containers(
-    all: bool = Query(default=True),
-    token: str = Depends(verify_token)
-) -> List[Dict[str, Any]]:
+class RestartRequest(BaseModel):
+    container: str = Field(..., description="Container name or ID")
+
+
+class RemoveRequest(BaseModel):
+    project: str = Field(..., description="Project/container name")
+
+
+@router.get("/containers", dependencies=[Depends(verify_token)])
+async def list_containers() -> List[Dict[str, Any]]:
+    """List all containers with details"""
     try:
         docker_service = DockerService()
-        containers = docker_service.list_containers(all=all)
-        logger.info(f"{len(containers)} containers listed")
-        return containers
+        containers = docker_service.list_containers(all=True)
+        
+        result = []
+        for container in containers:
+            port_info = []
+            if container.get("ports"):
+                for port_key, port_value in container["ports"].items():
+                    if port_value:
+                        port_info.append(f"{port_key} → {port_value[0]['HostPort']}")
+                    else:
+                        port_info.append(port_key)
+            
+            result.append({
+                "name": container["name"],
+                "status": container["status"],
+                "image": container["image"],
+                "ports": port_info,
+                "uptime": container.get("created", "unknown")
+            })
+        
+        logger.info(f"{len(result)} containers listed")
+        return result
+        
     except Exception as e:
         logger.error(f"Container listing error: {str(e)}")
         raise HTTPException(
@@ -42,196 +59,64 @@ async def list_containers(
         )
 
 
-@router.get("/{container_id}")
-async def get_container(
-    container_id: str,
-    token: str = Depends(verify_token)
-) -> Dict[str, Any]:
+@router.get("/images", dependencies=[Depends(verify_token)])
+async def list_images() -> List[Dict[str, Any]]:
+    """List all Docker images"""
     try:
         docker_service = DockerService()
-        container = docker_service.get_container(container_id)
-        return container
-    except NotFound:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Container not found: {container_id}"
-        )
-    except Exception as e:
-        logger.error(f"Container fetch error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Container fetch error: {str(e)}"
-        )
-
-
-@router.post("/")
-async def create_container(
-    request: ContainerCreateRequest,
-    token: str = Depends(verify_token)
-) -> Dict[str, Any]:
-    try:
-        docker_service = DockerService()
-        container = docker_service.create_container(
-            image=request.image,
-            name=request.name,
-            command=request.command,
-            environment=request.environment,
-            ports=request.ports,
-            volumes=request.volumes
-        )
-        return container
-    except APIError as e:
-        logger.error(f"Container creation error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Container creation error: {str(e)}"
-        )
-    except Exception as e:
-        logger.error(f"Container creation error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Container creation error: {str(e)}"
-        )
-
-
-@router.post("/{container_id}/start")
-async def start_container(
-    container_id: str,
-    token: str = Depends(verify_token)
-) -> Dict[str, str]:
-    try:
-        docker_service = DockerService()
-        result = docker_service.start_container(container_id)
+        images = docker_service.client.images.list()
+        
+        result = []
+        for image in images:
+            tags = image.tags if image.tags else ["<none>"]
+            size_mb = round(image.attrs.get("Size", 0) / (1024 * 1024), 2)
+            
+            for tag in tags:
+                result.append({
+                    "tag": tag,
+                    "size_mb": size_mb
+                })
+        
+        logger.info(f"{len(result)} images listed")
         return result
-    except NotFound:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Container not found: {container_id}"
-        )
+        
     except Exception as e:
-        logger.error(f"Container start error: {str(e)}")
+        logger.error(f"Image listing error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Container start error: {str(e)}"
+            detail=f"Image listing error: {str(e)}"
         )
 
 
-@router.post("/{container_id}/stop")
-async def stop_container(
-    container_id: str,
-    timeout: int = Query(default=10),
-    token: str = Depends(verify_token)
-) -> Dict[str, str]:
-    try:
-        docker_service = DockerService()
-        result = docker_service.stop_container(container_id, timeout=timeout)
-        return result
-    except NotFound:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Container not found: {container_id}"
-        )
-    except Exception as e:
-        logger.error(f"Container stop error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Container stop error: {str(e)}"
-        )
-
-
-@router.post("/{container_id}/restart")
-async def restart_container(
-    container_id: str,
-    timeout: int = Query(default=10),
-    token: str = Depends(verify_token)
-) -> Dict[str, str]:
-    try:
-        docker_service = DockerService()
-        result = docker_service.restart_container(container_id, timeout=timeout)
-        return result
-    except NotFound:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Container not found: {container_id}"
-        )
-    except Exception as e:
-        logger.error(f"Container restart error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Container restart error: {str(e)}"
-        )
-
-
-@router.delete("/{container_id}")
-async def remove_container(
-    container_id: str,
-    force: bool = Query(default=False),
-    token: str = Depends(verify_token)
-) -> Dict[str, str]:
-    try:
-        docker_service = DockerService()
-        result = docker_service.remove_container(container_id, force=force)
-        return result
-    except NotFound:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Container not found: {container_id}"
-        )
-    except Exception as e:
-        logger.error(f"Container remove error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Container remove error: {str(e)}"
-        )
-
-
-@router.post("/{container_id}/exec")
-async def exec_command(
-    container_id: str,
-    request: ContainerExecRequest,
-    token: str = Depends(verify_token)
-) -> Dict[str, Any]:
-    try:
-        docker_service = DockerService()
-        result = docker_service.exec_command(
-            container_id=container_id,
-            command=request.command,
-            workdir=request.workdir,
-            user=request.user
-        )
-        return result
-    except NotFound:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Container not found: {container_id}"
-        )
-    except Exception as e:
-        logger.error(f"Command execution error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Command execution error: {str(e)}"
-        )
-
-
-@router.get("/{container_id}/logs")
+@router.get("/logs/{project}", dependencies=[Depends(verify_token)])
 async def get_logs(
-    container_id: str,
-    tail: int = Query(default=100),
-    timestamps: bool = Query(default=False),
-    token: str = Depends(verify_token)
-) -> Dict[str, str]:
+    project: str,
+    tail: int = Query(default=100)
+) -> str:
+    """Get build/deployment logs for a project"""
     try:
+        log_file = f"/srv/serverbond/logs/{project}.log"
+        
+        if os.path.exists(log_file):
+            with open(log_file, 'r') as f:
+                lines = f.readlines()
+                if tail:
+                    lines = lines[-tail:]
+                return ''.join(lines)
+        
+        # If file doesn't exist, try to get container logs
         docker_service = DockerService()
         logs = docker_service.get_container_logs(
-            container_id=container_id,
+            container_id=project,
             tail=tail,
-            timestamps=timestamps
+            timestamps=True
         )
-        return {"container_id": container_id, "logs": logs}
+        return logs
+        
     except NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Container not found: {container_id}"
+            detail=f"Project not found: {project}"
         )
     except Exception as e:
         logger.error(f"Log retrieval error: {str(e)}")
@@ -241,23 +126,87 @@ async def get_logs(
         )
 
 
-@router.get("/{container_id}/stats")
-async def get_stats(
-    container_id: str,
-    token: str = Depends(verify_token)
-) -> Dict[str, Any]:
+@router.post("/exec", dependencies=[Depends(verify_token)])
+async def execute_command(request: ExecRequest) -> Dict[str, Any]:
+    """Execute command inside container"""
     try:
         docker_service = DockerService()
-        stats = docker_service.get_container_stats(container_id)
-        return {"container_id": container_id, "stats": stats}
+        result = docker_service.exec_command(
+            container_id=request.container,
+            command=request.command
+        )
+        
+        return {
+            "output": result["output"],
+            "exit_code": result["exit_code"]
+        }
+        
     except NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Container not found: {container_id}"
+            detail=f"Container not found: {request.container}"
         )
     except Exception as e:
-        logger.error(f"Stats retrieval error: {str(e)}")
+        logger.error(f"Command execution error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Stats retrieval error: {str(e)}"
+            detail=f"Command execution error: {str(e)}"
+        )
+
+
+@router.post("/restart", dependencies=[Depends(verify_token)])
+async def restart_container(request: RestartRequest) -> Dict[str, str]:
+    """Restart a container"""
+    try:
+        docker_service = DockerService()
+        result = docker_service.restart_container(request.container)
+        
+        return {
+            "status": "restarted",
+            "container": request.container
+        }
+        
+    except NotFound:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Container not found: {request.container}"
+        )
+    except Exception as e:
+        logger.error(f"Container restart error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Container restart error: {str(e)}"
+        )
+
+
+@router.delete("/remove", dependencies=[Depends(verify_token)])
+async def remove_site(request: RemoveRequest) -> Dict[str, str]:
+    """Remove a site/project completely"""
+    try:
+        docker_service = DockerService()
+        project = request.project
+        
+        # Stop and remove container
+        try:
+            docker_service.remove_container(project, force=True)
+        except NotFound:
+            logger.warning(f"Container not found: {project}")
+        
+        # Remove project directory
+        project_dir = f"/srv/serverbond/sites/{project}"
+        if os.path.exists(project_dir):
+            import shutil
+            shutil.rmtree(project_dir)
+            logger.info(f"Removed project directory: {project_dir}")
+        
+        return {
+            "status": "removed",
+            "project": project
+        }
+        
+    except Exception as e:
+        logger.error(f"Remove error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Remove error: {str(e)}"
         )

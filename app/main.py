@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.core.logger import logger
 from app.config import settings
-from app.api.routes import deploy, containers, system
+from app.api.routes import agent, deploy, containers, system
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -17,45 +17,24 @@ app = FastAPI(
 
 Python agent for Docker container management and site deployment.
 
-## Features
-
-* **Deploy Management** - Create and deploy sites with Docker containers
-* **Container Operations** - Full Docker container lifecycle management
-* **System Monitoring** - Real-time server resource monitoring
-* **Command Execution** - Execute commands inside containers
-
 ## Authentication
 
-All endpoints (except `/system/health`) require authentication via `x-token` header.
+All endpoints (except `/ping`) require `x-token` header.
 
-```bash
-curl -H "x-token: your-token-here" https://api.example.com/containers/
-```
+## Endpoints
 
-## Rate Limiting
-
-Currently no rate limiting is applied.
+- **Agent Management**: `/ping`, `/info`, `/register`, `/metrics`, `/update`, `/shutdown`
+- **Deploy**: `/deploy`, `/deploy/status`
+- **Containers**: `/containers`, `/images`, `/logs/{project}`, `/exec`, `/restart`, `/remove`
     """,
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_tags=[
-        {
-            "name": "deploy",
-            "description": "Deploy and create new sites with Docker containers"
-        },
-        {
-            "name": "containers",
-            "description": "Docker container lifecycle management operations"
-        },
-        {
-            "name": "system",
-            "description": "System resource monitoring and health checks"
-        },
-        {
-            "name": "root",
-            "description": "API information and status"
-        }
+        {"name": "agent", "description": "Agent management and monitoring"},
+        {"name": "deploy", "description": "Site deployment from Git repositories"},
+        {"name": "containers", "description": "Container lifecycle management"},
+        {"name": "system", "description": "System operations"}
     ],
     contact={
         "name": "ServerBond",
@@ -92,7 +71,7 @@ async def startup_event():
         logger.info("✓ Docker connection successful")
     except Exception as e:
         logger.error(f"✗ Docker connection error: {str(e)}")
-        logger.warning("Agent will continue running but Docker operations will not be available")
+        logger.warning("Agent will continue but Docker operations may not be available")
 
 
 @app.on_event("shutdown")
@@ -113,29 +92,34 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-@app.get("/", tags=["root"], summary="API Information", description="Get API version, status and available endpoints")
+@app.get("/")
 async def root():
+    """API root - list all available endpoints"""
     return {
         "name": settings.PROJECT_NAME,
         "version": "1.0.0",
         "status": "running",
-        "message": "ServerBond Agent is running",
         "docs": "/docs",
-        "redoc": "/redoc",
-        "openapi": "/openapi.json",
         "endpoints": {
-            "deploy": "/deploy",
-            "containers": "/containers",
-            "system": "/system"
+            "ping": "GET /ping - Health check",
+            "info": "GET /info - System information",
+            "register": "POST /register - Register to cloud",
+            "containers": "GET /containers - List containers",
+            "images": "GET /images - List Docker images",
+            "deploy": "POST /deploy - Deploy new site",
+            "deploy_status": "GET /deploy/status - Deployment status",
+            "logs": "GET /logs/{project} - Get logs",
+            "restart": "POST /restart - Restart container",
+            "remove": "DELETE /remove - Remove site",
+            "update": "POST /update - Update agent",
+            "exec": "POST /exec - Execute command",
+            "metrics": "GET /metrics - Resource metrics",
+            "shutdown": "POST /shutdown - Shutdown agent"
         }
     }
 
 
-@app.get("/openapi.json", include_in_schema=False)
-async def get_openapi():
-    return app.openapi()
-
-
+app.include_router(agent.router)
 app.include_router(deploy.router)
 app.include_router(containers.router)
 app.include_router(system.router)

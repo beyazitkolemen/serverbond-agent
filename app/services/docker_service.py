@@ -68,6 +68,8 @@ class DockerService:
         environment: Optional[Dict[str, str]] = None,
         ports: Optional[Dict[str, int]] = None,
         volumes: Optional[Dict[str, Dict[str, str]]] = None,
+        labels: Optional[Dict[str, str]] = None,
+        restart_policy: Optional[Dict[str, str]] = None,
         detach: bool = True,
         **kwargs
     ) -> Dict[str, Any]:
@@ -87,6 +89,8 @@ class DockerService:
                 environment=environment or {},
                 ports=ports or {},
                 volumes=volumes or {},
+                labels=labels or {},
+                restart_policy=restart_policy or {},
                 detach=detach,
                 **kwargs
             )
