@@ -1,4 +1,4 @@
-version: "3.8"
+version: '3.8'
 
 services:
   serverbond-agent:
@@ -8,9 +8,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Docker socket'i bağla (container içinden Docker kullanabilmek için)
       - /var/run/docker.sock:/var/run/docker.sock
-      # Log dosyaları için (opsiyonel)
       - ./logs:/app/logs
     environment:
       - AGENT_TOKEN=${AGENT_TOKEN:-your-secure-token-here}

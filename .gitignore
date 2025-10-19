@@ -72,7 +72,10 @@ htmlcov/
 *.backup
 *_backup_*
 
+# OpenAPI exports
+openapi.json
+openapi.yaml
+
 # OS
 Thumbs.db
 .DS_Store
-

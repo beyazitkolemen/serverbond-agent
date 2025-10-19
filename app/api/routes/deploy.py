@@ -9,21 +9,77 @@ router = APIRouter(prefix="/deploy", tags=["deploy"])
 
 
 class DeployRequest(BaseModel):
-    site_name: str = Field(..., description="Site name")
-    image: str = Field(..., description="Docker image")
-    domain: str = Field(..., description="Domain name")
-    port: Optional[int] = Field(default=None, description="Port")
-    command: Optional[str] = Field(default=None, description="Start command")
-    environment: Optional[Dict[str, str]] = Field(default=None, description="Environment variables")
-    volumes: Optional[Dict[str, Dict[str, str]]] = Field(default=None, description="Volume mapping")
-    labels: Optional[Dict[str, str]] = Field(default=None, description="Container labels")
+    site_name: str = Field(..., description="Site name (unique identifier)", example="mysite")
+    image: str = Field(..., description="Docker image name", example="nginx:alpine")
+    domain: str = Field(..., description="Domain name", example="mysite.com")
+    port: Optional[int] = Field(default=None, description="Port mapping", example=8080)
+    command: Optional[str] = Field(default=None, description="Start command", example="npm start")
+    environment: Optional[Dict[str, str]] = Field(
+        default=None, 
+        description="Environment variables",
+        example={"APP_ENV": "production", "DEBUG": "false"}
+    )
+    volumes: Optional[Dict[str, Dict[str, str]]] = Field(
+        default=None, 
+        description="Volume mapping",
+        example={"/var/www/mysite": {"bind": "/app", "mode": "rw"}}
+    )
+    labels: Optional[Dict[str, str]] = Field(
+        default=None, 
+        description="Container labels",
+        example={"type": "web", "framework": "laravel"}
+    )
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "site_name": "mysite",
+                "image": "nginx:alpine",
+                "domain": "mysite.com",
+                "port": 8080,
+                "environment": {
+                    "APP_ENV": "production"
+                },
+                "volumes": {
+                    "/var/www/mysite": {
+                        "bind": "/usr/share/nginx/html",
+                        "mode": "ro"
+                    }
+                },
+                "labels": {
+                    "type": "static"
+                }
+            }
+        }
 
 
-@router.post("/create")
+@router.post(
+    "/create",
+    summary="Create new site",
+    description="Create and start a new site with Docker container",
+    response_description="Site creation result with container details"
+)
 async def create(
     request: DeployRequest,
     token: str = Depends(verify_token)
 ) -> Dict[str, Any]:
+    """
+    Create a new site with Docker container.
+    
+    This endpoint creates a Docker container with the specified configuration
+    and starts it automatically.
+    
+    - **site_name**: Unique identifier for the site (will be used as container name)
+    - **image**: Docker image to use (e.g., nginx:alpine, node:20-alpine)
+    - **domain**: Domain name for the site
+    - **port**: Optional port mapping (container port 80 will be mapped to this port)
+    - **command**: Optional start command to override image default
+    - **environment**: Optional environment variables
+    - **volumes**: Optional volume mounts
+    - **labels**: Optional container labels for organization
+    
+    Returns container information including ID, name, and status.
+    """
     try:
         logger.info(f"Deploy request: {request.site_name} - {request.image}")
         
@@ -67,9 +123,19 @@ async def create(
         )
 
 
-@router.post("/deploy")
+@router.post(
+    "/deploy",
+    summary="Deploy site",
+    description="Deploy a new site (alias for /create)",
+    response_description="Site deployment result"
+)
 async def deploy(
     request: DeployRequest,
     token: str = Depends(verify_token)
 ) -> Dict[str, Any]:
+    """
+    Deploy a new site.
+    
+    This is an alias for the /create endpoint for convenience.
+    """
     return await create(request, token)

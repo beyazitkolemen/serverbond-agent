@@ -12,10 +12,60 @@ from app.api.routes import deploy, containers, system
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="Python agent for Docker container management and site deployment",
+    description="""
+# ServerBond Agent API
+
+Python agent for Docker container management and site deployment.
+
+## Features
+
+* **Deploy Management** - Create and deploy sites with Docker containers
+* **Container Operations** - Full Docker container lifecycle management
+* **System Monitoring** - Real-time server resource monitoring
+* **Command Execution** - Execute commands inside containers
+
+## Authentication
+
+All endpoints (except `/system/health`) require authentication via `x-token` header.
+
+```bash
+curl -H "x-token: your-token-here" https://api.example.com/containers/
+```
+
+## Rate Limiting
+
+Currently no rate limiting is applied.
+    """,
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    openapi_tags=[
+        {
+            "name": "deploy",
+            "description": "Deploy and create new sites with Docker containers"
+        },
+        {
+            "name": "containers",
+            "description": "Docker container lifecycle management operations"
+        },
+        {
+            "name": "system",
+            "description": "System resource monitoring and health checks"
+        },
+        {
+            "name": "root",
+            "description": "API information and status"
+        }
+    ],
+    contact={
+        "name": "ServerBond",
+        "url": "https://serverbond.dev",
+        "email": "support@serverbond.dev"
+    },
+    license_info={
+        "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT"
+    }
 )
 
 app.add_middleware(
@@ -63,7 +113,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-@app.get("/", tags=["root"])
+@app.get("/", tags=["root"], summary="API Information", description="Get API version, status and available endpoints")
 async def root():
     return {
         "name": settings.PROJECT_NAME,
@@ -71,12 +121,19 @@ async def root():
         "status": "running",
         "message": "ServerBond Agent is running",
         "docs": "/docs",
+        "redoc": "/redoc",
+        "openapi": "/openapi.json",
         "endpoints": {
             "deploy": "/deploy",
             "containers": "/containers",
             "system": "/system"
         }
     }
+
+
+@app.get("/openapi.json", include_in_schema=False)
+async def get_openapi():
+    return app.openapi()
 
 
 app.include_router(deploy.router)

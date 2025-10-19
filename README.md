@@ -1,40 +1,42 @@
 # ServerBond Agent 🚀
 
-Docker container yönetimi ve site deployment için Python tabanlı agent.
+Python agent for Docker container management and site deployment.
 
-## Özellikler
+## Features
 
-✅ **Docker Container Yönetimi**
-- Container oluşturma, başlatma, durdurma, silme
-- Container içinde komut çalıştırma (docker exec)
-- Container logları ve istatistikleri
+✅ **Deploy Management**
+- Create and deploy sites with Docker containers
+- Support for any Docker image
+- Custom environment variables and volumes
+- Port mapping and container labels
 
-✅ **Site Deployment**
-- Laravel site deployment
-- Next.js/Nuxt.js deployment
-- Statik site deployment
-- Özel Docker image ile deployment
+✅ **Container Operations**
+- Full Docker container lifecycle management
+- Container creation, start, stop, restart, remove
+- Execute commands inside containers (docker exec)
+- Container logs and real-time statistics
 
-✅ **Sistem Monitoring**
-- CPU, RAM, Disk kullanımı
-- Network istatistikleri
-- Gerçek zamanlı sistem bilgisi
+✅ **System Monitoring**
+- CPU, RAM, Disk usage
+- Network statistics
+- Real-time system information
+- Health check endpoint
 
-✅ **Güvenlik**
-- Token tabanlı kimlik doğrulama
-- Güvenli API endpoint'leri
+✅ **Security**
+- Token-based authentication
+- Secure API endpoints
 
-## Kurulum
+## Installation
 
-### Otomatik Kurulum (Önerilen)
+### Automatic Installation (Recommended)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/serverbond/agent/main/install.sh | sudo bash
 ```
 
-### Manuel Kurulum
+### Manual Installation
 
-#### 1. Gereksinimleri Yükleyin
+#### 1. Install Requirements
 
 ```bash
 # Docker
@@ -45,29 +47,29 @@ sudo apt-get update
 sudo apt-get install python3.11 python3-pip
 ```
 
-#### 2. Projeyi İndirin
+#### 2. Clone Project
 
 ```bash
 git clone https://github.com/serverbond/agent.git
 cd serverbond-agent
 ```
 
-#### 3. Python Bağımlılıklarını Yükleyin
+#### 3. Install Python Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-#### 4. Konfigürasyon
+#### 4. Configuration
 
-`.env.example` dosyasını `.env` olarak kopyalayın ve düzenleyin:
+Copy `.env.example` to `.env` and edit:
 
 ```bash
 cp .env.example .env
 nano .env
 ```
 
-Gerekli değerleri ayarlayın:
+Set required values:
 ```env
 AGENT_TOKEN=your-secure-token-here
 API_HOST=0.0.0.0
@@ -75,169 +77,245 @@ API_PORT=8000
 LOG_LEVEL=INFO
 ```
 
-#### 5. Çalıştırın
+#### 5. Run
 
 ```bash
-# Doğrudan Python ile
+# Direct Python execution
 python3.11 -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
-# veya Docker Compose ile
+# Or with Docker Compose
 docker-compose up -d
 ```
 
-## Kullanım
+## API Documentation
 
-### API Dokümantasyonu
-
-Agent başlatıldıktan sonra şu adreslere erişebilirsiniz:
+After starting the agent, you can access:
 
 - **Swagger UI**: `http://your-server:8000/docs`
 - **ReDoc**: `http://your-server:8000/redoc`
+- **OpenAPI JSON**: `http://your-server:8000/openapi.json`
 - **Health Check**: `http://your-server:8000/system/health`
 
-### Örnek İstekler
-
-#### 1. Laravel Site Deploy
+### Export OpenAPI Specification
 
 ```bash
-curl -X POST "http://your-server:8000/deploy/laravel" \
+# Export to JSON and YAML files
+python3 export_openapi.py
+
+# Files will be created:
+# - openapi.json
+# - openapi.yaml
+```
+
+You can import these files to:
+- Postman
+- Insomnia
+- Swagger Editor
+- Any OpenAPI-compatible tool
+
+## Usage Examples
+
+### 1. Deploy a Site
+
+```bash
+curl -X POST "http://your-server:8000/deploy/create" \
   -H "x-token: your-token-here" \
   -H "Content-Type: application/json" \
   -d '{
     "site_name": "mysite",
+    "image": "nginx:alpine",
     "domain": "mysite.com",
-    "php_version": "8.2",
-    "port": 8080
+    "port": 8080,
+    "volumes": {
+      "/var/www/mysite": {
+        "bind": "/usr/share/nginx/html",
+        "mode": "ro"
+      }
+    }
   }'
 ```
 
-#### 2. Container Listele
+### 2. List Containers
 
 ```bash
 curl -X GET "http://your-server:8000/containers/" \
   -H "x-token: your-token-here"
 ```
 
-#### 3. Container İçinde Komut Çalıştır
+### 3. Execute Command in Container
 
 ```bash
 curl -X POST "http://your-server:8000/containers/mysite/exec" \
   -H "x-token: your-token-here" \
   -H "Content-Type: application/json" \
   -d '{
-    "command": "php artisan migrate",
-    "workdir": "/var/www/html"
+    "command": "ls -la",
+    "workdir": "/usr/share/nginx/html"
   }'
 ```
 
-#### 4. Sistem Bilgisi
+### 4. Get System Info
 
 ```bash
 curl -X GET "http://your-server:8000/system/" \
   -H "x-token: your-token-here"
 ```
 
-## Proje Yapısı
+### 5. Get Container Logs
+
+```bash
+curl -X GET "http://your-server:8000/containers/mysite/logs?tail=100" \
+  -H "x-token: your-token-here"
+```
+
+## Project Structure
 
 ```
 serverbond-agent/
 ├── app/
-│   ├── main.py                 # FastAPI ana uygulama
-│   ├── config.py              # Konfigürasyon ayarları
+│   ├── main.py                 # FastAPI application
+│   ├── config.py              # Configuration settings
 │   ├── core/
-│   │   ├── logger.py          # Loglama sistemi
-│   │   └── security.py        # Token doğrulama
+│   │   ├── logger.py          # Logging system
+│   │   └── security.py        # Token validation
 │   ├── services/
-│   │   ├── docker_service.py  # Docker işlemleri
+│   │   ├── docker_service.py  # Docker operations
 │   │   ├── site_service.py    # Site deployment
-│   │   └── system_service.py  # Sistem bilgisi
+│   │   └── system_service.py  # System information
 │   └── api/
 │       └── routes/
-│           ├── deploy.py      # Deploy endpoint'leri
-│           ├── containers.py  # Container yönetimi
-│           └── system.py      # Sistem endpoint'leri
-├── requirements.txt           # Python bağımlılıkları
-├── Dockerfile                # Docker image tanımı
-├── docker-compose.yml        # Docker Compose yapılandırması
-├── install.sh                # Otomatik kurulum scripti
-├── .env.example             # Örnek environment dosyası
-└── README.md                # Bu dosya
+│           ├── deploy.py      # Deploy endpoints
+│           ├── containers.py  # Container management
+│           └── system.py      # System endpoints
+├── requirements.txt           # Python dependencies
+├── Dockerfile                # Docker image definition
+├── docker-compose.yml        # Docker Compose config
+├── install.sh                # Auto-installation script
+├── export_openapi.py         # OpenAPI spec exporter
+└── README.md                 # This file
 ```
 
-## API Endpoint'leri
+## API Endpoints
 
-### Deploy Endpoint'leri (`/deploy`)
+### Deploy Endpoints (`/deploy`)
 
-- `POST /deploy/laravel` - Laravel site deploy
-- `POST /deploy/nodejs` - Node.js site deploy (Next.js, Nuxt.js, Express)
-- `POST /deploy/static` - Statik site deploy
-- `POST /deploy/custom` - Özel Docker image ile deploy
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/deploy/create` | Create new site |
+| POST | `/deploy/deploy` | Deploy site (alias) |
 
-### Container Endpoint'leri (`/containers`)
+### Container Endpoints (`/containers`)
 
-- `GET /containers/` - Tüm container'ları listele
-- `GET /containers/{id}` - Container detayları
-- `POST /containers/` - Yeni container oluştur
-- `POST /containers/{id}/start` - Container başlat
-- `POST /containers/{id}/stop` - Container durdur
-- `POST /containers/{id}/restart` - Container yeniden başlat
-- `DELETE /containers/{id}` - Container sil
-- `POST /containers/{id}/exec` - Container içinde komut çalıştır
-- `GET /containers/{id}/logs` - Container logları
-- `GET /containers/{id}/stats` - Container istatistikleri
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/containers/` | List all containers |
+| GET | `/containers/{id}` | Get container details |
+| POST | `/containers/` | Create new container |
+| POST | `/containers/{id}/start` | Start container |
+| POST | `/containers/{id}/stop` | Stop container |
+| POST | `/containers/{id}/restart` | Restart container |
+| DELETE | `/containers/{id}` | Remove container |
+| POST | `/containers/{id}/exec` | Execute command |
+| GET | `/containers/{id}/logs` | Get container logs |
+| GET | `/containers/{id}/stats` | Get container stats |
 
-### Sistem Endpoint'leri (`/system`)
+### System Endpoints (`/system`)
 
-- `GET /system/` - Genel sistem bilgisi
-- `GET /system/cpu` - CPU bilgisi
-- `GET /system/memory` - Bellek bilgisi
-- `GET /system/disk` - Disk bilgisi
-- `GET /system/network` - Network bilgisi
-- `GET /system/health` - Health check
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/system/` | General system info |
+| GET | `/system/cpu` | CPU information |
+| GET | `/system/memory` | Memory information |
+| GET | `/system/disk` | Disk information |
+| GET | `/system/network` | Network information |
+| GET | `/system/health` | Health check |
 
-## Güvenlik
+## Authentication
 
-- Tüm endpoint'ler (health check hariç) token ile korunmaktadır
-- Token, request header'ında `x-token` olarak gönderilmelidir
-- Production ortamında mutlaka güçlü bir token kullanın
-- HTTPS kullanımı önerilir
-
-## Geliştirme
+All endpoints (except `/system/health`) require authentication via `x-token` header:
 
 ```bash
-# Geliştirme modunda çalıştırma (auto-reload)
+curl -H "x-token: your-token-here" https://api.example.com/endpoint
+```
+
+## Security
+
+- All endpoints are protected with token authentication
+- Token must be sent in request header as `x-token`
+- Use strong tokens in production
+- HTTPS is recommended for production use
+
+## Development
+
+```bash
+# Run in development mode (auto-reload)
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# Logları görüntüleme (systemd service kullanıyorsanız)
+# View logs (if using systemd service)
 journalctl -u serverbond-agent -f
 ```
 
-## Sistemd Servisi
+## Systemd Service
 
-Agent otomatik başlatma için systemd servisi olarak çalıştırılabilir:
+The agent can run as a systemd service for automatic startup:
 
 ```bash
-# Servisi başlat
+# Start service
 sudo systemctl start serverbond-agent
 
-# Servisi durdur
+# Stop service
 sudo systemctl stop serverbond-agent
 
-# Servisi yeniden başlat
+# Restart service
 sudo systemctl restart serverbond-agent
 
-# Servis durumu
+# Check status
 sudo systemctl status serverbond-agent
 
-# Otomatik başlatmayı etkinleştir
+# Enable auto-start
 sudo systemctl enable serverbond-agent
+
+# View logs
+sudo journalctl -u serverbond-agent -f
 ```
 
-## Lisans
+## Docker Deployment
+
+```bash
+# Build image
+docker build -t serverbond-agent .
+
+# Run with Docker Compose
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop
+docker-compose down
+```
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AGENT_TOKEN` | change-me-in-production | Authentication token |
+| `API_HOST` | 0.0.0.0 | API host address |
+| `API_PORT` | 8000 | API port |
+| `DOCKER_SOCKET` | unix:///var/run/docker.sock | Docker socket path |
+| `LOG_LEVEL` | INFO | Logging level (DEBUG, INFO, WARNING, ERROR) |
+| `PROJECT_NAME` | ServerBond Agent | Project name |
+
+## Requirements
+
+- Python 3.11+
+- Docker Engine
+- Linux server (Ubuntu 20.04+, Debian 11+, CentOS 8+)
+
+## License
 
 MIT
 
-## Destek
+## Support
 
-Sorularınız veya sorunlarınız için issue açabilirsiniz.
-
+For questions or issues, please open an issue on GitHub.
