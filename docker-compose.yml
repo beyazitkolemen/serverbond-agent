@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  serverbond-agent:
+    build: .
+    container_name: serverbond-agent
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # Docker socket'i bağla (container içinden Docker kullanabilmek için)
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Log dosyaları için (opsiyonel)
+      - ./logs:/app/logs
+    environment:
+      - AGENT_TOKEN=${AGENT_TOKEN:-your-secure-token-here}
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    networks:
+      - serverbond-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/system/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+networks:
+  serverbond-network:
+    driver: bridge
+
