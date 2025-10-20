@@ -40,6 +40,14 @@ chmod -R 775 "${LARAVEL_DIR}/bootstrap/cache" 2>/dev/null || true
 log_info "Composer dependencies kuruluyor..."
 composer install --no-dev --optimize-autoloader --no-interaction 2>&1 | grep -v "^$" || true
 
+# Install NPM dependencies
+log_info "NPM dependencies kuruluyor..."
+npm install --silent 2>&1 | grep -v "^$" || true
+
+# Build assets
+log_info "Assets build ediliyor..."
+npm run build 2>&1 | grep -v "^$" || true
+
 # Setup .env
 if [[ ! -f .env ]]; then
     log_info ".env dosyası oluşturuluyor..."
@@ -100,20 +108,30 @@ EOSQL
     log_success "Veritabanı hazır: ${LARAVEL_DB_NAME}"
 fi
 
+# Clear all caches before migration
+log_info "Cache temizleniyor..."
+php artisan optimize:clear 2>&1 | grep -v "^$" || true
+
 # Run migrations
 log_info "Migrations çalıştırılıyor..."
 php artisan migrate --force --seed 2>&1 | grep -v "^$" || {
     log_warning "Migration başarısız (normal olabilir)"
 }
 
+# Storage link
+php artisan storage:link 2>&1 | grep -v "^$" || true
+
+# Filament optimizations
+log_info "Filament optimize ediliyor..."
+php artisan filament:optimize 2>&1 | grep -v "^$" || true
+php artisan icons:cache 2>&1 | grep -v "^$" || true
+
 # Cache optimization
 log_info "Cache optimize ediliyor..."
 php artisan config:cache 2>&1 | grep -v "^$" || true
 php artisan route:cache 2>&1 | grep -v "^$" || true
 php artisan view:cache 2>&1 | grep -v "^$" || true
-
-# Storage link
-php artisan storage:link 2>&1 | grep -v "^$" || true
+php artisan event:cache 2>&1 | grep -v "^$" || true
 
 # Final permissions
 chown -R www-data:www-data "${LARAVEL_DIR}"
