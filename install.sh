@@ -1106,15 +1106,34 @@ mkdir -p logs
 mkdir -p sites
 mkdir -p backups
 
+# GitHub'dan projeyi indir
+log_step "ServerBond Agent GitHub'dan indiriliyor..."
+if [ ! -d ".git" ]; then
+    # Mevcut dizin boşsa clone yap
+    if [ -z "$(ls -A)" ]; then
+        git clone https://github.com/beyazitkolemen/serverbond-agent.git "$INSTALL_DIR"
+    else
+        # Mevcut dosyalar varsa, geçici dizine clone yap ve taşı
+        TEMP_DIR=$(mktemp -d)
+        git clone https://github.com/beyazitkolemen/serverbond-agent.git "$TEMP_DIR"
+        cp -r "$TEMP_DIR"/* "$INSTALL_DIR/" 2>/dev/null || true
+        cp -r "$TEMP_DIR"/.* "$INSTALL_DIR/" 2>/dev/null || true
+        rm -rf "$TEMP_DIR"
+    fi
+    log_success "Proje indirildi"
+else
+    log_step "Git repository mevcut, güncelleniyor..."
+    git pull origin main || log_step "Git pull başarısız, devam ediliyor..."
+fi
+
 # Laravel API kurulumu
 if [ -d "api" ] && command -v composer &> /dev/null; then
-    log_step "Laravel API kuruluyor..."
+    log_step "Laravel bağımlılıkları kuruluyor..."
     
     cd api
     
     # Composer install
-    log_step "Composer bağımlılıkları yükleniyor..."
-    composer install --no-dev --optimize-autoloader --no-interaction --quiet
+    composer install --no-dev --optimize-autoloader --no-interaction --quiet 2>&1 | grep -v "^$" || true
     
     # .env oluştur
     if [ ! -f .env ]; then
@@ -1122,6 +1141,11 @@ if [ -d "api" ] && command -v composer &> /dev/null; then
         
         # APP_KEY generate
         php artisan key:generate --force
+        
+        # Cache ayarlarını development-friendly yap (Redis yerine file)
+        sed -i "s/CACHE_STORE=.*/CACHE_STORE=file/" .env
+        sed -i "s/SESSION_DRIVER=.*/SESSION_DRIVER=file/" .env
+        sed -i "s/QUEUE_CONNECTION=.*/QUEUE_CONNECTION=database/" .env
         
         # MySQL şifresini ayarla
         if [ -f "$INSTALL_DIR/config/.mysql_root_password" ]; then
@@ -1144,14 +1168,21 @@ EOF
         log_success "Laravel database hazır"
     fi
     
+    # API route'ları zaten GitHub'dan geldi, kontrol et
+    if grep -q "api: __DIR__" bootstrap/app.php; then
+        log_success "API route'ları aktif"
+    fi
+    
     # Migration çalıştır
     log_step "Laravel migration'ları çalıştırılıyor..."
     php artisan migrate --force --quiet 2>/dev/null || log_step "Laravel migration hatası (MySQL gerekli)"
     
     # Cache optimize et
     log_step "Laravel cache optimize ediliyor..."
-    php artisan config:cache --quiet
-    php artisan route:cache --quiet
+    php artisan config:clear --quiet 2>/dev/null || true
+    php artisan route:clear --quiet 2>/dev/null || true
+    php artisan config:cache --quiet 2>/dev/null || true
+    php artisan route:cache --quiet 2>/dev/null || true
     
     # Vue.js dashboard build et
     if [ -f "package.json" ]; then

@@ -3,6 +3,7 @@
 /api/node_modules/
 /api/public/hot
 /api/public/storage
+/api/public/build/
 /api/storage/*.key
 /api/.env
 /api/.env.backup
@@ -17,12 +18,10 @@
 /api/.idea
 /api/.vscode
 
-# Vite
-/api/public/build/
-
 # ServerBond
 config/.mysql_root_password
 config/.api_secret
+config/agent.conf
 sites/
 backups/
 logs/
