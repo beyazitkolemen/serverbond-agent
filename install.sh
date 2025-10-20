@@ -117,7 +117,7 @@ if ! check_systemd && [ "$ENVIRONMENT" != "native" ]; then
         exit 1
     fi
     
-    log_warning "Systemd olmadan devam ediliyor. Bazı servisler manuel başlatılmalı!"
+    log_step "Systemd olmadan devam ediliyor. Bazı servisler manuel başlatılmalı!"
     SKIP_SYSTEMD=true
 else
     SKIP_SYSTEMD=false
@@ -132,7 +132,7 @@ if [ -f /etc/os-release ]; then
     UBUNTU_VERSION=$VERSION_ID
     
     if [[ "$UBUNTU_VERSION" != "24.04" ]]; then
-        log_warning "Bu script Ubuntu 24.04 için optimize edilmiştir. Mevcut versiyon: $UBUNTU_VERSION"
+        log_step "Bu script Ubuntu 24.04 için optimize edilmiştir. Mevcut versiyon: $UBUNTU_VERSION"
         read -p "Devam etmek istiyor musunuz? (e/h): " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Ee]$ ]]; then
@@ -140,16 +140,16 @@ if [ -f /etc/os-release ]; then
         fi
     fi
 else
-    log_warning "Ubuntu versiyonu tespit edilemedi. Devam ediliyor..."
+    log_step "Ubuntu versiyonu tespit edilemedi. Devam ediliyor..."
 fi
 
 # Kurulum dizinini oluştur
-log_info "Kurulum dizini oluşturuluyor..."
+log_step "Kurulum dizini oluşturuluyor..."
 mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 
 # Sistem güncellemesi
-log_info "Sistem güncelleniyor..."
+log_step "Sistem güncelleniyor..."
 
 # Debconf'u non-interactive modda ayarla
 export DEBIAN_FRONTEND=noninteractive
@@ -160,7 +160,7 @@ apt-get update -qq 2>&1 | grep -v "debconf: unable" | grep -v "debconf: falling"
 apt-get upgrade -y -qq 2>&1 | grep -v "debconf: unable" | grep -v "debconf: falling" | grep -v "frontend" || true
 
 # Temel paketleri yükle
-log_info "Temel paketler yükleniyor..."
+log_step "Temel paketler yükleniyor..."
 
 # Debconf'u non-interactive olarak ayarla
 export DEBIAN_FRONTEND=noninteractive
@@ -186,7 +186,7 @@ apt-get install -y -qq \
     apt-utils
 
 # Scripts dizinini oluştur ve scriptleri indir
-log_info "Kurulum scriptleri indiriliyor..."
+log_step "Kurulum scriptleri indiriliyor..."
 mkdir -p scripts
 
 # Common.sh'ı önce oluştur
@@ -221,19 +221,19 @@ systemctl_safe() {
     local service=$2
     
     if [ "${SKIP_SYSTEMD:-false}" = "true" ]; then
-        log_warning "Systemd yok: $action $service atlandı"
+        log_step "Systemd yok: $action $service atlandı"
         return 0
     fi
     
     if ! command -v systemctl &> /dev/null; then
-        log_warning "systemctl bulunamadı: $action $service atlandı"
+        log_step "systemctl bulunamadı: $action $service atlandı"
         return 0
     fi
     
     if systemctl $action $service 2>&1; then
         return 0
     else
-        log_warning "Systemd komutu başarısız: $action $service"
+        log_step "Systemd komutu başarısız: $action $service"
         return 1
     fi
 }
@@ -249,7 +249,7 @@ check_service_running() {
     local service=$1
     
     if [ "${SKIP_SYSTEMD:-false}" = "true" ]; then
-        log_warning "Systemd yok: $service durumu kontrol edilemiyor"
+        log_step "Systemd yok: $service durumu kontrol edilemiyor"
         return 0
     fi
     
@@ -310,7 +310,7 @@ else
     exit 1
 fi
 
-log_info "Python 3.12 kuruluyor..."
+log_step "Python 3.12 kuruluyor..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get install -y -qq python3.12 python3.12-venv python3-pip python3.12-dev build-essential 2>&1 | grep -v "debconf:" || true
 update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 2>/dev/null || true
@@ -333,7 +333,7 @@ else
     exit 1
 fi
 
-log_info "Nginx kuruluyor..."
+log_step "Nginx kuruluyor..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get install -y -qq nginx 2>&1 | grep -v "debconf:" || true
 
@@ -342,11 +342,11 @@ systemctl_safe start nginx
 
 # Firewall kuralı (varsa)
 if command -v ufw &> /dev/null; then
-    ufw allow 'Nginx Full' 2>/dev/null || log_warning "UFW kuralı eklenemedi"
+    ufw allow 'Nginx Full' 2>/dev/null || log_step "UFW kuralı eklenemedi"
 fi
 
 # Default site konfigürasyonu - Laravel + Vue Dashboard
-log_info "Nginx default site yapılandırılıyor (Laravel + Vue)..."
+log_step "Nginx default site yapılandırılıyor (Laravel + Vue)..."
 cat > /etc/nginx/sites-available/default << 'CONFEOF'
 server {
     listen 80 default_server;
@@ -397,9 +397,9 @@ systemctl_safe reload nginx || true
 # Test
 if check_service_running nginx; then
     log_success "Nginx başarıyla kuruldu ve çalışıyor"
-    log_info "Default page: http://$(hostname -I | awk '{print $1}')/"
+    log_step "Default page: http://$(hostname -I | awk '{print $1}')/"
 elif [ "${SKIP_SYSTEMD:-false}" = "true" ]; then
-    log_warning "Nginx kuruldu (systemd olmadan çalıştırma gerekli)"
+    log_step "Nginx kuruldu (systemd olmadan çalıştırma gerekli)"
 else
     log_error "Nginx kurulumu başarısız!"
     exit 1
@@ -422,7 +422,7 @@ else
     exit 1
 fi
 
-log_info "MySQL 8.0 kuruluyor..."
+log_step "MySQL 8.0 kuruluyor..."
 
 # Root şifresi oluştur
 MYSQL_ROOT_PASSWORD=$(openssl rand -base64 32)
@@ -454,11 +454,11 @@ chmod 750 /var/log/mysql
 systemctl_safe enable mysql
 
 # MySQL'i başlatmayı dene
-log_info "MySQL başlatılıyor..."
+log_step "MySQL başlatılıyor..."
 if systemctl_safe start mysql; then
     log_success "MySQL servisi başlatıldı"
 else
-    log_warning "MySQL servisi başlatılamadı, yeniden deneniyor..."
+    log_step "MySQL servisi başlatılamadı, yeniden deneniyor..."
     
     # AppArmor sorununu çöz (varsa)
     if command -v aa-complain &> /dev/null; then
@@ -466,14 +466,14 @@ else
     fi
     
     # Bir kez daha dene
-    systemctl_safe restart mysql || log_warning "MySQL hala başlamıyor"
+    systemctl_safe restart mysql || log_step "MySQL hala başlamıyor"
 fi
 
 sleep 5
 
 # MySQL çalışıyor mu kontrol et
 if check_service_running mysql; then
-    log_info "MySQL çalışıyor, güvenlik ayarları yapılıyor..."
+    log_step "MySQL çalışıyor, güvenlik ayarları yapılıyor..."
     
     # Root şifresini kaydet (önce)
     mkdir -p /opt/serverbond-agent/config
@@ -482,7 +482,7 @@ if check_service_running mysql; then
     
     # Ubuntu 24.04'te MySQL 8.0 varsayılan auth_socket kullanır
     # Alternatif yöntem 1: mysql -u root ile (şifresiz, auth_socket)
-    log_info "Yöntem 1: Doğrudan root bağlantısı deneniyor..."
+    log_step "Yöntem 1: Doğrudan root bağlantısı deneniyor..."
     
     if mysql -u root -e "SELECT 1;" > /dev/null 2>&1; then
         # Şifresiz bağlanabiliyoruz, şifreyi ayarla
@@ -501,7 +501,7 @@ EOF
         fi
     else
         # Yöntem 2: systemd unit override ile skip-grant-tables
-        log_info "Yöntem 2: Systemd override ile deneniyor..."
+        log_step "Yöntem 2: Systemd override ile deneniyor..."
         
         systemctl_safe stop mysql
         sleep 2
@@ -546,22 +546,22 @@ EOF
     if mysql -u root -p"$MYSQL_ROOT_PASSWORD" -e "SELECT VERSION();" > /dev/null 2>&1; then
         MYSQL_VERSION=$(mysql -u root -p"$MYSQL_ROOT_PASSWORD" -e "SELECT VERSION();" -sN 2>/dev/null)
         log_success "MySQL root şifresi doğrulandı ✓"
-        log_info "MySQL Versiyonu: $MYSQL_VERSION"
+        log_step "MySQL Versiyonu: $MYSQL_VERSION"
     else
-        log_warning "MySQL kuruldu ancak şifre doğrulanamadı"
-        log_info "Şifreyi manuel olarak ayarlamak için:"
+        log_step "MySQL kuruldu ancak şifre doğrulanamadı"
+        log_step "Şifreyi manuel olarak ayarlamak için:"
         echo "  mysql -u root  # (şifresiz deneyebilirsiniz)"
         echo "  ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'your-password';"
     fi
 else
-    log_warning "MySQL kuruldu ancak başlatılamadı"
+    log_step "MySQL kuruldu ancak başlatılamadı"
     
     # Root şifresini kaydet (yine de)
     mkdir -p /opt/serverbond-agent/config
     echo "$MYSQL_ROOT_PASSWORD" > /opt/serverbond-agent/config/.mysql_root_password
     chmod 600 /opt/serverbond-agent/config/.mysql_root_password
     
-    log_info "MySQL sorun giderme adımları:"
+    log_step "MySQL sorun giderme adımları:"
     echo ""
     echo "1. Hata loglarını kontrol edin:"
     echo "   sudo journalctl -u mysql -n 50"
@@ -579,7 +579,7 @@ else
     echo "   sudo mysqld --validate-config"
     echo ""
     
-    log_warning "Kurulum MySQL olmadan devam ediyor..."
+    log_step "Kurulum MySQL olmadan devam ediyor..."
 fi
 MYSQL_SCRIPT
 
@@ -599,7 +599,7 @@ else
     exit 1
 fi
 
-log_info "Redis kuruluyor..."
+log_step "Redis kuruluyor..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get install -y -qq redis-server 2>&1 | grep -v "debconf:" || true
 
@@ -607,7 +607,7 @@ apt-get install -y -qq redis-server 2>&1 | grep -v "debconf:" || true
 if [ "${SKIP_SYSTEMD:-false}" != "true" ]; then
     sed -i 's/supervised no/supervised systemd/' /etc/redis/redis.conf
 else
-    log_warning "Systemd yok, Redis supervised mode atlandı"
+    log_step "Systemd yok, Redis supervised mode atlandı"
 fi
 sed -i 's/bind 127.0.0.1 ::1/bind 127.0.0.1/' /etc/redis/redis.conf 2>/dev/null || true
 sed -i 's/bind 127.0.0.1 -::1/bind 127.0.0.1/' /etc/redis/redis.conf 2>/dev/null || true
@@ -618,7 +618,7 @@ systemctl_safe restart redis-server
 if check_service_running redis-server; then
     log_success "Redis başarıyla kuruldu ve çalışıyor"
 elif [ "${SKIP_SYSTEMD:-false}" = "true" ]; then
-    log_warning "Redis kuruldu (systemd olmadan çalıştırma gerekli)"
+    log_step "Redis kuruldu (systemd olmadan çalıştırma gerekli)"
 else
     log_error "Redis kurulumu başarısız!"
     exit 1
@@ -653,10 +653,10 @@ fi
 PHP_VERSIONS=("8.1" "8.2" "8.3")
 DEFAULT_VERSION="8.2"
 
-log_info "PHP kurulumu başlıyor..."
+log_step "PHP kurulumu başlıyor..."
 
 # Ondrej PPA ekle
-log_info "Ondrej PPA repository ekleniyor..."
+log_step "Ondrej PPA repository ekleniyor..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get install -y -qq software-properties-common 2>&1 | grep -v "debconf:" || true
 add-apt-repository -y ppa:ondrej/php 2>&1 | grep -v "debconf:" || true
@@ -664,7 +664,7 @@ apt-get update -qq 2>&1 | grep -v "debconf:" || true
 
 # Her PHP versiyonu için kurulum
 for VERSION in "${PHP_VERSIONS[@]}"; do
-    log_info "PHP $VERSION kuruluyor..."
+    log_step "PHP $VERSION kuruluyor..."
     
     # Ana paketler
     apt-get install -y -qq \
@@ -694,7 +694,7 @@ for VERSION in "${PHP_VERSIONS[@]}"; do
     if check_service_running php${VERSION}-fpm; then
         log_success "PHP ${VERSION}-FPM çalışıyor"
     else
-        log_warning "PHP ${VERSION}-FPM başlatılamadı (systemd gerekli)"
+        log_step "PHP ${VERSION}-FPM başlatılamadı (systemd gerekli)"
     fi
     
     # PHP-FPM yapılandırması
@@ -751,7 +751,7 @@ EOF
 done
 
 # Composer kurulumu
-log_info "Composer kuruluyor..."
+log_step "Composer kuruluyor..."
 EXPECTED_CHECKSUM="$(php -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
 php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
 ACTUAL_CHECKSUM="$(php -r "echo hash_file('sha384', 'composer-setup.php');")"
@@ -767,11 +767,11 @@ rm composer-setup.php
 log_success "Composer kuruldu"
 
 # Default PHP versiyonunu ayarla
-log_info "Default PHP versiyonu ayarlanıyor: $DEFAULT_VERSION"
+log_step "Default PHP versiyonu ayarlanıyor: $DEFAULT_VERSION"
 update-alternatives --set php /usr/bin/php${DEFAULT_VERSION}
 
 # PHP versiyonlarını listele
-log_info "Kurulu PHP versiyonları:"
+log_step "Kurulu PHP versiyonları:"
 for VERSION in "${PHP_VERSIONS[@]}"; do
     PHP_VERSION=$(php${VERSION} -v | head -n 1)
     echo "  - $PHP_VERSION"
@@ -806,7 +806,7 @@ fi
 
 NODE_VERSION="20"
 
-log_info "Node.js ${NODE_VERSION}.x kuruluyor..."
+log_step "Node.js ${NODE_VERSION}.x kuruluyor..."
 
 # NodeSource repository'sini ekle
 curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash -
@@ -831,8 +831,8 @@ log_success "PM2 kuruldu: $(pm2 -v)"
 
 # PM2 startup script
 if [ "${SKIP_SYSTEMD:-false}" = "false" ]; then
-    pm2 startup systemd -u root --hp /root > /dev/null 2>&1 || log_warning "PM2 startup ayarlanamadı"
-    log_info "PM2 systemd entegrasyonu tamamlandı"
+    pm2 startup systemd -u root --hp /root > /dev/null 2>&1 || log_step "PM2 startup ayarlanamadı"
+    log_step "PM2 systemd entegrasyonu tamamlandı"
 fi
 NODEJS_SCRIPT
 
@@ -859,7 +859,7 @@ else
     exit 1
 fi
 
-log_info "Certbot kuruluyor..."
+log_step "Certbot kuruluyor..."
 
 # Certbot ve Nginx plugin'i kur
 apt-get install -y -qq certbot python3-certbot-nginx
@@ -884,10 +884,10 @@ if [ "${SKIP_SYSTEMD:-false}" = "false" ]; then
         fi
     fi
 else
-    log_warning "Systemd yok - Certbot auto-renewal manuel ayarlanmalı"
+    log_step "Systemd yok - Certbot auto-renewal manuel ayarlanmalı"
 fi
 
-log_info "SSL sertifikası almak için:"
+log_step "SSL sertifikası almak için:"
 echo "  sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com"
 CERTBOT_SCRIPT
 
@@ -915,7 +915,7 @@ else
     exit 1
 fi
 
-log_info "Supervisor kuruluyor..."
+log_step "Supervisor kuruluyor..."
 
 # Supervisor'ı kur
 apt-get install -y -qq supervisor
@@ -933,12 +933,12 @@ SUPERVISOR_VERSION=$(supervisorctl version 2>/dev/null || echo "unknown")
 if check_service_running supervisor; then
     log_success "Supervisor kuruldu ve çalışıyor: $SUPERVISOR_VERSION"
 elif [ "${SKIP_SYSTEMD:-false}" = "true" ]; then
-    log_warning "Supervisor kuruldu (systemd olmadan çalıştırma gerekli)"
+    log_step "Supervisor kuruldu (systemd olmadan çalıştırma gerekli)"
 else
-    log_warning "Supervisor kuruldu ancak başlatılamadı"
+    log_step "Supervisor kuruldu ancak başlatılamadı"
 fi
 
-log_info "Worker konfigürasyonları /etc/supervisor/conf.d/ dizinine eklenebilir"
+log_step "Worker konfigürasyonları /etc/supervisor/conf.d/ dizinine eklenebilir"
 SUPERVISOR_SCRIPT
 
     # Extras kurulum scripti
@@ -965,7 +965,7 @@ else
     exit 1
 fi
 
-log_info "Ekstra araçlar kuruluyor..."
+log_step "Ekstra araçlar kuruluyor..."
 
 # System monitoring ve debugging tools
 apt-get install -y -qq \
@@ -995,7 +995,7 @@ apt-get install -y -qq \
     wget
 
 # Fail2ban (brute-force protection)
-log_info "Fail2ban kuruluyor..."
+log_step "Fail2ban kuruluyor..."
 apt-get install -y -qq fail2ban
 
 # Fail2ban'i yapılandır
@@ -1028,7 +1028,7 @@ systemctl_safe restart fail2ban
 if check_service_running fail2ban; then
     log_success "Fail2ban çalışıyor"
 else
-    log_warning "Fail2ban başlatılamadı"
+    log_step "Fail2ban başlatılamadı"
 fi
 
 # Logrotate konfigürasyonu
@@ -1046,7 +1046,7 @@ cat > /etc/logrotate.d/serverbond-agent << 'EOF'
 EOF
 
 log_success "Ekstra araçlar kuruldu"
-log_info "Kurulu araçlar:"
+log_step "Kurulu araçlar:"
 echo "  - htop, iotop, iftop: System monitoring"
 echo "  - ncdu: Disk usage analyzer"
 echo "  - fail2ban: Brute-force protection"
@@ -1061,42 +1061,42 @@ fi
 chmod +x scripts/*.sh
 
 # Servis kurulumları
-log_info "=== Temel Servisler Kuruluyor ==="
+log_step "=== Temel Servisler Kuruluyor ==="
 echo ""
 
-log_info "1/8: Python kuruluyor..."
+log_step "1/8: Python kuruluyor..."
 bash scripts/install-python.sh
 echo ""
 
-log_info "2/8: Nginx kuruluyor..."
+log_step "2/8: Nginx kuruluyor..."
 bash scripts/install-nginx.sh
 echo ""
 
-log_info "3/8: PHP Multi-Version kuruluyor..."
+log_step "3/8: PHP Multi-Version kuruluyor..."
 bash scripts/install-php.sh
 echo ""
 
-log_info "4/8: MySQL kuruluyor..."
+log_step "4/8: MySQL kuruluyor..."
 bash scripts/install-mysql.sh
 echo ""
 
-log_info "5/8: Redis kuruluyor..."
+log_step "5/8: Redis kuruluyor..."
 bash scripts/install-redis.sh
 echo ""
 
-log_info "6/8: Node.js kuruluyor..."
+log_step "6/8: Node.js kuruluyor..."
 bash scripts/install-nodejs.sh
 echo ""
 
-log_info "7/8: Certbot (Let's Encrypt) kuruluyor..."
+log_step "7/8: Certbot (Let's Encrypt) kuruluyor..."
 bash scripts/install-certbot.sh
 echo ""
 
-log_info "8/8: Supervisor kuruluyor..."
+log_step "8/8: Supervisor kuruluyor..."
 bash scripts/install-supervisor.sh
 echo ""
 
-log_info "=== Ekstra Araçlar Kuruluyor ==="
+log_step "=== Ekstra Araçlar Kuruluyor ==="
 bash scripts/install-extras.sh
 echo ""
 
@@ -1108,12 +1108,12 @@ mkdir -p backups
 
 # Laravel API kurulumu
 if [ -d "api" ] && command -v composer &> /dev/null; then
-    log_info "Laravel API kuruluyor..."
+    log_step "Laravel API kuruluyor..."
     
     cd api
     
     # Composer install
-    log_info "Composer bağımlılıkları yükleniyor..."
+    log_step "Composer bağımlılıkları yükleniyor..."
     composer install --no-dev --optimize-autoloader --no-interaction --quiet
     
     # .env oluştur
@@ -1134,7 +1134,7 @@ if [ -d "api" ] && command -v composer &> /dev/null; then
     
     # Database oluştur
     if [ -f "$INSTALL_DIR/config/.mysql_root_password" ]; then
-        log_info "Laravel database oluşturuluyor..."
+        log_step "Laravel database oluşturuluyor..."
         MYSQL_PASS=$(cat "$INSTALL_DIR/config/.mysql_root_password")
         mysql -u root -p"$MYSQL_PASS" <<EOF 2>/dev/null || true
 CREATE DATABASE IF NOT EXISTS serverbond_agent CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -1145,17 +1145,17 @@ EOF
     fi
     
     # Migration çalıştır
-    log_info "Laravel migration'ları çalıştırılıyor..."
-    php artisan migrate --force --quiet 2>/dev/null || log_warning "Laravel migration hatası (MySQL gerekli)"
+    log_step "Laravel migration'ları çalıştırılıyor..."
+    php artisan migrate --force --quiet 2>/dev/null || log_step "Laravel migration hatası (MySQL gerekli)"
     
     # Cache optimize et
-    log_info "Laravel cache optimize ediliyor..."
+    log_step "Laravel cache optimize ediliyor..."
     php artisan config:cache --quiet
     php artisan route:cache --quiet
     
     # Vue.js dashboard build et
     if [ -f "package.json" ]; then
-        log_info "Vue.js dashboard build ediliyor..."
+        log_step "Vue.js dashboard build ediliyor..."
         npm install --silent 2>&1 | grep -v "npm warn" || true
         npm run build --silent 2>&1 | grep -v "npm warn" || true
         log_success "Vue.js dashboard build edildi"
@@ -1167,7 +1167,7 @@ EOF
 fi
 
 # API yapılandırması
-log_info "API yapılandırılıyor..."
+log_step "API yapılandırılıyor..."
 
 # API yapılandırma dosyası
 cat > config/agent.conf << EOF
@@ -1190,7 +1190,7 @@ db = 0
 EOF
 
 log_success "API yapılandırması tamamlandı"
-log_info "Laravel API Nginx üzerinden çalışıyor (Port 80)"
+log_step "Laravel API Nginx üzerinden çalışıyor (Port 80)"
 
 # Kurulum özeti
 echo
