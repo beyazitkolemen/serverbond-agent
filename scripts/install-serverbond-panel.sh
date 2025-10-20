@@ -36,17 +36,21 @@ chmod -R 755 "${LARAVEL_DIR}"
 chmod -R 775 "${LARAVEL_DIR}/storage" 2>/dev/null || true
 chmod -R 775 "${LARAVEL_DIR}/bootstrap/cache" 2>/dev/null || true
 
+# Fix git safe.directory issue
+log_info "Git safe directory ayarlanıyor..."
+sudo -u www-data git config --global --add safe.directory "${LARAVEL_DIR}" 2>&1 || true
+
 # Install Composer dependencies
 log_info "Composer dependencies kuruluyor..."
-composer install --no-dev --optimize-autoloader --no-interaction 2>&1 | grep -v "^$" || true
+sudo -u www-data composer install --no-dev --optimize-autoloader --no-interaction 2>&1 | grep -v "^$" || true
 
 # Install NPM dependencies
 log_info "NPM dependencies kuruluyor..."
-npm install --silent 2>&1 | grep -v "^$" || true
+sudo -u www-data npm install --silent 2>&1 | grep -v "^$" || true
 
 # Build assets
 log_info "Assets build ediliyor..."
-npm run build 2>&1 | grep -v "^$" || true
+sudo -u www-data npm run build 2>&1 | grep -v "^$" || true
 
 # Setup .env
 if [[ ! -f .env ]]; then
@@ -84,11 +88,15 @@ REDIS_PASSWORD=null
 REDIS_PORT=6379
 EOF
     fi
+    
+    # Set .env permissions
+    chown www-data:www-data .env
+    chmod 644 .env
 fi
 
 # Generate APP_KEY
 log_info "APP_KEY generate ediliyor..."
-php artisan key:generate --force 2>&1 | grep -v "^$" || true
+sudo -u www-data php artisan key:generate --force 2>&1 | grep -v "^$" || true
 
 # Configure database
 if [[ -f "$MYSQL_ROOT_PASSWORD_FILE" ]]; then
@@ -110,28 +118,28 @@ fi
 
 # Clear all caches before migration
 log_info "Cache temizleniyor..."
-php artisan optimize:clear 2>&1 | grep -v "^$" || true
+sudo -u www-data php artisan optimize:clear 2>&1 | grep -v "^$" || true
 
 # Run migrations
 log_info "Migrations çalıştırılıyor..."
-php artisan migrate --force --seed 2>&1 | grep -v "^$" || {
+sudo -u www-data php artisan migrate --force --seed 2>&1 | grep -v "^$" || {
     log_warning "Migration başarısız (normal olabilir)"
 }
 
 # Storage link
-php artisan storage:link 2>&1 | grep -v "^$" || true
+sudo -u www-data php artisan storage:link 2>&1 | grep -v "^$" || true
 
 # Filament optimizations
 log_info "Filament optimize ediliyor..."
-php artisan filament:optimize 2>&1 | grep -v "^$" || true
-php artisan icons:cache 2>&1 | grep -v "^$" || true
+sudo -u www-data php artisan filament:optimize 2>&1 | grep -v "^$" || true
+sudo -u www-data php artisan icons:cache 2>&1 | grep -v "^$" || true
 
 # Cache optimization
 log_info "Cache optimize ediliyor..."
-php artisan config:cache 2>&1 | grep -v "^$" || true
-php artisan route:cache 2>&1 | grep -v "^$" || true
-php artisan view:cache 2>&1 | grep -v "^$" || true
-php artisan event:cache 2>&1 | grep -v "^$" || true
+sudo -u www-data php artisan config:cache 2>&1 | grep -v "^$" || true
+sudo -u www-data php artisan route:cache 2>&1 | grep -v "^$" || true
+sudo -u www-data php artisan view:cache 2>&1 | grep -v "^$" || true
+sudo -u www-data php artisan event:cache 2>&1 | grep -v "^$" || true
 
 # Final permissions
 chown -R www-data:www-data "${LARAVEL_DIR}"
