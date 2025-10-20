@@ -8,26 +8,31 @@
 set -e
 
 # Renkler
-RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
+
+# Log fonksiyonları (ÖNCE TANIMLANMALI)
+log_step() {
+    echo -e "${GREEN}▸${NC} $1"
+}
+
+log_success() {
+    echo -e "${GREEN}✓${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}✗${NC} $1"
+}
 
 # Banner
-echo -e "${BLUE}"
-cat << "EOF"
-  ____                          ____                  _ 
- / ___|  ___ _ ____   _____ _ _| __ )  ___  _ __   __| |
- \___ \ / _ \ '__\ \ / / _ \ '__|  _ \ / _ \| '_ \ / _` |
-  ___) |  __/ |   \ V /  __/ |  | |_) | (_) | | | | (_| |
- |____/ \___|_|    \_/ \___|_|  |____/ \___/|_| |_|\__,_|
-                                                          
-     Multi-Site Management Agent v1.0
-EOF
-echo -e "${NC}"
-
-# Log fonksiyonları (en başta tanımlanmalı)
+echo ""
+echo -e "${GREEN}╔══════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║     ServerBond Agent Installer      ║${NC}"
+echo -e "${GREEN}╚══════════════════════════════════════╝${NC}"
+echo ""
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
