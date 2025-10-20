@@ -371,6 +371,20 @@ echo "mysql-server mysql-server/root_password_again password $MYSQL_ROOT_PASSWOR
 
 apt-get install -y -qq mysql-server
 
+# MySQL socket dizinini oluştur ve izinleri ayarla
+mkdir -p /var/run/mysqld
+chown mysql:mysql /var/run/mysqld
+chmod 755 /var/run/mysqld
+
+# MySQL data dizini izinlerini kontrol et
+chown -R mysql:mysql /var/lib/mysql
+chmod 750 /var/lib/mysql
+
+# MySQL log dizini
+mkdir -p /var/log/mysql
+chown mysql:mysql /var/log/mysql
+chmod 750 /var/log/mysql
+
 # MySQL'i başlat
 systemctl_safe enable mysql
 systemctl_safe start mysql
@@ -381,13 +395,20 @@ sleep 5
 if check_service_running mysql; then
     log_info "MySQL çalışıyor, güvenlik ayarları yapılıyor..."
     
-    # Önce auth_socket plugin'ini kontrol et ve değiştir
-    # Ubuntu 24.04'te MySQL 8.0 varsayılan auth_socket kullanır
+    # Ubuntu 24.04'te MySQL 8.0 auth_socket kullanır
+    # Skip-grant-tables yöntemi ile şifre ayarlayalım
     
-    # Alternatif yöntem: mysqld_safe ile skip-grant-tables
+    # MySQL'i durdur
     systemctl_safe stop mysql
+    sleep 2
+    
+    # Socket dizinini yeniden oluştur
+    mkdir -p /var/run/mysqld
+    chown mysql:mysql /var/run/mysqld
+    chmod 755 /var/run/mysqld
     
     # Geçici olarak grant table'ları atla
+    log_info "Geçici MySQL başlatılıyor (güvenlik ayarları için)..."
     mysqld_safe --skip-grant-tables --skip-networking &
     MYSQLD_PID=$!
     
