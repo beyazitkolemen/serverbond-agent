@@ -150,11 +150,22 @@ cd "$INSTALL_DIR"
 
 # Sistem güncellemesi
 log_info "Sistem güncelleniyor..."
-apt-get update -qq
-apt-get upgrade -y -qq
+
+# Debconf'u non-interactive modda ayarla
+export DEBIAN_FRONTEND=noninteractive
+export DEBCONF_NONINTERACTIVE_SEEN=true
+
+# APT uyarılarını sustur
+apt-get update -qq 2>&1 | grep -v "debconf: unable" | grep -v "debconf: falling" | grep -v "frontend" || true
+apt-get upgrade -y -qq 2>&1 | grep -v "debconf: unable" | grep -v "debconf: falling" | grep -v "frontend" || true
 
 # Temel paketleri yükle
 log_info "Temel paketler yükleniyor..."
+
+# Debconf'u non-interactive olarak ayarla
+export DEBIAN_FRONTEND=noninteractive
+export DEBCONF_NONINTERACTIVE_SEEN=true
+
 apt-get install -y -qq \
     curl \
     wget \
@@ -170,7 +181,9 @@ apt-get install -y -qq \
     jq \
     build-essential \
     pkg-config \
-    libssl-dev
+    libssl-dev \
+    dialog \
+    apt-utils
 
 # Scripts dizinini oluştur ve scriptleri indir
 log_info "Kurulum scriptleri indiriliyor..."
@@ -298,7 +311,8 @@ else
 fi
 
 log_info "Python 3.12 kuruluyor..."
-apt-get install -y -qq python3.12 python3.12-venv python3-pip python3.12-dev build-essential
+export DEBIAN_FRONTEND=noninteractive
+apt-get install -y -qq python3.12 python3.12-venv python3-pip python3.12-dev build-essential 2>&1 | grep -v "debconf:" || true
 update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 2>/dev/null || true
 log_success "Python 3.12 kuruldu"
 PYTHON_SCRIPT
@@ -320,7 +334,8 @@ else
 fi
 
 log_info "Nginx kuruluyor..."
-apt-get install -y -qq nginx
+export DEBIAN_FRONTEND=noninteractive
+apt-get install -y -qq nginx 2>&1 | grep -v "debconf:" || true
 
 systemctl_safe enable nginx
 systemctl_safe start nginx
@@ -365,11 +380,11 @@ MYSQL_ROOT_PASSWORD=$(openssl rand -base64 32)
 # MySQL kurulumu
 export DEBIAN_FRONTEND=noninteractive
 
-# Debconf ile root şifresini preseed et
-echo "mysql-server mysql-server/root_password password $MYSQL_ROOT_PASSWORD" | debconf-set-selections
-echo "mysql-server mysql-server/root_password_again password $MYSQL_ROOT_PASSWORD" | debconf-set-selections
+# Debconf ile root şifresini preseed et (eski MySQL versiyonları için)
+echo "mysql-server mysql-server/root_password password $MYSQL_ROOT_PASSWORD" | debconf-set-selections 2>/dev/null || true
+echo "mysql-server mysql-server/root_password_again password $MYSQL_ROOT_PASSWORD" | debconf-set-selections 2>/dev/null || true
 
-apt-get install -y -qq mysql-server
+apt-get install -y -qq mysql-server 2>&1 | grep -v "debconf:" | grep -v "falling back" || true
 
 # MySQL socket dizinini oluştur ve izinleri ayarla
 mkdir -p /var/run/mysqld
@@ -535,7 +550,8 @@ else
 fi
 
 log_info "Redis kuruluyor..."
-apt-get install -y -qq redis-server
+export DEBIAN_FRONTEND=noninteractive
+apt-get install -y -qq redis-server 2>&1 | grep -v "debconf:" || true
 
 # Redis yapılandırması
 if [ "${SKIP_SYSTEMD:-false}" != "true" ]; then
@@ -591,9 +607,10 @@ log_info "PHP kurulumu başlıyor..."
 
 # Ondrej PPA ekle
 log_info "Ondrej PPA repository ekleniyor..."
-apt-get install -y -qq software-properties-common
-add-apt-repository -y ppa:ondrej/php
-apt-get update -qq
+export DEBIAN_FRONTEND=noninteractive
+apt-get install -y -qq software-properties-common 2>&1 | grep -v "debconf:" || true
+add-apt-repository -y ppa:ondrej/php 2>&1 | grep -v "debconf:" || true
+apt-get update -qq 2>&1 | grep -v "debconf:" || true
 
 # Her PHP versiyonu için kurulum
 for VERSION in "${PHP_VERSIONS[@]}"; do
