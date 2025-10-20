@@ -16,17 +16,35 @@ PHP_VERSION="${PHP_VERSION:-8.4}"
 log_info "ServerBond Panel kuruluyor..."
 log_info "Repo: ${LARAVEL_PROJECT_URL}"
 
-# Clone ServerBond Panel project
+# Clone or Update ServerBond Panel project
 LARAVEL_DIR="${NGINX_DEFAULT_ROOT}"
-rm -rf "${LARAVEL_DIR}"
-mkdir -p "$(dirname ${LARAVEL_DIR})"
 
-log_info "Git clone yapılıyor..."
-git clone -q --depth 1 --branch "${LARAVEL_PROJECT_BRANCH}" \
-    "${LARAVEL_PROJECT_URL}" "${LARAVEL_DIR}" 2>&1 || {
-    log_error "Git clone başarısız!"
-    exit 1
-}
+if [[ -d "${LARAVEL_DIR}/.git" ]]; then
+    log_info "Mevcut repo güncelleniyor..."
+    cd "${LARAVEL_DIR}"
+    
+    # Fix ownership first
+    chown -R www-data:www-data "${LARAVEL_DIR}"
+    sudo -u www-data git config --global --add safe.directory "${LARAVEL_DIR}" 2>&1 || true
+    
+    # Reset any local changes before pull
+    sudo -u www-data git reset --hard HEAD 2>&1 | grep -v "^$" || true
+    sudo -u www-data git clean -fd 2>&1 | grep -v "^$" || true
+    
+    # Pull latest changes
+    sudo -u www-data git fetch origin "${LARAVEL_PROJECT_BRANCH}" 2>&1 | grep -v "^$" || true
+    sudo -u www-data git reset --hard "origin/${LARAVEL_PROJECT_BRANCH}" 2>&1 | grep -v "^$" || true
+else
+    log_info "Git clone yapılıyor..."
+    rm -rf "${LARAVEL_DIR}"
+    mkdir -p "$(dirname ${LARAVEL_DIR})"
+    
+    git clone -q --depth 1 --branch "${LARAVEL_PROJECT_BRANCH}" \
+        "${LARAVEL_PROJECT_URL}" "${LARAVEL_DIR}" 2>&1 || {
+        log_error "Git clone başarısız!"
+        exit 1
+    }
+fi
 
 cd "${LARAVEL_DIR}"
 
@@ -35,10 +53,6 @@ chown -R www-data:www-data "${LARAVEL_DIR}"
 chmod -R 755 "${LARAVEL_DIR}"
 chmod -R 775 "${LARAVEL_DIR}/storage" 2>/dev/null || true
 chmod -R 775 "${LARAVEL_DIR}/bootstrap/cache" 2>/dev/null || true
-
-# Fix git safe.directory issue
-log_info "Git safe directory ayarlanıyor..."
-sudo -u www-data git config --global --add safe.directory "${LARAVEL_DIR}" 2>&1 || true
 
 # Install Composer dependencies
 log_info "Composer dependencies kuruluyor..."
