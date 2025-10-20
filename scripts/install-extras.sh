@@ -1,57 +1,20 @@
 #!/bin/bash
 
-#############################################
-# Ekstra Araçlar Kurulum Scripti
-# Monitoring, debugging ve utility tools
-#############################################
-
 set -e
 
-# Script dizinini bul
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
 
-# Common fonksiyonları yükle
-if [ -f "$SCRIPT_DIR/common.sh" ]; then
-    source "$SCRIPT_DIR/common.sh"
-elif [ -f "/opt/serverbond-agent/scripts/common.sh" ]; then
-    source /opt/serverbond-agent/scripts/common.sh
-else
-    echo "HATA: common.sh bulunamadı!"
-    exit 1
-fi
+log_info "Monitoring & security tools kuruluyor..."
 
-log_info "Ekstra araçlar kuruluyor..."
+export DEBIAN_FRONTEND=noninteractive
 
-# System monitoring ve debugging tools
+# System monitoring & tools
 apt-get install -y -qq \
-    htop \
-    iotop \
-    iftop \
-    ncdu \
-    tree \
-    net-tools \
-    dnsutils \
-    telnet \
-    netcat-openbsd \
-    zip \
-    unzip \
-    rsync \
-    vim \
-    nano \
-    screen \
-    tmux
-
-# Networking tools
-apt-get install -y -qq \
-    traceroute \
-    mtr \
-    iputils-ping \
-    curl \
-    wget
-
-# Fail2ban (brute-force protection)
-log_info "Fail2ban kuruluyor..."
-apt-get install -y -qq fail2ban
+    htop iotop iftop ncdu tree net-tools dnsutils \
+    telnet netcat-openbsd zip unzip rsync vim screen tmux \
+    traceroute mtr fail2ban \
+    2>&1 | grep -v "^$" || true
 
 # Fail2ban'i yapılandır
 cat > /etc/fail2ban/jail.local << 'EOF'

@@ -241,236 +241,52 @@ prepare_system() {
     log_success "Sistem hazır"
 }
 
-install_python() {
-    log_step "Python ${PYTHON_VERSION}..."
+install_service() {
+    local service_name=$1
+    local script_file="${SCRIPTS_DIR}/install-${service_name}.sh"
     
-    apt-get install -y -qq \
-        python${PYTHON_VERSION} \
-        python${PYTHON_VERSION}-venv \
-        python3-pip \
-        python${PYTHON_VERSION}-dev \
-        >> "$LOG_FILE" 2>&1
-    
-    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1 >> "$LOG_FILE" 2>&1 || true
-    
-    log_success "Python ${PYTHON_VERSION}"
-}
-
-install_nginx() {
-    log_step "Nginx..."
-    
-    apt-get install -y -qq nginx >> "$LOG_FILE" 2>&1
-    
-    # Default config
-    cat > "${NGINX_SITES_AVAILABLE}/default" << EOF
-server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
-    
-    root ${NGINX_DEFAULT_ROOT};
-    index index.html index.htm index.php;
-    server_name _;
-    
-    location / {
-        try_files \$uri \$uri/ =404;
-    }
-    
-    location ~ /\.(?!well-known).* {
-        deny all;
-    }
-}
-EOF
-    
-    systemctl_safe enable nginx
-    systemctl_safe restart nginx
-    
-    command -v ufw &> /dev/null && ufw allow 'Nginx Full' >> "$LOG_FILE" 2>&1 || true
-    
-    log_success "Nginx"
-}
-
-install_php() {
-    log_step "PHP ${PHP_VERSION}..."
-    
-    add-apt-repository -y ppa:ondrej/php >> "$LOG_FILE" 2>&1
-    apt-get update -qq >> "$LOG_FILE" 2>&1
-    
-    apt-get install -y -qq \
-        php${PHP_VERSION}-{fpm,cli,common,mysql,pgsql,sqlite3,redis} \
-        php${PHP_VERSION}-{mbstring,xml,curl,zip,gd,bcmath,intl,soap,imagick,readline} \
-        >> "$LOG_FILE" 2>&1
-    
-    # FPM Pool
-    cat > "${PHP_FPM_POOL}" << EOF
-[www]
-user = www-data
-group = www-data
-listen = ${PHP_FPM_SOCKET}
-listen.owner = www-data
-listen.group = www-data
-listen.mode = 0660
-pm = dynamic
-pm.max_children = 50
-pm.start_servers = 5
-pm.min_spare_servers = 5
-pm.max_spare_servers = 35
-pm.max_requests = 500
-EOF
-    
-    # PHP.ini optimization
-    sed -i "s/memory_limit = .*/memory_limit = ${PHP_MEMORY_LIMIT}/" "${PHP_INI}"
-    sed -i "s/upload_max_filesize = .*/upload_max_filesize = ${PHP_UPLOAD_MAX}/" "${PHP_INI}"
-    sed -i "s/post_max_size = .*/post_max_size = ${PHP_UPLOAD_MAX}/" "${PHP_INI}"
-    sed -i "s/max_execution_time = .*/max_execution_time = ${PHP_MAX_EXECUTION}/" "${PHP_INI}"
-    sed -i 's/;opcache.enable=.*/opcache.enable=1/' "${PHP_INI}"
-    sed -i 's/;opcache.memory_consumption=.*/opcache.memory_consumption=256/' "${PHP_INI}"
-    sed -i 's/;date.timezone =.*/date.timezone = Europe\/Istanbul/' "${PHP_INI}"
-    
-    systemctl_safe enable "php${PHP_VERSION}-fpm"
-    systemctl_safe restart "php${PHP_VERSION}-fpm"
-    
-    # Composer
-    EXPECTED_SIG="$(curl -sS https://composer.github.io/installer.sig)"
-    curl -sS https://getcomposer.org/installer -o /tmp/composer-setup.php
-    ACTUAL_SIG="$(php -r "echo hash_file('sha384', '/tmp/composer-setup.php');")"
-    
-    if [ "$EXPECTED_SIG" = "$ACTUAL_SIG" ]; then
-        php /tmp/composer-setup.php --quiet --install-dir=/usr/local/bin --filename=composer
-        rm /tmp/composer-setup.php
+    if [[ -f "$script_file" ]]; then
+        # Export all config variables for child scripts
+        export SKIP_SYSTEMD
+        export PHP_VERSION PHP_FPM_SOCKET PHP_FPM_POOL PHP_INI
+        export PHP_MEMORY_LIMIT PHP_UPLOAD_MAX PHP_MAX_EXECUTION
+        export PYTHON_VERSION NODE_VERSION NPM_GLOBAL_PACKAGES
+        export NGINX_SITES_AVAILABLE NGINX_DEFAULT_ROOT
+        export MYSQL_ROOT_PASSWORD_FILE CONFIG_DIR
+        export REDIS_CONFIG REDIS_HOST REDIS_PORT
+        export CERTBOT_RENEWAL_CRON SUPERVISOR_CONF_DIR
+        
+        bash "$script_file" >> "$LOG_FILE" 2>&1
+    else
+        log_error "Script bulunamadı: $script_file"
+        return 1
     fi
-    
-    log_success "PHP ${PHP_VERSION}"
 }
 
-install_mysql() {
-    log_step "MySQL..."
+download_scripts() {
+    log_step "Kurulum scriptleri hazırlanıyor..."
     
-    local mysql_pass
-    mysql_pass=$(openssl rand -base64 32)
+    # Create scripts directory
+    mkdir -p "${SCRIPTS_DIR}"
     
-    apt-get install -y -qq mysql-server >> "$LOG_FILE" 2>&1
-    
-    mkdir -p /var/run/mysqld /var/log/mysql
-    chown mysql:mysql /var/run/mysqld /var/log/mysql
-    chmod 755 /var/run/mysqld
-    
-    systemctl_safe enable mysql
-    systemctl_safe start mysql
-    
-    sleep 3
-    
-    # Secure installation
-    if mysql -u root -e "SELECT 1;" &> /dev/null; then
-        mysql -u root <<EOSQL >> "$LOG_FILE" 2>&1
-ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${mysql_pass}';
-DELETE FROM mysql.user WHERE User='';
-DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
-DROP DATABASE IF EXISTS test;
-FLUSH PRIVILEGES;
-EOSQL
-    fi
-    
-    mkdir -p "${CONFIG_DIR}"
-    echo "$mysql_pass" > "${MYSQL_ROOT_PASSWORD_FILE}"
-    chmod 600 "${MYSQL_ROOT_PASSWORD_FILE}"
-    
-    log_success "MySQL"
-}
-
-install_redis() {
-    log_step "Redis..."
-    
-    apt-get install -y -qq redis-server >> "$LOG_FILE" 2>&1
-    
-    sed -i 's/supervised no/supervised systemd/' "${REDIS_CONFIG}" 2>/dev/null || true
-    sed -i "s/bind .*/bind ${REDIS_HOST}/" "${REDIS_CONFIG}"
-    sed -i "s/^port .*/port ${REDIS_PORT}/" "${REDIS_CONFIG}"
-    
-    systemctl_safe enable redis-server
-    systemctl_safe restart redis-server
-    
-    log_success "Redis"
-}
-
-install_nodejs() {
-    log_step "Node.js ${NODE_VERSION}..."
-    
-    curl -fsSL "https://deb.nodesource.com/setup_${NODE_VERSION}.x" | bash - >> "$LOG_FILE" 2>&1
-    apt-get install -y -qq nodejs >> "$LOG_FILE" 2>&1
-    
-    npm install -g ${NPM_GLOBAL_PACKAGES} --silent >> "$LOG_FILE" 2>&1
-    
-    [[ "$SKIP_SYSTEMD" == "false" ]] && pm2 startup systemd -u root --hp /root >> "$LOG_FILE" 2>&1 || true
-    
-    log_success "Node.js ${NODE_VERSION}"
-}
-
-install_certbot() {
-    log_step "Certbot..."
-    
-    apt-get install -y -qq certbot python3-certbot-nginx >> "$LOG_FILE" 2>&1
-    
-    if [[ "$SKIP_SYSTEMD" == "false" ]]; then
-        if systemctl list-unit-files | grep -q certbot.timer; then
-            systemctl_safe enable certbot.timer
-            systemctl_safe start certbot.timer
-        else
-            echo "${CERTBOT_RENEWAL_CRON}" >> /etc/crontab
-        fi
-    fi
-    
-    log_success "Certbot"
-}
-
-install_supervisor() {
-    log_step "Supervisor..."
-    
-    apt-get install -y -qq supervisor >> "$LOG_FILE" 2>&1
-    mkdir -p "${SUPERVISOR_CONF_DIR}"
-    
-    systemctl_safe enable supervisor
-    systemctl_safe start supervisor
-    
-    log_success "Supervisor"
-}
-
-install_extras() {
-    log_step "Monitoring tools..."
-    
-    apt-get install -y -qq htop iotop iftop ncdu tree net-tools \
-        dnsutils telnet netcat-openbsd zip unzip rsync vim \
-        screen tmux traceroute mtr fail2ban >> "$LOG_FILE" 2>&1
-    
-    # Fail2ban config
-cat > /etc/fail2ban/jail.local << 'EOF'
-[DEFAULT]
-bantime = 3600
-findtime = 600
-maxretry = 5
-
-[sshd]
-enabled = true
-port = ssh
-logpath = %(sshd_log)s
-EOF
-
-systemctl_safe enable fail2ban
-systemctl_safe restart fail2ban
-
-    log_success "Tools"
-}
-
-configure_project() {
-    log_step "Proje..."
-    
+    # Download from GitHub if not exists
     if [[ ! -d ".git" ]]; then
         git clone -q --branch "${GITHUB_BRANCH}" "https://github.com/${GITHUB_REPO}.git" /tmp/sb-tmp 2>&1 | tee -a "$LOG_FILE" > /dev/null
-        rsync -a /tmp/sb-tmp/ "$INSTALL_DIR/" >> "$LOG_FILE" 2>&1
+        rsync -a /tmp/sb-tmp/scripts/ "${SCRIPTS_DIR}/" >> "$LOG_FILE" 2>&1
         rm -rf /tmp/sb-tmp
     fi
     
+    # Make scripts executable
+    chmod +x "${SCRIPTS_DIR}"/*.sh 2>/dev/null || true
+    
+    log_success "Scriptler hazır"
+}
+
+configure_project() {
+    log_step "Agent yapılandırılıyor..."
+    
     # Create directory structure
-    mkdir -p "${SITES_DIR}" "${CONFIG_DIR}" "${LOGS_DIR}" "${BACKUPS_DIR}" "${SCRIPTS_DIR}"
+    mkdir -p "${SITES_DIR}" "${CONFIG_DIR}" "${LOGS_DIR}" "${BACKUPS_DIR}"
     
     # Agent configuration
     cat > "${AGENT_CONFIG_FILE}" << EOF
@@ -504,7 +320,7 @@ EOF
     
     chmod 644 "${AGENT_CONFIG_FILE}"
     
-    log_success "Proje"
+    log_success "Agent yapılandırıldı"
 }
 
 ################################################################################
@@ -526,17 +342,24 @@ echo ""
     
     INSTALLATION_STARTED=true
     
-    # Install
+    # Prepare system
     prepare_system
-    install_python
-    install_nginx
-    install_php
-    install_mysql
-    install_redis
-    install_nodejs
-    install_certbot
-    install_supervisor
-    install_extras
+    download_scripts
+    
+    # Install services using external scripts
+    log_step "Servisler kuruluyor..."
+    install_service "python"
+    install_service "nginx"
+    install_service "php"
+    install_service "mysql"
+    install_service "redis"
+    install_service "nodejs"
+    install_service "certbot"
+    install_service "supervisor"
+    install_service "extras"
+    log_success "Tüm servisler kuruldu"
+    
+    # Configure agent
     configure_project
     
     # Summary

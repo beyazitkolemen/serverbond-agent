@@ -1,151 +1,72 @@
 #!/bin/bash
 
-#############################################
-# PHP Multi-Version Kurulum Scripti
-# PHP 8.1, 8.2, 8.3 versiyonlarını kurar
-#############################################
-
 set -e
 
-# Script dizinini bul
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
 
-# Common fonksiyonları yükle
-if [ -f "$SCRIPT_DIR/common.sh" ]; then
-    source "$SCRIPT_DIR/common.sh"
-elif [ -f "/opt/serverbond-agent/scripts/common.sh" ]; then
-    source /opt/serverbond-agent/scripts/common.sh
-else
-    echo "HATA: common.sh bulunamadı!"
-    exit 1
-fi
+# Load config from parent if available
+PHP_VERSION="${PHP_VERSION:-8.4}"
+PHP_FPM_SOCKET="${PHP_FPM_SOCKET:-/var/run/php/php${PHP_VERSION}-fpm.sock}"
+PHP_FPM_POOL="${PHP_FPM_POOL:-/etc/php/${PHP_VERSION}/fpm/pool.d/www.conf}"
+PHP_INI="${PHP_INI:-/etc/php/${PHP_VERSION}/fpm/php.ini}"
+PHP_MEMORY_LIMIT="${PHP_MEMORY_LIMIT:-256M}"
+PHP_UPLOAD_MAX="${PHP_UPLOAD_MAX:-100M}"
+PHP_MAX_EXECUTION="${PHP_MAX_EXECUTION:-300}"
 
-# PHP versiyonları
-PHP_VERSIONS=("8.1" "8.2" "8.3")
-DEFAULT_VERSION="8.2"
+log_info "PHP ${PHP_VERSION} kuruluyor..."
 
-log_info "PHP kurulumu başlıyor..."
+export DEBIAN_FRONTEND=noninteractive
 
-# Ondrej PPA ekle
-log_info "Ondrej PPA repository ekleniyor..."
-apt-get install -y -qq software-properties-common
-add-apt-repository -y ppa:ondrej/php
-apt-get update -qq
+# Add PPA
+add-apt-repository -y ppa:ondrej/php 2>&1 | grep -v "^$" || true
+apt-get update -qq 2>&1 | grep -v "^$" || true
 
-# Her PHP versiyonu için kurulum
-for VERSION in "${PHP_VERSIONS[@]}"; do
-    log_info "PHP $VERSION kuruluyor..."
-    
-    # Ana paketler
-    apt-get install -y -qq \
-        php${VERSION}-fpm \
-        php${VERSION}-cli \
-        php${VERSION}-common \
-        php${VERSION}-mysql \
-        php${VERSION}-pgsql \
-        php${VERSION}-sqlite3 \
-        php${VERSION}-redis \
-        php${VERSION}-mbstring \
-        php${VERSION}-xml \
-        php${VERSION}-curl \
-        php${VERSION}-zip \
-        php${VERSION}-gd \
-        php${VERSION}-bcmath \
-        php${VERSION}-intl \
-        php${VERSION}-soap \
-        php${VERSION}-imagick \
-        php${VERSION}-readline
-    
-    # PHP-FPM servisini başlat ve etkinleştir
-    systemctl_safe enable php${VERSION}-fpm
-    systemctl_safe start php${VERSION}-fpm
-    
-    # Servis durumunu kontrol et
-    if check_service_running php${VERSION}-fpm; then
-        log_success "PHP ${VERSION}-FPM çalışıyor"
-    else
-        log_warning "PHP ${VERSION}-FPM başlatılamadı (systemd gerekli)"
-    fi
-    
-    # PHP-FPM yapılandırması
-    PHP_FPM_CONF="/etc/php/${VERSION}/fpm/php-fpm.conf"
-    PHP_FPM_POOL="/etc/php/${VERSION}/fpm/pool.d/www.conf"
-    
-    # PHP-FPM pool ayarları (optimize edilmiş)
-    cat > "$PHP_FPM_POOL" << EOF
+# Install PHP packages
+apt-get install -y -qq \
+    php${PHP_VERSION}-{fpm,cli,common,mysql,pgsql,sqlite3,redis} \
+    php${PHP_VERSION}-{mbstring,xml,curl,zip,gd,bcmath,intl,soap,imagick,readline} \
+    2>&1 | grep -v "^$" || true
+
+# FPM Pool configuration
+cat > "${PHP_FPM_POOL}" << EOF
 [www]
 user = www-data
 group = www-data
-listen = /var/run/php/php${VERSION}-fpm.sock
+listen = ${PHP_FPM_SOCKET}
 listen.owner = www-data
 listen.group = www-data
 listen.mode = 0660
-
 pm = dynamic
 pm.max_children = 50
 pm.start_servers = 5
 pm.min_spare_servers = 5
 pm.max_spare_servers = 35
 pm.max_requests = 500
-
-php_admin_value[error_log] = /var/log/php${VERSION}-fpm.log
-php_admin_flag[log_errors] = on
 EOF
-    
-    # PHP.ini optimizasyonları
-    PHP_INI="/etc/php/${VERSION}/fpm/php.ini"
-    
-    # Memory limit
-    sed -i "s/memory_limit = .*/memory_limit = 256M/" "$PHP_INI"
-    
-    # Upload limits
-    sed -i "s/upload_max_filesize = .*/upload_max_filesize = 100M/" "$PHP_INI"
-    sed -i "s/post_max_size = .*/post_max_size = 100M/" "$PHP_INI"
-    
-    # Execution time
-    sed -i "s/max_execution_time = .*/max_execution_time = 300/" "$PHP_INI"
-    
-    # OPcache
-    sed -i "s/;opcache.enable=.*/opcache.enable=1/" "$PHP_INI"
-    sed -i "s/;opcache.memory_consumption=.*/opcache.memory_consumption=256/" "$PHP_INI"
-    sed -i "s/;opcache.interned_strings_buffer=.*/opcache.interned_strings_buffer=16/" "$PHP_INI"
-    sed -i "s/;opcache.max_accelerated_files=.*/opcache.max_accelerated_files=10000/" "$PHP_INI"
-    
-    # Timezone
-    sed -i "s/;date.timezone =.*/date.timezone = Europe\/Istanbul/" "$PHP_INI"
-    
-    # Servisi yeniden başlat
-    systemctl_safe restart php${VERSION}-fpm
-    
-    log_success "PHP $VERSION kuruldu ve yapılandırıldı"
-done
 
-# Composer kurulumu
+# PHP.ini optimizations
+sed -i "s/memory_limit = .*/memory_limit = ${PHP_MEMORY_LIMIT}/" "${PHP_INI}"
+sed -i "s/upload_max_filesize = .*/upload_max_filesize = ${PHP_UPLOAD_MAX}/" "${PHP_INI}"
+sed -i "s/post_max_size = .*/post_max_size = ${PHP_UPLOAD_MAX}/" "${PHP_INI}"
+sed -i "s/max_execution_time = .*/max_execution_time = ${PHP_MAX_EXECUTION}/" "${PHP_INI}"
+sed -i 's/;opcache.enable=.*/opcache.enable=1/' "${PHP_INI}"
+sed -i 's/;opcache.memory_consumption=.*/opcache.memory_consumption=256/' "${PHP_INI}"
+sed -i 's/;date.timezone =.*/date.timezone = Europe\/Istanbul/' "${PHP_INI}"
+
+systemctl_safe enable "php${PHP_VERSION}-fpm"
+systemctl_safe restart "php${PHP_VERSION}-fpm"
+
+# Install Composer
 log_info "Composer kuruluyor..."
-EXPECTED_CHECKSUM="$(php -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
-php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
-ACTUAL_CHECKSUM="$(php -r "echo hash_file('sha384', 'composer-setup.php');")"
+EXPECTED_SIG="$(curl -sS https://composer.github.io/installer.sig 2>/dev/null)"
+curl -sS https://getcomposer.org/installer -o /tmp/composer-setup.php 2>/dev/null
+ACTUAL_SIG="$(php -r "echo hash_file('sha384', '/tmp/composer-setup.php');" 2>/dev/null)"
 
-if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
-    log_error "Composer kurulum dosyası bozuk!"
-    rm composer-setup.php
-    exit 1
+if [ "$EXPECTED_SIG" = "$ACTUAL_SIG" ]; then
+    php /tmp/composer-setup.php --quiet --install-dir=/usr/local/bin --filename=composer
+    rm /tmp/composer-setup.php
+    log_success "Composer kuruldu"
 fi
 
-php composer-setup.php --quiet --install-dir=/usr/local/bin --filename=composer
-rm composer-setup.php
-log_success "Composer kuruldu"
-
-# Default PHP versiyonunu ayarla
-log_info "Default PHP versiyonu ayarlanıyor: $DEFAULT_VERSION"
-update-alternatives --set php /usr/bin/php${DEFAULT_VERSION}
-
-# PHP versiyonlarını listele
-log_info "Kurulu PHP versiyonları:"
-for VERSION in "${PHP_VERSIONS[@]}"; do
-    PHP_VERSION=$(php${VERSION} -v | head -n 1)
-    echo "  - $PHP_VERSION"
-done
-
-log_success "PHP kurulumu tamamlandı!"
-
+log_success "PHP ${PHP_VERSION} kuruldu"
