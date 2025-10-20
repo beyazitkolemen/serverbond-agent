@@ -23,6 +23,11 @@ readonly SCRIPT_VERSION="1.0.0"
 readonly GITHUB_REPO="beyazitkolemen/serverbond-agent"
 readonly GITHUB_BRANCH="main"
 
+# Laravel Default Project (optional)
+readonly LARAVEL_PROJECT_URL="${LARAVEL_PROJECT_URL:-}"
+readonly LARAVEL_PROJECT_BRANCH="${LARAVEL_PROJECT_BRANCH:-main}"
+readonly LARAVEL_DB_NAME="${LARAVEL_DB_NAME:-laravel}"
+
 # System Requirements
 readonly MIN_DISK_SPACE=5000000  # 5GB in KB
 readonly MIN_MEMORY=1024         # 1GB in MB
@@ -280,6 +285,7 @@ install_service() {
         export REDIS_CONFIG REDIS_HOST REDIS_PORT
         export CERTBOT_RENEWAL_CRON SUPERVISOR_CONF_DIR
         export TEMPLATES_DIR
+        export LARAVEL_PROJECT_URL LARAVEL_PROJECT_BRANCH LARAVEL_DB_NAME
         
         bash "$script_file" >> "$LOG_FILE" 2>&1
     else
@@ -491,25 +497,59 @@ echo ""
     echo ""
     log_success "Tüm kurulum fazları tamamlandı"
     
+    # Install Laravel project if URL provided
+    if [[ -n "$LARAVEL_PROJECT_URL" ]]; then
+        log_step "Laravel projesi kuruluyor..."
+        if install_service "laravel"; then
+            log_success "Laravel ✓"
+        else
+            log_error "Laravel ✗"
+        fi
+    fi
+    
     # Configure agent
     configure_project
     
     # Summary
-echo ""
+    echo ""
     log_success "Kurulum tamamlandı!"
     echo ""
     
     local server_ip
     server_ip=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "localhost")
     
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "  Server    : http://${server_ip}/"
-    echo "  Sites     : ${SITES_DIR}"
-    echo "  Config    : ${AGENT_CONFIG_FILE}"
-    echo "  MySQL Pass: ${MYSQL_ROOT_PASSWORD_FILE}"
-    echo "  Log       : ${LOG_FILE}"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  📍 URL       : http://${server_ip}/"
+    
+    if [[ -n "$LARAVEL_PROJECT_URL" ]]; then
+        echo "  🚀 Laravel   : Kuruldu"
+        echo "  📂 Proje     : ${NGINX_DEFAULT_ROOT}"
+        echo "  🗄️  Database  : ${LARAVEL_DB_NAME}"
+    fi
+    
+    echo "  📁 Sites     : ${SITES_DIR}"
+    echo "  ⚙️  Config    : ${AGENT_CONFIG_FILE}"
+    echo "  🔐 MySQL     : ${MYSQL_ROOT_PASSWORD_FILE}"
+    echo "  📋 Log       : ${LOG_FILE}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    
+    if [[ -n "$LARAVEL_PROJECT_URL" ]]; then
+        echo "Laravel Proje Bilgileri:"
+        echo "  • Repo: ${LARAVEL_PROJECT_URL}"
+        echo "  • Branch: ${LARAVEL_PROJECT_BRANCH}"
+        echo "  • Database: ${LARAVEL_DB_NAME}"
+        echo ""
+    fi
+    
+    echo "Kurulu Servisler:"
+    [[ "$SKIP_SYSTEMD" == "false" ]] && {
+        echo "  • Nginx    : $(systemctl is-active nginx 2>/dev/null || echo '?')"
+        echo "  • PHP-FPM  : $(systemctl is-active php${PHP_VERSION}-fpm 2>/dev/null || echo '?')"
+        echo "  • MySQL    : $(systemctl is-active mysql 2>/dev/null || echo '?')"
+        echo "  • Redis    : $(systemctl is-active redis-server 2>/dev/null || echo '?')"
+    } || echo "  • Systemd olmadan kuruldu"
+    echo ""
 }
 
 ################################################################################

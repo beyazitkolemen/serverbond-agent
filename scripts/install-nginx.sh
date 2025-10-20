@@ -19,9 +19,12 @@ apt-get install -y -qq nginx 2>&1 | grep -v "^$" || true
 # Create web root
 mkdir -p "${NGINX_DEFAULT_ROOT}"
 
-# Copy default config from template if exists
-if [[ -f "${TEMPLATES_DIR}/nginx-default.conf" ]]; then
-    log_info "Nginx config template'den yükleniyor..."
+# Copy config based on Laravel project
+if [[ -n "${LARAVEL_PROJECT_URL:-}" ]] && [[ -f "${TEMPLATES_DIR}/nginx-laravel.conf" ]]; then
+    log_info "Nginx Laravel config template'den yükleniyor..."
+    cp "${TEMPLATES_DIR}/nginx-laravel.conf" "${NGINX_SITES_AVAILABLE}/default"
+elif [[ -f "${TEMPLATES_DIR}/nginx-default.conf" ]]; then
+    log_info "Nginx default config template'den yükleniyor..."
     cp "${TEMPLATES_DIR}/nginx-default.conf" "${NGINX_SITES_AVAILABLE}/default"
 else
     # Fallback: Create basic config
@@ -46,13 +49,14 @@ server {
 EOF
 fi
 
-# Copy default HTML page if exists
-if [[ -f "${TEMPLATES_DIR}/nginx-default.html" ]]; then
-    log_info "Default HTML sayfası kopyalanıyor..."
-    cp "${TEMPLATES_DIR}/nginx-default.html" "${NGINX_DEFAULT_ROOT}/index.html"
-else
-    # Fallback: Create simple HTML
-    cat > "${NGINX_DEFAULT_ROOT}/index.html" << 'EOF'
+# Copy default HTML page if no Laravel project
+if [[ -z "${LARAVEL_PROJECT_URL:-}" ]]; then
+    if [[ -f "${TEMPLATES_DIR}/nginx-default.html" ]]; then
+        log_info "Default HTML sayfası kopyalanıyor..."
+        cp "${TEMPLATES_DIR}/nginx-default.html" "${NGINX_DEFAULT_ROOT}/index.html"
+    else
+        # Fallback: Create simple HTML
+        cat > "${NGINX_DEFAULT_ROOT}/index.html" << 'EOF'
 <!DOCTYPE html>
 <html>
 <head>
@@ -68,6 +72,9 @@ else
 </body>
 </html>
 EOF
+    fi
+else
+    log_info "Laravel projesi kurulacak, default HTML atlanıyor..."
 fi
 
 # Set permissions

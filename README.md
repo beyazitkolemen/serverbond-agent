@@ -38,7 +38,12 @@ Ubuntu 24.04 için gelişmiş server management ve multi-site yönetim platformu
 ### Tek Komut ile Kurulum
 
 ```bash
+# Sadece altyapı kurulumu
 curl -fsSL https://raw.githubusercontent.com/beyazitkolemen/serverbond-agent/main/install.sh | sudo bash
+
+# Laravel projesi ile birlikte
+curl -fsSL https://raw.githubusercontent.com/beyazitkolemen/serverbond-agent/main/install.sh | \
+    sudo LARAVEL_PROJECT_URL="https://github.com/your-username/your-laravel-project.git" bash
 ```
 
 Kurulum tamamlandığında aşağıdaki servisler otomatik olarak çalışır durumda olacaktır:
@@ -57,6 +62,37 @@ Kurulum tamamlandığında aşağıdaki servisler otomatik olarak çalışır du
 - **Shallow Git Clone**: Sadece gerekli dosyalar indirilir
 - **Hızlı Network Check**: 1 saniye timeout ile anında kontrol
 - **Phase-based Installation**: Bağımlılık yönetimi ile optimal sıralama
+
+### 🎯 Laravel Otomatik Kurulum
+
+Laravel projenizi otomatik kurabilirsiniz:
+
+```bash
+# Temel kullanım
+sudo LARAVEL_PROJECT_URL="https://github.com/user/project.git" bash install.sh
+
+# Özel branch
+sudo LARAVEL_PROJECT_URL="https://github.com/user/project.git" \
+     LARAVEL_PROJECT_BRANCH="develop" \
+     bash install.sh
+
+# Özel database adı
+sudo LARAVEL_PROJECT_URL="https://github.com/user/project.git" \
+     LARAVEL_DB_NAME="my_app" \
+     bash install.sh
+```
+
+**Otomatik yapılanlar:**
+- ✅ Git clone
+- ✅ Composer install
+- ✅ .env oluşturma ve konfigürasyon
+- ✅ APP_KEY generate
+- ✅ MySQL database oluşturma
+- ✅ Migration + Seeding
+- ✅ Cache optimization
+- ✅ Storage link
+- ✅ Nginx Laravel config
+- ✅ Permissions ayarlama
 
 ## 📚 Kullanım
 
