@@ -162,10 +162,12 @@ apt-get install -y -qq \
     gnupg \
     lsb-release \
     unzip \
-    supervisor \
     ufw \
     openssl \
-    jq
+    jq \
+    build-essential \
+    pkg-config \
+    libssl-dev
 
 # Scripts dizinini oluştur ve scriptleri indir
 log_info "Kurulum scriptleri indiriliyor..."
@@ -346,20 +348,44 @@ fi
 chmod +x scripts/*.sh
 
 # Servis kurulumları
-log_info "Python kuruluyor..."
+log_info "=== Temel Servisler Kuruluyor ==="
+echo ""
+
+log_info "1/8: Python kuruluyor..."
 bash scripts/install-python.sh
+echo ""
 
-log_info "Nginx kuruluyor..."
+log_info "2/8: Nginx kuruluyor..."
 bash scripts/install-nginx.sh
+echo ""
 
-log_info "PHP Multi-Version kuruluyor..."
+log_info "3/8: PHP Multi-Version kuruluyor..."
 bash scripts/install-php.sh
+echo ""
 
-log_info "MySQL kuruluyor..."
+log_info "4/8: MySQL kuruluyor..."
 bash scripts/install-mysql.sh
+echo ""
 
-log_info "Redis kuruluyor..."
+log_info "5/8: Redis kuruluyor..."
 bash scripts/install-redis.sh
+echo ""
+
+log_info "6/8: Node.js kuruluyor..."
+bash scripts/install-nodejs.sh
+echo ""
+
+log_info "7/8: Certbot (Let's Encrypt) kuruluyor..."
+bash scripts/install-certbot.sh
+echo ""
+
+log_info "8/8: Supervisor kuruluyor..."
+bash scripts/install-supervisor.sh
+echo ""
+
+log_info "=== Ekstra Araçlar Kuruluyor ==="
+bash scripts/install-extras.sh
+echo ""
 
 # Python sanal ortamı oluştur
 log_info "Python sanal ortamı oluşturuluyor..."
@@ -482,10 +508,28 @@ echo -e "${BLUE}Yapılandırma:${NC}"
 echo "  - Agent Config: $INSTALL_DIR/config/agent.conf"
 echo "  - MySQL Root Password: $INSTALL_DIR/config/.mysql_root_password"
 echo
+echo -e "${BLUE}Kurulu Yazılımlar:${NC}"
+echo "  - Python: $(python3 --version 2>/dev/null | awk '{print $2}')"
+echo "  - PHP: $(php -v 2>/dev/null | head -n 1 | awk '{print $2}')"
+echo "  - Node.js: $(node -v 2>/dev/null || echo 'N/A')"
+echo "  - NPM: $(npm -v 2>/dev/null || echo 'N/A')"
+echo "  - Composer: $(composer --version 2>/dev/null | awk '{print $3}' || echo 'N/A')"
+echo "  - Nginx: $(nginx -v 2>&1 | awk '{print $3}' | cut -d '/' -f2)"
+echo "  - MySQL: $(mysql --version 2>/dev/null | awk '{print $5}' | cut -d ',' -f1)"
+echo "  - Redis: $(redis-server --version 2>/dev/null | awk '{print $3}' | cut -d '=' -f2)"
+echo
 echo -e "${YELLOW}Önemli Notlar:${NC}"
 echo "  - API'ye erişim için: curl http://localhost:8000/health"
-echo "  - Servisi yeniden başlatmak için: systemctl restart serverbond-agent"
-echo "  - Logları görüntülemek için: journalctl -u serverbond-agent -f"
+if [ "$SKIP_SYSTEMD" = "false" ]; then
+    echo "  - Servisi yeniden başlatmak için: systemctl restart serverbond-agent"
+    echo "  - Logları görüntülemek için: journalctl -u serverbond-agent -f"
+else
+    echo "  - API'yi başlatmak için:"
+    echo "    cd $INSTALL_DIR && source venv/bin/activate"
+    echo "    uvicorn api.main:app --host 0.0.0.0 --port 8000"
+fi
+echo "  - SSL için: sudo certbot --nginx -d yourdomain.com"
+echo "  - Monitoring: htop, iotop, fail2ban-client status"
 echo
 log_success "ServerBond Agent hazır!"
 
