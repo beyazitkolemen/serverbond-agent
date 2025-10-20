@@ -33,21 +33,6 @@ echo -e "${GREEN}╔════════════════════
 echo -e "${GREEN}║     ServerBond Agent Installer      ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════╝${NC}"
 echo ""
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
 
 # Değişkenler
 INSTALL_DIR="/opt/serverbond-agent"
