@@ -288,18 +288,31 @@ install_service() {
 install_service_async() {
     local service_name=$1
     install_service "$service_name" &
-    echo $!
+    local pid=$!
+    echo "${service_name}:${pid}"
 }
 
 wait_services() {
-    local pids=("$@")
+    local services=("$@")
     local failed=0
+    local failed_services=()
     
-    for pid in "${pids[@]}"; do
-        if ! wait "$pid"; then
+    for service_info in "${services[@]}"; do
+        IFS=':' read -r service_name pid <<< "$service_info"
+        
+        if wait "$pid"; then
+            log_success "${service_name} ✓"
+        else
+            log_error "${service_name} ✗"
+            failed_services+=("$service_name")
             ((failed++))
         fi
     done
+    
+    # Show failed services if any
+    if [[ $failed -gt 0 ]]; then
+        log_warn "Başarısız servisler: ${failed_services[*]}"
+    fi
     
     return $failed
 }
@@ -405,40 +418,55 @@ echo ""
     # Install services using parallel execution for speed
     log_step "Servisler kuruluyor (paralel)..."
     
-    local pids=()
+    local service_pids=()
     
     # Phase 1: Independent services (parallel)
-    log_step "Bağımsız servisler (paralel)..."
-    pids+=($(install_service_async "python"))
-    pids+=($(install_service_async "mysql"))
-    pids+=($(install_service_async "redis"))
-    pids+=($(install_service_async "nodejs"))
-    pids+=($(install_service_async "certbot"))
-    pids+=($(install_service_async "supervisor"))
+    log_step "Phase 1: Bağımsız servisler..."
+    service_pids+=($(install_service_async "python"))
+    service_pids+=($(install_service_async "mysql"))
+    service_pids+=($(install_service_async "redis"))
+    service_pids+=($(install_service_async "nodejs"))
+    service_pids+=($(install_service_async "certbot"))
+    service_pids+=($(install_service_async "supervisor"))
     
     # Wait for phase 1
-    if ! wait_services "${pids[@]}"; then
-        log_warn "Bazı servisler başarısız oldu, devam ediliyor..."
+    echo ""
+    if ! wait_services "${service_pids[@]}"; then
+        log_warn "Bazı servisler başarısız, kurulum devam ediyor..."
     fi
-    log_success "Bağımsız servisler kuruldu"
+    echo ""
+    log_success "Phase 1 tamamlandı"
     
     # Phase 2: Nginx (needed before PHP)
-    log_step "Nginx..."
-    install_service "nginx"
+    log_step "Phase 2: Nginx..."
+    if install_service "nginx"; then
+        log_success "nginx ✓"
+    else
+        log_error "nginx ✗"
+    fi
     
     # Phase 3: PHP (depends on Nginx)
-    log_step "PHP ${PHP_VERSION}..."
-    install_service "php"
+    log_step "Phase 3: PHP ${PHP_VERSION}..."
+    if install_service "php"; then
+        log_success "php ✓"
+    else
+        log_error "php ✗"
+    fi
     
     # Phase 4: Extras (can be parallel but low priority)
-    log_step "Monitoring tools..."
+    log_step "Phase 4: Monitoring tools..."
     install_service "extras" &
     local extras_pid=$!
     
     # Wait for extras in background
-    wait $extras_pid || log_warn "Extras kurulumu başarısız"
+    if wait $extras_pid; then
+        log_success "extras ✓"
+    else
+        log_error "extras ✗"
+    fi
     
-    log_success "Tüm servisler kuruldu"
+    echo ""
+    log_success "Tüm kurulum fazları tamamlandı"
     
     # Configure agent
     configure_project
