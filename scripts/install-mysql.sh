@@ -32,6 +32,21 @@ echo "mysql-server mysql-server/root_password_again password $MYSQL_ROOT_PASSWOR
 
 apt-get install -y -qq mysql-server
 
+# MySQL socket dizinini oluştur ve izinleri ayarla
+log_info "MySQL dizinleri yapılandırılıyor..."
+mkdir -p /var/run/mysqld
+chown mysql:mysql /var/run/mysqld
+chmod 755 /var/run/mysqld
+
+# MySQL data dizini izinlerini kontrol et
+chown -R mysql:mysql /var/lib/mysql
+chmod 750 /var/lib/mysql
+
+# MySQL log dizini
+mkdir -p /var/log/mysql
+chown mysql:mysql /var/log/mysql
+chmod 750 /var/log/mysql
+
 # MySQL'i başlat
 systemctl_safe enable mysql
 systemctl_safe start mysql
@@ -47,6 +62,12 @@ if check_service_running mysql; then
     
     # MySQL'i durdur
     systemctl_safe stop mysql
+    sleep 2
+    
+    # Socket dizinini yeniden oluştur
+    mkdir -p /var/run/mysqld
+    chown mysql:mysql /var/run/mysqld
+    chmod 755 /var/run/mysqld
     
     # Geçici olarak grant table'ları atla
     log_info "Geçici MySQL başlatılıyor (güvenlik ayarları için)..."
