@@ -364,6 +364,11 @@ MYSQL_ROOT_PASSWORD=$(openssl rand -base64 32)
 
 # MySQL kurulumu
 export DEBIAN_FRONTEND=noninteractive
+
+# Debconf ile root şifresini preseed et
+echo "mysql-server mysql-server/root_password password $MYSQL_ROOT_PASSWORD" | debconf-set-selections
+echo "mysql-server mysql-server/root_password_again password $MYSQL_ROOT_PASSWORD" | debconf-set-selections
+
 apt-get install -y -qq mysql-server
 
 # MySQL'i başlat
@@ -371,13 +376,26 @@ systemctl_safe enable mysql
 systemctl_safe start mysql
 
 # MySQL çalışıyor mu kontrol et
-sleep 3
+sleep 5
 
 if check_service_running mysql; then
     log_info "MySQL çalışıyor, güvenlik ayarları yapılıyor..."
     
-    # MySQL'i güvenli hale getir (sudo ile bağlan)
-    sudo mysql <<EOF
+    # Önce auth_socket plugin'ini kontrol et ve değiştir
+    # Ubuntu 24.04'te MySQL 8.0 varsayılan auth_socket kullanır
+    
+    # Alternatif yöntem: mysqld_safe ile skip-grant-tables
+    systemctl_safe stop mysql
+    
+    # Geçici olarak grant table'ları atla
+    mysqld_safe --skip-grant-tables --skip-networking &
+    MYSQLD_PID=$!
+    
+    sleep 5
+    
+    # Şimdi şifre ayarla
+    mysql -u root <<EOF
+FLUSH PRIVILEGES;
 ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD';
 DELETE FROM mysql.user WHERE User='';
 DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
@@ -386,14 +404,29 @@ DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
 FLUSH PRIVILEGES;
 EOF
 
+    # mysqld_safe'i durdur
+    kill $MYSQLD_PID 2>/dev/null || true
+    sleep 2
+    
+    # Normal MySQL'i başlat
+    systemctl_safe start mysql
+    sleep 3
+    
     # Root şifresini kaydet
     mkdir -p /opt/serverbond-agent/config
     echo "$MYSQL_ROOT_PASSWORD" > /opt/serverbond-agent/config/.mysql_root_password
     chmod 600 /opt/serverbond-agent/config/.mysql_root_password
     
-    log_success "MySQL kuruldu. Root şifresi: /opt/serverbond-agent/config/.mysql_root_password"
+    # Şifre ile test et
+    if mysql -u root -p"$MYSQL_ROOT_PASSWORD" -e "SELECT VERSION();" > /dev/null 2>&1; then
+        log_success "MySQL kuruldu ve şifre ayarlandı"
+        log_success "Root şifresi: /opt/serverbond-agent/config/.mysql_root_password"
+    else
+        log_warning "MySQL kuruldu ancak şifre doğrulanamadı"
+    fi
 else
     log_warning "MySQL kuruldu ancak başlatılamadı (systemd gerekli)"
+    mkdir -p /opt/serverbond-agent/config
     echo "$MYSQL_ROOT_PASSWORD" > /opt/serverbond-agent/config/.mysql_root_password
     chmod 600 /opt/serverbond-agent/config/.mysql_root_password
 fi
