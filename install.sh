@@ -1246,22 +1246,62 @@ log_info "=== Ekstra Araçlar Kuruluyor ==="
 bash scripts/install-extras.sh
 echo ""
 
-# Python sanal ortamı oluştur
-log_info "Python sanal ortamı oluşturuluyor..."
-python3 -m venv "$INSTALL_DIR/venv"
-source "$INSTALL_DIR/venv/bin/activate"
-
-# Config dizini oluştur
+# Config dizinleri oluştur
 mkdir -p config
 mkdir -p logs
 mkdir -p sites
 mkdir -p backups
 
-# Python bağımlılıklarını yükle
-log_info "Python bağımlılıkları yükleniyor..."
-if [ -f "api/requirements.txt" ]; then
-    pip install --quiet --upgrade pip
-    pip install --quiet -r api/requirements.txt
+# Laravel API kurulumu
+if [ -d "api" ] && command -v composer &> /dev/null; then
+    log_info "Laravel API kuruluyor..."
+    
+    cd api
+    
+    # Composer install
+    log_info "Composer bağımlılıkları yükleniyor..."
+    composer install --no-dev --optimize-autoloader --no-interaction --quiet
+    
+    # .env oluştur
+    if [ ! -f .env ]; then
+        cp .env.example .env
+        
+        # APP_KEY generate
+        php artisan key:generate --force
+        
+        # MySQL şifresini ayarla
+        if [ -f "$INSTALL_DIR/config/.mysql_root_password" ]; then
+            MYSQL_PASS=$(cat "$INSTALL_DIR/config/.mysql_root_password")
+            sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=${MYSQL_PASS}/" .env
+        fi
+        
+        log_success ".env dosyası oluşturuldu"
+    fi
+    
+    # Database oluştur
+    if [ -f "$INSTALL_DIR/config/.mysql_root_password" ]; then
+        log_info "Laravel database oluşturuluyor..."
+        MYSQL_PASS=$(cat "$INSTALL_DIR/config/.mysql_root_password")
+        mysql -u root -p"$MYSQL_PASS" <<EOF 2>/dev/null || true
+CREATE DATABASE IF NOT EXISTS serverbond_agent CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+GRANT ALL PRIVILEGES ON serverbond_agent.* TO 'root'@'localhost';
+FLUSH PRIVILEGES;
+EOF
+        log_success "Laravel database hazır"
+    fi
+    
+    # Migration çalıştır
+    log_info "Laravel migration'ları çalıştırılıyor..."
+    php artisan migrate --force --quiet 2>/dev/null || log_warning "Laravel migration hatası (MySQL gerekli)"
+    
+    # Cache optimize et
+    log_info "Laravel cache optimize ediliyor..."
+    php artisan config:cache --quiet
+    php artisan route:cache --quiet
+    
+    cd "$INSTALL_DIR"
+    
+    log_success "Laravel API kuruldu"
 fi
 
 # API yapılandırması
@@ -1295,20 +1335,19 @@ port = 6379
 db = 0
 EOF
 
-# Systemd servisi oluştur
+# Systemd servisi oluştur (Laravel API)
 if [ "$SKIP_SYSTEMD" = "false" ]; then
     log_info "Systemd servisi oluşturuluyor..."
     cat > /etc/systemd/system/serverbond-agent.service << EOF
 [Unit]
-Description=ServerBond Agent API
+Description=ServerBond Agent API (Laravel)
 After=network.target mysql.service redis-server.service nginx.service
 
 [Service]
 Type=simple
-User=root
-WorkingDirectory=$INSTALL_DIR
-Environment="PATH=$INSTALL_DIR/venv/bin"
-ExecStart=$INSTALL_DIR/venv/bin/python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
+User=www-data
+WorkingDirectory=$INSTALL_DIR/api
+ExecStart=/usr/bin/php $INSTALL_DIR/api/artisan serve --host=0.0.0.0 --port=8000
 Restart=always
 RestartSec=10
 
@@ -1320,18 +1359,17 @@ EOF
     systemctl daemon-reload
     systemctl enable serverbond-agent
 
-    if [ -f "api/main.py" ]; then
+    if [ -f "api/artisan" ]; then
         systemctl start serverbond-agent
-        log_success "ServerBond Agent servisi başlatıldı"
+        log_success "ServerBond Agent (Laravel) servisi başlatıldı"
     else
         log_warning "API dosyaları bulunamadı. Servisi manuel olarak başlatmanız gerekecek."
     fi
 else
     log_warning "Systemd yok - servis dosyası oluşturulmadı"
-    log_info "API'yi manuel olarak başlatabilirsiniz:"
-    echo "  cd $INSTALL_DIR"
-    echo "  source venv/bin/activate"
-    echo "  uvicorn api.main:app --host 0.0.0.0 --port 8000"
+    log_info "Laravel API'yi manuel olarak başlatabilirsiniz:"
+    echo "  cd $INSTALL_DIR/api"
+    echo "  php artisan serve --host=0.0.0.0 --port=8000"
 fi
 
 # Firewall yapılandırması
@@ -1368,11 +1406,10 @@ echo "  - Agent Config: $INSTALL_DIR/config/agent.conf"
 echo "  - MySQL Root Password: $INSTALL_DIR/config/.mysql_root_password"
 echo
 echo -e "${BLUE}Kurulu Yazılımlar:${NC}"
-echo "  - Python: $(python3 --version 2>/dev/null | awk '{print $2}')"
 echo "  - PHP: $(php -v 2>/dev/null | head -n 1 | awk '{print $2}')"
-echo "  - Node.js: $(node -v 2>/dev/null || echo 'N/A')"
-echo "  - NPM: $(npm -v 2>/dev/null || echo 'N/A')"
+echo "  - Laravel: $(cd api && php artisan --version 2>/dev/null | awk '{print $3}' || echo 'N/A')"
 echo "  - Composer: $(composer --version 2>/dev/null | awk '{print $3}' || echo 'N/A')"
+echo "  - Node.js: $(node -v 2>/dev/null || echo 'N/A')"
 echo "  - Nginx: $(nginx -v 2>&1 | awk '{print $3}' | cut -d '/' -f2)"
 echo "  - MySQL: $(mysql --version 2>/dev/null | awk '{print $5}' | cut -d ',' -f1)"
 echo "  - Redis: $(redis-server --version 2>/dev/null | awk '{print $3}' | cut -d '=' -f2)"
