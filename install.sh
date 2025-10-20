@@ -29,9 +29,9 @@ log_error() {
 
 # Banner
 echo ""
-echo -e "${GREEN}╔══════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║     ServerBond Agent Installer      ║${NC}"
-echo -e "${GREEN}╚══════════════════════════════════════╝${NC}"
+echo "======================================"
+echo "    ServerBond Agent Installer v1.0"
+echo "======================================"
 echo ""
 
 # Değişkenler
