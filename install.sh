@@ -340,27 +340,44 @@ wait_services() {
 }
 
 download_scripts() {
-    log_step "Kurulum scriptleri hazırlanıyor..."
+    log_step "En son scriptler GitHub'dan çekiliyor..."
     
     # Create directories
     mkdir -p "${SCRIPTS_DIR}" "${TEMPLATES_DIR}"
     
-    # Download from GitHub if not exists
-    if [[ ! -d ".git" ]]; then
-        # Use shallow clone
-        git clone -q --depth 1 --single-branch --branch "${GITHUB_BRANCH}" \
-            "https://github.com/${GITHUB_REPO}.git" /tmp/sb-tmp >> "$LOG_FILE" 2>&1
-        
-        # Copy scripts and templates
-        rsync -a --exclude='.git' /tmp/sb-tmp/scripts/ "${SCRIPTS_DIR}/" >> "$LOG_FILE" 2>&1
-        rsync -a --exclude='.git' /tmp/sb-tmp/templates/ "${TEMPLATES_DIR}/" >> "$LOG_FILE" 2>&1
-        rm -rf /tmp/sb-tmp
+    # Always download latest scripts from GitHub
+    log "Repository: ${GITHUB_REPO} (${GITHUB_BRANCH})"
+    
+    # Clean old temp directory if exists
+    rm -rf /tmp/sb-tmp 2>/dev/null || true
+    
+    # Clone latest version
+    git clone -q --depth 1 --single-branch --branch "${GITHUB_BRANCH}" \
+        "https://github.com/${GITHUB_REPO}.git" /tmp/sb-tmp >> "$LOG_FILE" 2>&1
+    
+    # Backup existing scripts if they exist
+    if [[ -d "${SCRIPTS_DIR}" ]] && [[ "$(ls -A ${SCRIPTS_DIR} 2>/dev/null)" ]]; then
+        mv "${SCRIPTS_DIR}" "${SCRIPTS_DIR}.backup.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
     fi
+    
+    if [[ -d "${TEMPLATES_DIR}" ]] && [[ "$(ls -A ${TEMPLATES_DIR} 2>/dev/null)" ]]; then
+        mv "${TEMPLATES_DIR}" "${TEMPLATES_DIR}.backup.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
+    fi
+    
+    # Create fresh directories
+    mkdir -p "${SCRIPTS_DIR}" "${TEMPLATES_DIR}"
+    
+    # Copy latest scripts and templates
+    rsync -a --exclude='.git' /tmp/sb-tmp/scripts/ "${SCRIPTS_DIR}/" >> "$LOG_FILE" 2>&1
+    rsync -a --exclude='.git' /tmp/sb-tmp/templates/ "${TEMPLATES_DIR}/" >> "$LOG_FILE" 2>&1
+    
+    # Clean up
+    rm -rf /tmp/sb-tmp
     
     # Make scripts executable
     chmod +x "${SCRIPTS_DIR}"/*.sh 2>/dev/null || true
     
-    log_success "Scriptler ve template'ler hazır"
+    log_success "En son scriptler ve template'ler hazır"
 }
 
 configure_project() {
