@@ -130,6 +130,9 @@ log_warn() {
 cleanup() {
     local exit_code=$?
     
+    # Clean up temporary status files
+    rm -f /tmp/sb-*.status 2>/dev/null
+    
     if [[ $exit_code -ne 0 ]] && [[ "$INSTALLATION_STARTED" == "true" ]]; then
         echo ""
         log_error "Kurulum başarısız (Exit code: $exit_code)"
