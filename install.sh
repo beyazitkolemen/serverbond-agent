@@ -376,8 +376,8 @@ sleep 3
 if check_service_running mysql; then
     log_info "MySQL çalışıyor, güvenlik ayarları yapılıyor..."
     
-    # MySQL'i güvenli hale getir
-    mysql --user=root <<EOF
+    # MySQL'i güvenli hale getir (sudo ile bağlan)
+    sudo mysql <<EOF
 ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD';
 DELETE FROM mysql.user WHERE User='';
 DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
