@@ -23,10 +23,10 @@ readonly SCRIPT_VERSION="1.0.0"
 readonly GITHUB_REPO="beyazitkolemen/serverbond-agent"
 readonly GITHUB_BRANCH="main"
 
-# Laravel Default Project (optional)
-readonly LARAVEL_PROJECT_URL="${LARAVEL_PROJECT_URL:-}"
-readonly LARAVEL_PROJECT_BRANCH="${LARAVEL_PROJECT_BRANCH:-main}"
-readonly LARAVEL_DB_NAME="${LARAVEL_DB_NAME:-laravel}"
+# Laravel Default Project (ServerBond Panel)
+readonly LARAVEL_PROJECT_URL="https://github.com/beyazitkolemen/serverbond-panel"
+readonly LARAVEL_PROJECT_BRANCH="main"
+readonly LARAVEL_DB_NAME="serverbond"
 
 # System Requirements
 readonly MIN_DISK_SPACE=5000000  # 5GB in KB
