@@ -6,7 +6,7 @@
 
 ```bash
 # Tek komutla kurulum
-curl -fsSL https://raw.githubusercontent.com/yourusername/serverbond-agent/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/beyazitkolemen/serverbond-agent/main/install.sh | sudo bash
 ```
 
 Kurulum ~5-10 dakika sürer ve şunları yükler:

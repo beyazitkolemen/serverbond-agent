@@ -1,6 +1,13 @@
 # ServerBond Agent
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Ubuntu 24.04](https://img.shields.io/badge/ubuntu-24.04-orange.svg)](https://ubuntu.com/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115.0-009688.svg?style=flat&logo=FastAPI&logoColor=white)](https://fastapi.tiangolo.com)
+
 Ubuntu 24.04 için gelişmiş multi-site yönetim ve deploy platformu. Tek komutla sunucunuza nginx, MySQL, Redis altyapısını kurup uzaktan Python API ile site yönetimi yapabilirsiniz.
+
+🌟 **Laravel Forge** benzeri, tamamen **açık kaynak** ve **ücretsiz** server management çözümü!
 
 ## 🚀 Özellikler
 
@@ -30,20 +37,20 @@ Ubuntu 24.04 için gelişmiş multi-site yönetim ve deploy platformu. Tek komut
 ### Tek Komut ile Kurulum
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yourusername/serverbond-agent/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/beyazitkolemen/serverbond-agent/main/install.sh | sudo bash
 ```
 
 veya wget ile:
 
 ```bash
-wget -qO- https://raw.githubusercontent.com/yourusername/serverbond-agent/main/install.sh | sudo bash
+wget -qO- https://raw.githubusercontent.com/beyazitkolemen/serverbond-agent/main/install.sh | sudo bash
 ```
 
 ### Manuel Kurulum
 
 ```bash
 # Repository'yi klonla
-git clone https://github.com/yourusername/serverbond-agent.git
+git clone https://github.com/beyazitkolemen/serverbond-agent.git
 cd serverbond-agent
 
 # Kurulum scriptini çalıştır
@@ -316,9 +323,22 @@ MIT License - Detaylar için [LICENSE](LICENSE) dosyasına bakın.
 
 ## 📧 İletişim
 
-Sorularınız için issue açabilir veya pull request gönderebilirsiniz.
+- **GitHub Issues**: [github.com/beyazitkolemen/serverbond-agent/issues](https://github.com/beyazitkolemen/serverbond-agent/issues)
+- **Discussions**: [github.com/beyazitkolemen/serverbond-agent/discussions](https://github.com/beyazitkolemen/serverbond-agent/discussions)
+- **Pull Requests**: Katkılarınızı bekliyoruz!
+
+## ⭐ Projeyi Beğendiniz Mi?
+
+Bu projeyi faydalı bulduysanız GitHub'da ⭐ vermeyi unutmayın!
+
+[⭐ Star on GitHub](https://github.com/beyazitkolemen/serverbond-agent)
 
 ---
 
 **ServerBond Agent** ile sunucu yönetimi artık çok daha kolay! 🚀
+
+[![GitHub stars](https://img.shields.io/github/stars/beyazitkolemen/serverbond-agent?style=social)](https://github.com/beyazitkolemen/serverbond-agent/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/beyazitkolemen/serverbond-agent?style=social)](https://github.com/beyazitkolemen/serverbond-agent/network/members)
+[![GitHub issues](https://img.shields.io/github/issues/beyazitkolemen/serverbond-agent)](https://github.com/beyazitkolemen/serverbond-agent/issues)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 

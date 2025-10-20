@@ -29,7 +29,8 @@ echo -e "${NC}"
 
 # Değişkenler
 INSTALL_DIR="/opt/serverbond-agent"
-REPO_URL="https://raw.githubusercontent.com/beyazitkolemen/serverbond-agent/main"
+GITHUB_REPO="beyazitkolemen/serverbond-agent"
+REPO_URL="https://raw.githubusercontent.com/${GITHUB_REPO}/main"
 PYTHON_VERSION="3.12"
 
 # Root kontrolü
