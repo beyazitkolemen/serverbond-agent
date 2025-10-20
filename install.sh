@@ -40,14 +40,20 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # Ubuntu versiyon kontrolü
-UBUNTU_VERSION=$(lsb_release -rs)
-if [[ "$UBUNTU_VERSION" != "24.04" ]]; then
-    echo -e "${YELLOW}Uyarı: Bu script Ubuntu 24.04 için optimize edilmiştir. Mevcut versiyon: $UBUNTU_VERSION${NC}"
-    read -p "Devam etmek istiyor musunuz? (e/h): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Ee]$ ]]; then
-        exit 1
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    UBUNTU_VERSION=$VERSION_ID
+    
+    if [[ "$UBUNTU_VERSION" != "24.04" ]]; then
+        echo -e "${YELLOW}Uyarı: Bu script Ubuntu 24.04 için optimize edilmiştir. Mevcut versiyon: $UBUNTU_VERSION${NC}"
+        read -p "Devam etmek istiyor musunuz? (e/h): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Ee]$ ]]; then
+            exit 1
+        fi
     fi
+else
+    log_warning "Ubuntu versiyonu tespit edilemedi. Devam ediliyor..."
 fi
 
 log_info() {
@@ -89,7 +95,9 @@ apt-get install -y -qq \
     lsb-release \
     unzip \
     supervisor \
-    ufw
+    ufw \
+    openssl \
+    jq
 
 # Scripts dizinini oluştur ve scriptleri indir
 log_info "Kurulum scriptleri indiriliyor..."
