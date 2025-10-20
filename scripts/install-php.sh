@@ -6,7 +6,19 @@
 #############################################
 
 set -e
-source /opt/serverbond-agent/scripts/common.sh
+
+# Script dizinini bul
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Common fonksiyonları yükle
+if [ -f "$SCRIPT_DIR/common.sh" ]; then
+    source "$SCRIPT_DIR/common.sh"
+elif [ -f "/opt/serverbond-agent/scripts/common.sh" ]; then
+    source /opt/serverbond-agent/scripts/common.sh
+else
+    echo "HATA: common.sh bulunamadı!"
+    exit 1
+fi
 
 # PHP versiyonları
 PHP_VERSIONS=("8.1" "8.2" "8.3")
@@ -45,8 +57,15 @@ for VERSION in "${PHP_VERSIONS[@]}"; do
         php${VERSION}-readline
     
     # PHP-FPM servisini başlat ve etkinleştir
-    systemctl enable php${VERSION}-fpm
-    systemctl start php${VERSION}-fpm
+    systemctl_safe enable php${VERSION}-fpm
+    systemctl_safe start php${VERSION}-fpm
+    
+    # Servis durumunu kontrol et
+    if check_service_running php${VERSION}-fpm; then
+        log_success "PHP ${VERSION}-FPM çalışıyor"
+    else
+        log_warning "PHP ${VERSION}-FPM başlatılamadı (systemd gerekli)"
+    fi
     
     # PHP-FPM yapılandırması
     PHP_FPM_CONF="/etc/php/${VERSION}/fpm/php-fpm.conf"
@@ -96,7 +115,7 @@ EOF
     sed -i "s/;date.timezone =.*/date.timezone = Europe\/Istanbul/" "$PHP_INI"
     
     # Servisi yeniden başlat
-    systemctl restart php${VERSION}-fpm
+    systemctl_safe restart php${VERSION}-fpm
     
     log_success "PHP $VERSION kuruldu ve yapılandırıldı"
 done
