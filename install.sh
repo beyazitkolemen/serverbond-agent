@@ -240,28 +240,21 @@ prepare_system() {
     export DEBIAN_FRONTEND=noninteractive
     export DEBCONF_NONINTERACTIVE_SEEN=true
     
-    # APT optimization for faster downloads
-    if [[ -f "${TEMPLATES_DIR}/apt-parallel.conf" ]]; then
-        cp "${TEMPLATES_DIR}/apt-parallel.conf" /etc/apt/apt.conf.d/99parallel
-    else
-        echo 'Acquire::Queue-Mode "host";' > /etc/apt/apt.conf.d/99parallel
-        echo 'Acquire::http::Pipeline-Depth "5";' >> /etc/apt/apt.conf.d/99parallel
-        echo 'APT::Get::Assume-Yes "true";' >> /etc/apt/apt.conf.d/99parallel
-    fi
+    # APT configuration
+    echo 'APT::Get::Assume-Yes "true";' > /etc/apt/apt.conf.d/99serverbond
     
-    # Update package lists (parallel)
-    apt-get update -qq >> "$LOG_FILE" 2>&1 &
-    local update_pid=$!
+    # Update package lists
+    log_step "Paket listeleri güncelleniyor..."
+    apt-get update -qq >> "$LOG_FILE" 2>&1
     
-    # Install base packages after update completes
-    wait $update_pid
-    
-    # Skip upgrade in fresh installations for speed
+    # Upgrade packages if needed
     if [[ "${SKIP_UPGRADE:-false}" != "true" ]]; then
-        apt-get upgrade -y -qq >> "$LOG_FILE" 2>&1 &
+        log_step "Paketler güncelleniyor..."
+        apt-get upgrade -y -qq >> "$LOG_FILE" 2>&1
     fi
     
     # Install essential packages
+    log_step "Temel paketler kuruluyor..."
     apt-get install -y -qq \
         curl wget git software-properties-common apt-transport-https \
         ca-certificates gnupg lsb-release unzip ufw openssl jq rsync \
@@ -354,19 +347,9 @@ download_scripts() {
     
     # Download from GitHub if not exists
     if [[ ! -d ".git" ]]; then
-        # Use shallow clone for speed (depth 1)
+        # Use shallow clone
         git clone -q --depth 1 --single-branch --branch "${GITHUB_BRANCH}" \
-            "https://github.com/${GITHUB_REPO}.git" /tmp/sb-tmp 2>&1 | tee -a "$LOG_FILE" > /dev/null &
-        
-        local clone_pid=$!
-        
-        # Show progress
-        while kill -0 $clone_pid 2>/dev/null; do
-            echo -n "."
-            sleep 1
-        done
-        wait $clone_pid
-        echo ""
+            "https://github.com/${GITHUB_REPO}.git" /tmp/sb-tmp >> "$LOG_FILE" 2>&1
         
         # Copy scripts and templates
         rsync -a --exclude='.git' /tmp/sb-tmp/scripts/ "${SCRIPTS_DIR}/" >> "$LOG_FILE" 2>&1
@@ -444,58 +427,84 @@ echo ""
     prepare_system
     download_scripts
     
-    # Install services using parallel execution for speed
-    log_step "Servisler kuruluyor (paralel)..."
-    
-    local service_pids=()
-    
-    # Phase 1: Independent services (parallel)
-    log_step "Phase 1: Bağımsız servisler..."
-    service_pids+=($(install_service_async "python"))
-    service_pids+=($(install_service_async "mysql"))
-    service_pids+=($(install_service_async "redis"))
-    service_pids+=($(install_service_async "nodejs"))
-    service_pids+=($(install_service_async "certbot"))
-    service_pids+=($(install_service_async "supervisor"))
-    
-    # Wait for phase 1
+    # Install services sequentially
+    log_step "Servisler kuruluyor (sıralı)..."
     echo ""
-    if ! wait_services "${service_pids[@]}"; then
-        log_warn "Bazı servisler başarısız, kurulum devam ediyor..."
+    
+    # MySQL
+    log_step "MySQL kuruluyor..."
+    if install_service "mysql"; then
+        log_success "mysql ✓"
+    else
+        log_error "mysql ✗"
     fi
-    echo ""
-    log_success "Phase 1 tamamlandı"
     
-    # Phase 2: Nginx (needed before PHP)
-    log_step "Phase 2: Nginx..."
+    # Redis
+    log_step "Redis kuruluyor..."
+    if install_service "redis"; then
+        log_success "redis ✓"
+    else
+        log_error "redis ✗"
+    fi
+    
+    # Nginx
+    log_step "Nginx kuruluyor..."
     if install_service "nginx"; then
         log_success "nginx ✓"
     else
         log_error "nginx ✗"
     fi
     
-    # Phase 3: PHP (depends on Nginx)
-    log_step "Phase 3: PHP ${PHP_VERSION}..."
+    # PHP (depends on Nginx)
+    log_step "PHP ${PHP_VERSION} kuruluyor..."
     if install_service "php"; then
         log_success "php ✓"
     else
         log_error "php ✗"
     fi
     
-    # Phase 4: Extras (can be parallel but low priority)
-    log_step "Phase 4: Monitoring tools..."
-    install_service "extras" &
-    local extras_pid=$!
+    # Node.js
+    log_step "Node.js kuruluyor..."
+    if install_service "nodejs"; then
+        log_success "nodejs ✓"
+    else
+        log_error "nodejs ✗"
+    fi
     
-    # Wait for extras in background
-    if wait $extras_pid; then
+    # Python
+    log_step "Python kuruluyor..."
+    if install_service "python"; then
+        log_success "python ✓"
+    else
+        log_error "python ✗"
+    fi
+    
+    # Certbot
+    log_step "Certbot kuruluyor..."
+    if install_service "certbot"; then
+        log_success "certbot ✓"
+    else
+        log_error "certbot ✗"
+    fi
+    
+    # Supervisor
+    log_step "Supervisor kuruluyor..."
+    if install_service "supervisor"; then
+        log_success "supervisor ✓"
+    else
+        log_error "supervisor ✗"
+    fi
+    
+    # Extras (monitoring tools)
+    log_step "Monitoring tools kuruluyor..."
+    if install_service "extras"; then
         log_success "extras ✓"
     else
         log_error "extras ✗"
     fi
     
     echo ""
-    log_success "Tüm kurulum fazları tamamlandı"
+    log_success "Tüm kurulumlar tamamlandı"
     
     # Install ServerBond Panel (required)
     log_step "ServerBond Panel kuruluyor..."
