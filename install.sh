@@ -345,194 +345,48 @@ if command -v ufw &> /dev/null; then
     ufw allow 'Nginx Full' 2>/dev/null || log_warning "UFW kuralı eklenemedi"
 fi
 
-# ServerBond default page oluştur
-log_info "ServerBond default page oluşturuluyor..."
-mkdir -p /var/www/serverbond
-cat > /var/www/serverbond/index.html << 'HTMLEOF'
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ServerBond Agent - Server Management Platform</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        .container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            max-width: 800px;
-            width: 100%;
-            padding: 60px 40px;
-            text-align: center;
-        }
-        .logo {
-            font-size: 48px;
-            font-weight: 800;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 10px;
-        }
-        .tagline { color: #666; font-size: 18px; margin-bottom: 40px; }
-        .status {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            background: #10b981;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 50px;
-            font-weight: 600;
-            margin-bottom: 40px;
-        }
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 40px;
-        }
-        .info-card {
-            background: #f8fafc;
-            padding: 20px;
-            border-radius: 12px;
-            border: 2px solid #e2e8f0;
-        }
-        .info-card h3 { color: #667eea; font-size: 14px; margin-bottom: 8px; }
-        .info-card p { color: #333; font-size: 20px; font-weight: 700; }
-        .links { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-bottom: 30px; }
-        .btn {
-            padding: 12px 30px;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-        .btn-primary:hover { transform: translateY(-2px); }
-        .features {
-            text-align: left;
-            background: #f8fafc;
-            padding: 30px;
-            border-radius: 12px;
-            margin-bottom: 30px;
-        }
-        .features ul {
-            list-style: none;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
-        }
-        .features li {
-            padding: 12px 15px;
-            background: white;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
-        }
-        .footer { color: #999; font-size: 14px; margin-top: 20px; }
-        .footer a { color: #667eea; text-decoration: none; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="logo">🚀 ServerBond Agent</div>
-        <div class="tagline">Multi-Site Management Platform</div>
-        
-        <div class="status">● System Running</div>
-        
-        <div class="info-grid">
-            <div class="info-card">
-                <h3>VERSION</h3>
-                <p>1.0.0</p>
-            </div>
-            <div class="info-card">
-                <h3>STATUS</h3>
-                <p>Active</p>
-            </div>
-            <div class="info-card">
-                <h3>PLATFORM</h3>
-                <p>Ubuntu 24.04</p>
-            </div>
-        </div>
-        
-        <div class="features">
-            <h2>✨ Kurulu Özellikler</h2>
-            <ul>
-                <li>✓ Multi-Site Yönetimi</li>
-                <li>✓ PHP 8.1, 8.2, 8.3</li>
-                <li>✓ MySQL 8.0 & Redis</li>
-                <li>✓ Git Deployment</li>
-                <li>✓ SSL/Let's Encrypt</li>
-                <li>✓ Node.js 20.x</li>
-                <li>✓ Queue Workers</li>
-                <li>✓ REST API</li>
-            </ul>
-        </div>
-        
-        <div class="links">
-            <a href="http://localhost:8000/docs" class="btn btn-primary">📚 API Dokümantasyonu</a>
-            <a href="http://localhost:8000/health" class="btn btn-primary">❤️ Health Check</a>
-        </div>
-        
-        <div class="footer">
-            <p>
-                <strong>ServerBond Agent</strong> v1.0.0 - Professional server management<br>
-                <a href="https://github.com/beyazitkolemen/serverbond-agent">GitHub</a> • 
-                <a href="https://github.com/beyazitkolemen/serverbond-agent/blob/main/README.md">Documentation</a>
-            </p>
-        </div>
-    </div>
-</body>
-</html>
-HTMLEOF
-
-# Default site konfigürasyonu
+# Default site konfigürasyonu - Laravel + Vue Dashboard
+log_info "Nginx default site yapılandırılıyor (Laravel + Vue)..."
 cat > /etc/nginx/sites-available/default << 'CONFEOF'
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
     
-    root /var/www/serverbond;
-    index index.html;
+    root /opt/serverbond-agent/api/public;
+    index index.php index.html;
     
     server_name _;
     
+    access_log /var/log/nginx/serverbond-access.log;
+    error_log /var/log/nginx/serverbond-error.log;
+    
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json;
+    
+    # Laravel + Vue.js SPA
     location / {
-        try_files $uri $uri/ =404;
+        try_files $uri $uri/ /index.php?$query_string;
     }
     
-    # ServerBond Agent API proxy (opsiyonel)
-    location /api/ {
-        proxy_pass http://localhost:8000/api/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+    # PHP-FPM
+    location ~ \.php$ {
+        fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        include fastcgi_params;
+        fastcgi_hide_header X-Powered-By;
     }
     
-    location /docs {
-        proxy_pass http://localhost:8000/docs;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
+    # Deny hidden files
+    location ~ /\.(?!well-known).* {
+        deny all;
     }
     
-    location /health {
-        proxy_pass http://localhost:8000/health;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
+    # Static assets caching
+    location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
     }
 }
 CONFEOF
@@ -1299,9 +1153,17 @@ EOF
     php artisan config:cache --quiet
     php artisan route:cache --quiet
     
+    # Vue.js dashboard build et
+    if [ -f "package.json" ]; then
+        log_info "Vue.js dashboard build ediliyor..."
+        npm install --silent 2>&1 | grep -v "npm warn" || true
+        npm run build --silent 2>&1 | grep -v "npm warn" || true
+        log_success "Vue.js dashboard build edildi"
+    fi
+    
     cd "$INSTALL_DIR"
     
-    log_success "Laravel API kuruldu"
+    log_success "Laravel API ve Vue.js Dashboard kuruldu"
 fi
 
 # API yapılandırması

@@ -18,7 +18,7 @@
 
         <div v-else-if="sites.length === 0" class="card text-center py-12">
             <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
             </svg>
             <h3 class="mt-2 text-lg font-medium text-gray-900">Henüz site yok</h3>
@@ -31,7 +31,7 @@
         </div>
 
         <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div v-for="site in sites" :key="site.id" 
+            <div v-for="site in sites" :key="site.id"
                  class="card hover:shadow-xl transition-shadow cursor-pointer"
                  @click="$router.push(`/sites/${site.id}`)">
                 <div class="flex items-start justify-between mb-4">
@@ -51,23 +51,23 @@
                         </div>
                     </div>
                     <div class="flex gap-2">
-                        <button @click.stop="deploySite(site.id)" 
+                        <button @click.stop="deploySite(site.id)"
                                 class="p-2 hover:bg-purple-50 rounded-lg transition">
                             <svg class="h-5 w-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                       d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                             </svg>
                         </button>
-                        <button @click.stop="deleteSite(site.id)" 
+                        <button @click.stop="deleteSite(site.id)"
                                 class="p-2 hover:bg-red-50 rounded-lg transition">
                             <svg class="h-5 w-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                       d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
                         </button>
                     </div>
                 </div>
-                
+
                 <div class="text-sm text-gray-600 space-y-1">
                     <div v-if="site.git_repo" class="flex items-center gap-2">
                         <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
@@ -119,7 +119,7 @@ const formatDate = (date) => {
 
 const deploySite = async (siteId) => {
     if (!confirm('Bu siteyi deploy etmek istediğinize emin misiniz?')) return;
-    
+
     try {
         await axios.post('/api/deploy', {
             site_id: siteId,
@@ -134,7 +134,7 @@ const deploySite = async (siteId) => {
 
 const deleteSite = async (siteId) => {
     if (!confirm('Bu siteyi silmek istediğinize emin misiniz?')) return;
-    
+
     try {
         await axios.delete(`/api/sites/${siteId}`);
         await loadSites();

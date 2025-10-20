@@ -3,25 +3,35 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PHP 8.2+](https://img.shields.io/badge/php-8.2+-777BB4.svg)](https://www.php.net/)
 [![Laravel 11](https://img.shields.io/badge/laravel-11-FF2D20.svg)](https://laravel.com)
+[![Vue 3](https://img.shields.io/badge/vue-3-42b883.svg)](https://vuejs.org)
 [![Ubuntu 24.04](https://img.shields.io/badge/ubuntu-24.04-orange.svg)](https://ubuntu.com/)
 
-Ubuntu 24.04 için gelişmiş multi-site yönetim ve deploy platformu. Tek komutla sunucunuza nginx, MySQL, Redis altyapısını kurup **Laravel 11 API** ile site yönetimi yapabilirsiniz.
+Ubuntu 24.04 için gelişmiş multi-site yönetim ve deploy platformu. Tek komutla sunucunuza nginx, MySQL, Redis altyapısını kurup **Laravel 11 + Vue 3** ile modern web dashboard'dan site yönetimi yapabilirsiniz.
 
 🌟 **Laravel Forge** benzeri, tamamen **açık kaynak** ve **ücretsiz** server management çözümü!
 
-## 🚀 Laravel 11 ile Güçlendirildi
+## 🚀 Modern Full-Stack Platform
 
+### Backend (Laravel 11)
 - ✅ **Laravel 11** - Modern PHP Framework
 - ✅ **Eloquent ORM** - Veritabanı işlemleri kolay
 - ✅ **Service Pattern** - SOLID prensipleri
 - ✅ **Queue & Scheduler** - Native Laravel features
 - ✅ **Form Requests** - Güvenli validasyon
 - ✅ **API Resources** - Clean responses
-- ✅ **Type Hints** - PHP 8.2+ features
+
+### Frontend (Vue 3)
+- ✅ **Vue 3** - Progressive JavaScript Framework
+- ✅ **Vue Router** - SPA Navigation
+- ✅ **Pinia** - State Management
+- ✅ **TailwindCSS** - Modern UI Design
+- ✅ **Heroicons** - Beautiful Icons
+- ✅ **Vite** - Lightning Fast Build Tool
 
 ## 🚀 Özellikler
 
 - **Tek Komut Kurulum**: Ubuntu 24.04'e tek shell script ile tam altyapı kurulumu
+- **Modern Dashboard**: Vue 3 ile güzel ve hızlı web arayüzü
 - **Multi-Site Yönetimi**: Sınırsız sayıda site oluşturma ve yönetme
 - **Laravel 11 API**: Modern PHP framework ile güçlü backend
 - **Multi PHP Version**: PHP 8.1, 8.2, 8.3 eşzamanlı desteği
@@ -35,8 +45,8 @@ Ubuntu 24.04 için gelişmiş multi-site yönetim ve deploy platformu. Tek komut
 - **Otomatik Nginx Konfigürasyonu**: Her site için optimize edilmiş nginx ayarları
 - **Database Yönetimi**: MySQL veritabanı ve kullanıcı oluşturma/yönetme
 - **Deploy Sistemi**: Laravel Queue ile arka planda deploy
+- **Real-time Monitoring**: CPU, RAM, Disk kullanımını canlı izleme
 - **RESTful API**: Laravel 11 tabanlı modern API
-- **Real-time Monitoring**: Sistem kaynaklarını ve servisleri izleme
 
 ## 📋 Gereksinimler
 
@@ -52,159 +62,81 @@ Ubuntu 24.04 için gelişmiş multi-site yönetim ve deploy platformu. Tek komut
 curl -fsSL https://raw.githubusercontent.com/beyazitkolemen/serverbond-agent/main/install.sh | sudo bash
 ```
 
-veya wget ile:
-
-```bash
-wget -qO- https://raw.githubusercontent.com/beyazitkolemen/serverbond-agent/main/install.sh | sudo bash
-```
-
-### Manuel Kurulum
-
-```bash
-# Repository'yi klonla
-git clone https://github.com/beyazitkolemen/serverbond-agent.git
-cd serverbond-agent
-
-# Kurulum scriptini çalıştır
-sudo bash install.sh
-```
+Kurulum tamamlandığında:
+- **Dashboard**: http://your-server-ip/
+- **API**: http://your-server-ip/api
+- **Docs**: http://your-server-ip/api/sites
 
 Kurulum tamamlandığında aşağıdaki servisler otomatik olarak çalışır durumda olacaktır:
-- Nginx
+- Nginx (Port 80)
 - PHP 8.1, 8.2, 8.3 + FPM
 - MySQL 8.0
 - Redis
-- ServerBond Agent API (Laravel 11 - Port: 8000)
+- Laravel 11 API + Vue 3 Dashboard (Port 8000 → Nginx Proxy)
+
+## 🎨 Dashboard Özellikleri
+
+### Ana Sayfa
+- 📊 Real-time sistem istatistikleri (CPU, RAM, Disk)
+- 📈 Site sayısı, deploy sayısı, database sayısı
+- 🚀 Son deploymentlar listesi
+- 💚 Canlı sistem durumu
+
+### Sayfalar
+- 🏠 **Dashboard** - Sistem özeti ve istatistikler
+- 🌐 **Sites** - Site listesi ve yönetimi
+- 🚀 **Deployments** - Deploy geçmişi ve tracking
+- 🗄️ **Databases** - MySQL veritabanı yönetimi
+- 🐘 **PHP Versions** - PHP version management
+- 💻 **System** - Sistem bilgileri ve servisler
+
+### UI/UX
+- ✨ Modern gradient design (Purple → Indigo)
+- 📱 Fully responsive
+- ⚡ Fast SPA navigation
+- 🎨 TailwindCSS styling
+- 🔄 Real-time updates
+- 💫 Smooth animations
 
 ## 📚 Kullanım
 
-### API Dokümantasyonu
-
-Kurulum sonrası:
+### Web Dashboard
 ```
-http://your-server-ip:8000     # Welcome Page
-http://your-server-ip:8000/api # API Endpoints
+http://your-server-ip/          # Vue.js Dashboard
+http://your-server-ip/sites     # Site yönetimi
+http://your-server-ip/deploys   # Deploymentlar
 ```
 
-### Sistem Durumu Kontrolü
-
+### API Endpoints
 ```bash
-# Servis durumu
-systemctl status serverbond-agent
-
 # Health check
 curl http://localhost:8000/health
 
-# Sistem bilgileri
-curl http://localhost:8000/api/system/info
+# Sites
+curl http://localhost:8000/api/sites
+
+# System stats
+curl http://localhost:8000/api/system/stats
 ```
 
-### Site Oluşturma
+## 🔧 Geliştirme
 
-#### Laravel Sitesi
-
+### Local Development
 ```bash
-curl -X POST http://localhost:8000/api/sites \
-  -H "Content-Type: application/json" \
-  -d '{
-    "domain": "example.com",
-    "site_type": "laravel",
-    "git_repo": "https://github.com/username/laravel-app.git",
-    "git_branch": "main",
-    "php_version": "8.2",
-    "ssl_enabled": false
-  }'
-```
-
-### Deploy İşlemi
-
-```bash
-curl -X POST http://localhost:8000/api/deploy \
-  -H "Content-Type: application/json" \
-  -d '{
-    "site_id": "example-com-uuid",
-    "run_migrations": true,
-    "clear_cache": true
-  }'
-```
-
-### Database Oluşturma
-
-```bash
-curl -X POST http://localhost:8000/api/database \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "example_db",
-    "user": "example_user",
-    "password": "SecurePassword123!"
-  }'
-```
-
-## 🔧 Servis Yönetimi
-
-```bash
-# Agent servisini yeniden başlat
-sudo systemctl restart serverbond-agent
-
-# Laravel logları
-sudo tail -f /opt/serverbond-agent/logs/api.log
-
-# Laravel cache temizle
 cd /opt/serverbond-agent/api
-php artisan cache:clear
 
-# Queue worker başlat
-php artisan queue:work
+# Vite dev server (Hot Module Replacement)
+npm run dev
 
-# Scheduler (cron job)
-* * * * * cd /opt/serverbond-agent/api && php artisan schedule:run >> /dev/null 2>&1
+# Laravel serve
+php artisan serve
 ```
 
-## 📁 Dizin Yapısı
-
+### Production Build
+```bash
+cd /opt/serverbond-agent/api
+npm run build
 ```
-/opt/serverbond-agent/
-├── api/                      # Laravel 11 API
-│   ├── app/
-│   │   ├── Http/Controllers/Api/
-│   │   ├── Models/
-│   │   ├── Services/
-│   │   └── Jobs/
-│   ├── config/
-│   ├── database/migrations/
-│   ├── routes/api.php
-│   └── artisan
-├── scripts/                  # Kurulum scriptleri
-├── config/                   # Yapılandırma
-├── sites/                    # Site dosyaları
-├── logs/                     # Log dosyaları
-└── backups/                  # Veritabanı yedekleri
-```
-
-## 🌟 API Endpoint'leri
-
-### Sites
-- `GET /api/sites` - Tüm siteleri listele
-- `POST /api/sites` - Yeni site oluştur
-- `GET /api/sites/{id}` - Site detayları
-- `PATCH /api/sites/{id}` - Site güncelle
-- `DELETE /api/sites/{id}` - Site sil
-
-### Deploy
-- `POST /api/deploy` - Deploy başlat
-- `GET /api/deploy/{id}` - Deploy durumu
-
-### Database
-- `GET /api/database` - Veritabanlarını listele
-- `POST /api/database` - Yeni veritabanı oluştur
-
-### PHP
-- `GET /api/php/versions` - PHP versiyonları
-- `POST /api/php/sites/{id}/switch-version` - PHP versiyon değiştir
-
-### System
-- `GET /api/system/info` - Sistem bilgileri
-- `GET /api/system/stats` - CPU, RAM, Disk
 
 ## 🔐 Güvenlik
 
@@ -213,15 +145,17 @@ php artisan queue:work
 - Firewall (UFW) otomatik
 - PHP-FPM pool izolasyonu
 
-## 📊 Site Türleri
+## 📊 Teknoloji Stack'i
 
-| Site Türü | Framework | PHP Version | Deploy | Migration |
-|-----------|-----------|-------------|--------|-----------|
-| Laravel   | Laravel   | 8.1/8.2/8.3 | ✅ | ✅ |
-| PHP       | -         | 8.1/8.2/8.3 | ✅ | ❌ |
-| Static    | -         | -           | ✅ | ❌ |
-| Python    | Any       | -           | ✅ | ❌ |
-| Node.js   | Any       | -           | ✅ | ❌ |
+- **Backend**: Laravel 11 + PHP 8.2+
+- **Frontend**: Vue 3 + Vite
+- **Database**: MySQL 8.0 + Eloquent ORM
+- **Cache**: Redis 7.0
+- **Web Server**: Nginx 1.24
+- **Styling**: TailwindCSS 3
+- **Icons**: Heroicons
+- **State**: Pinia
+- **HTTP**: Axios
 
 ## 🤝 Katkıda Bulunma
 
@@ -237,8 +171,8 @@ MIT License
 
 ## 📧 İletişim
 
-- **GitHub Issues**: [github.com/beyazitkolemen/serverbond-agent/issues](https://github.com/beyazitkolemen/serverbond-agent/issues)
-- **Discussions**: [github.com/beyazitkolemen/serverbond-agent/discussions](https://github.com/beyazitkolemen/serverbond-agent/discussions)
+- **GitHub**: [github.com/beyazitkolemen/serverbond-agent](https://github.com/beyazitkolemen/serverbond-agent)
+- **Issues**: [github.com/beyazitkolemen/serverbond-agent/issues](https://github.com/beyazitkolemen/serverbond-agent/issues)
 
 ## ⭐ Projeyi Beğendiniz Mi?
 
@@ -246,9 +180,7 @@ MIT License
 
 ---
 
-**ServerBond Agent** - Laravel 11 ile professional server management! 🚀
+**ServerBond Agent** - Laravel 11 + Vue 3 ile professional server management! 🚀
 
 [![GitHub stars](https://img.shields.io/github/stars/beyazitkolemen/serverbond-agent?style=social)](https://github.com/beyazitkolemen/serverbond-agent/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/beyazitkolemen/serverbond-agent?style=social)](https://github.com/beyazitkolemen/serverbond-agent/network/members)
-[![GitHub issues](https://img.shields.io/github/issues/beyazitkolemen/serverbond-agent)](https://github.com/beyazitkolemen/serverbond-agent/issues)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)

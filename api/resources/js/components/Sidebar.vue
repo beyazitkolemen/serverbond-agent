@@ -1,8 +1,8 @@
 <template>
     <aside class="w-64 bg-white shadow-lg min-h-screen">
         <nav class="mt-6 px-4">
-            <router-link 
-                v-for="item in menuItems" 
+            <router-link
+                v-for="item in menuItems"
                 :key="item.name"
                 :to="item.path"
                 class="flex items-center gap-3 px-4 py-3 mb-2 rounded-lg transition-all"

@@ -7,27 +7,27 @@
 
         <!-- Stats Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <StatsCard 
-                title="Total Sites" 
-                :value="stats.totalSites" 
+            <StatsCard
+                title="Total Sites"
+                :value="stats.totalSites"
                 icon="server"
                 color="purple"
             />
-            <StatsCard 
-                title="Active Deploys" 
-                :value="stats.activeDeploys" 
+            <StatsCard
+                title="Active Deploys"
+                :value="stats.activeDeploys"
                 icon="rocket"
                 color="blue"
             />
-            <StatsCard 
-                title="Databases" 
-                :value="stats.databases" 
+            <StatsCard
+                title="Databases"
+                :value="stats.databases"
                 icon="database"
                 color="green"
             />
-            <StatsCard 
-                title="PHP Versions" 
-                :value="stats.phpVersions" 
+            <StatsCard
+                title="PHP Versions"
+                :value="stats.phpVersions"
                 icon="code"
                 color="orange"
             />
@@ -73,7 +73,7 @@
                 Henüz deploy yok
             </div>
             <div v-else class="space-y-3">
-                <div v-for="deploy in recentDeploys" :key="deploy.id" 
+                <div v-for="deploy in recentDeploys" :key="deploy.id"
                      class="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
                     <div class="flex items-center gap-4">
                         <div class="h-10 w-10 rounded-full flex items-center justify-center"
