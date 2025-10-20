@@ -287,7 +287,10 @@ install_service() {
 
 install_service_async() {
     local service_name=$1
-    install_service "$service_name" &
+    (
+        install_service "$service_name"
+        echo $? > "/tmp/sb-${service_name}.status"
+    ) &
     local pid=$!
     echo "${service_name}:${pid}"
 }
@@ -300,12 +303,29 @@ wait_services() {
     for service_info in "${services[@]}"; do
         IFS=':' read -r service_name pid <<< "$service_info"
         
-        if wait "$pid"; then
-            log_success "${service_name} ✓"
+        # Wait for background process
+        if wait "$pid" 2>/dev/null; then
+            # Check status file
+            if [[ -f "/tmp/sb-${service_name}.status" ]]; then
+                local status
+                status=$(cat "/tmp/sb-${service_name}.status")
+                rm -f "/tmp/sb-${service_name}.status"
+                
+                if [[ $status -eq 0 ]]; then
+                    log_success "${service_name} ✓"
+                else
+                    log_error "${service_name} ✗"
+                    failed_services+=("$service_name")
+                    ((failed++))
+                fi
+            else
+                log_success "${service_name} ✓"
+            fi
         else
             log_error "${service_name} ✗"
             failed_services+=("$service_name")
             ((failed++))
+            rm -f "/tmp/sb-${service_name}.status"
         fi
     done
     
