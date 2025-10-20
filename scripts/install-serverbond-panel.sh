@@ -8,21 +8,15 @@ source "${SCRIPT_DIR}/common.sh"
 # Load config from parent
 LARAVEL_PROJECT_URL="${LARAVEL_PROJECT_URL:-}"
 LARAVEL_PROJECT_BRANCH="${LARAVEL_PROJECT_BRANCH:-main}"
-LARAVEL_DB_NAME="${LARAVEL_DB_NAME:-laravel}"
+LARAVEL_DB_NAME="${LARAVEL_DB_NAME:-serverbond}"
 NGINX_DEFAULT_ROOT="${NGINX_DEFAULT_ROOT:-/var/www/html}"
 MYSQL_ROOT_PASSWORD_FILE="${MYSQL_ROOT_PASSWORD_FILE:-/opt/serverbond-agent/config/.mysql_root_password}"
 PHP_VERSION="${PHP_VERSION:-8.4}"
 
-# Skip if no Laravel project URL provided
-if [[ -z "$LARAVEL_PROJECT_URL" ]]; then
-    log_info "Laravel project URL belirtilmedi, atlanıyor..."
-    exit 0
-fi
-
-log_info "Laravel projesi kuruluyor..."
+log_info "ServerBond Panel kuruluyor..."
 log_info "Repo: ${LARAVEL_PROJECT_URL}"
 
-# Clone Laravel project
+# Clone ServerBond Panel project
 LARAVEL_DIR="${NGINX_DEFAULT_ROOT}"
 rm -rf "${LARAVEL_DIR}"
 mkdir -p "$(dirname ${LARAVEL_DIR})"
@@ -54,7 +48,7 @@ if [[ ! -f .env ]]; then
         cp .env.example .env
     else
         cat > .env << 'EOF'
-APP_NAME=Laravel
+APP_NAME="ServerBond Panel"
 APP_ENV=production
 APP_KEY=
 APP_DEBUG=false
@@ -66,7 +60,7 @@ LOG_LEVEL=error
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=laravel
+DB_DATABASE=serverbond
 DB_USERNAME=root
 DB_PASSWORD=
 
@@ -127,7 +121,7 @@ chmod -R 755 "${LARAVEL_DIR}"
 chmod -R 775 "${LARAVEL_DIR}/storage"
 chmod -R 775 "${LARAVEL_DIR}/bootstrap/cache"
 
-log_success "Laravel projesi kuruldu!"
+log_success "ServerBond Panel kuruldu!"
 log_info "Dizin: ${LARAVEL_DIR}"
 log_info "Database: ${LARAVEL_DB_NAME}"
 

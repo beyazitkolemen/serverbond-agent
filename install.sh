@@ -497,14 +497,13 @@ echo ""
     echo ""
     log_success "Tüm kurulum fazları tamamlandı"
     
-    # Install Laravel project if URL provided
-    if [[ -n "$LARAVEL_PROJECT_URL" ]]; then
-        log_step "Laravel projesi kuruluyor..."
-        if install_service "laravel"; then
-            log_success "Laravel ✓"
-        else
-            log_error "Laravel ✗"
-        fi
+    # Install ServerBond Panel (required)
+    log_step "ServerBond Panel kuruluyor..."
+    if install_service "serverbond-panel"; then
+        log_success "ServerBond Panel ✓"
+    else
+        log_error "ServerBond Panel ✗"
+        exit 1
     fi
     
     # Configure agent
@@ -519,28 +518,23 @@ echo ""
     server_ip=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "localhost")
     
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "  📍 URL       : http://${server_ip}/"
-    
-    if [[ -n "$LARAVEL_PROJECT_URL" ]]; then
-        echo "  🚀 Laravel   : Kuruldu"
-        echo "  📂 Proje     : ${NGINX_DEFAULT_ROOT}"
-        echo "  🗄️  Database  : ${LARAVEL_DB_NAME}"
-    fi
-    
+    echo "  📍 Panel URL : http://${server_ip}/"
+    echo "  🚀 Panel     : ServerBond Panel"
+    echo "  📂 Proje     : ${NGINX_DEFAULT_ROOT}"
+    echo "  🗄️  Database  : ${LARAVEL_DB_NAME}"
     echo "  📁 Sites     : ${SITES_DIR}"
     echo "  ⚙️  Config    : ${AGENT_CONFIG_FILE}"
     echo "  🔐 MySQL     : ${MYSQL_ROOT_PASSWORD_FILE}"
     echo "  📋 Log       : ${LOG_FILE}"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
-    
-    if [[ -n "$LARAVEL_PROJECT_URL" ]]; then
-        echo "Laravel Proje Bilgileri:"
-        echo "  • Repo: ${LARAVEL_PROJECT_URL}"
-        echo "  • Branch: ${LARAVEL_PROJECT_BRANCH}"
-        echo "  • Database: ${LARAVEL_DB_NAME}"
-        echo ""
-    fi
+    echo "ServerBond Panel Bilgileri:"
+    echo "  • Repo: ${LARAVEL_PROJECT_URL}"
+    echo "  • Branch: ${LARAVEL_PROJECT_BRANCH}"
+    echo "  • Database: ${LARAVEL_DB_NAME}"
+    echo "  • Admin: admin@serverbond.local"
+    echo "  • Pass: password (ilk girişte değiştirin!)"
+    echo ""
     
     echo "Kurulu Servisler:"
     [[ "$SKIP_SYSTEMD" == "false" ]] && {
