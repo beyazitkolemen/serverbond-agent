@@ -1278,16 +1278,17 @@ echo "  - Redis: $(redis-server --version 2>/dev/null | awk '{print $3}' | cut -
 echo
 echo -e "${YELLOW}Önemli Notlar:${NC}"
 echo "  - API'ye erişim için: curl http://localhost:8000/health"
-if [ "$SKIP_SYSTEMD" = "false" ]; then
-    echo "  - Servisi yeniden başlatmak için: systemctl restart serverbond-agent"
-    echo "  - Logları görüntülemek için: journalctl -u serverbond-agent -f"
-else
-    echo "  - API'yi başlatmak için:"
-    echo "    cd $INSTALL_DIR && source venv/bin/activate"
-    echo "    uvicorn api.main:app --host 0.0.0.0 --port 8000"
-fi
-echo "  - SSL için: sudo certbot --nginx -d yourdomain.com"
-echo "  - Monitoring: htop, iotop, fail2ban-client status"
+echo "  - Nginx durumu: systemctl status nginx"
+echo "  - PHP-FPM durumu: systemctl status php8.2-fpm"
+echo "  - MySQL şifresi: $INSTALL_DIR/config/.mysql_root_password"
+echo ""
+echo -e "${YELLOW}SSL Kurulumu:${NC}"
+echo "  sudo certbot --nginx -d yourdomain.com"
+echo ""
+echo -e "${YELLOW}Geliştirme:${NC}"
+echo "  cd $INSTALL_DIR/api"
+echo "  npm run dev          # Vite dev server (HMR)"
+echo "  php artisan queue:work  # Queue worker"
 echo
 log_success "ServerBond Agent hazır!"
 
