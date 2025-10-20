@@ -387,11 +387,26 @@ chmod 750 /var/log/mysql
 
 # MySQL'i başlat
 systemctl_safe enable mysql
-systemctl_safe start mysql
 
-# MySQL çalışıyor mu kontrol et
+# MySQL'i başlatmayı dene
+log_info "MySQL başlatılıyor..."
+if systemctl_safe start mysql; then
+    log_success "MySQL servisi başlatıldı"
+else
+    log_warning "MySQL servisi başlatılamadı, yeniden deneniyor..."
+    
+    # AppArmor sorununu çöz (varsa)
+    if command -v aa-complain &> /dev/null; then
+        aa-complain /usr/sbin/mysqld 2>/dev/null || true
+    fi
+    
+    # Bir kez daha dene
+    systemctl_safe restart mysql || log_warning "MySQL hala başlamıyor"
+fi
+
 sleep 5
 
+# MySQL çalışıyor mu kontrol et
 if check_service_running mysql; then
     log_info "MySQL çalışıyor, güvenlik ayarları yapılıyor..."
     
@@ -474,10 +489,32 @@ EOF
         echo "  ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'your-password';"
     fi
 else
-    log_warning "MySQL kuruldu ancak başlatılamadı (systemd gerekli)"
+    log_warning "MySQL kuruldu ancak başlatılamadı"
+    
+    # Root şifresini kaydet (yine de)
     mkdir -p /opt/serverbond-agent/config
     echo "$MYSQL_ROOT_PASSWORD" > /opt/serverbond-agent/config/.mysql_root_password
     chmod 600 /opt/serverbond-agent/config/.mysql_root_password
+    
+    log_info "MySQL sorun giderme adımları:"
+    echo ""
+    echo "1. Hata loglarını kontrol edin:"
+    echo "   sudo journalctl -u mysql -n 50"
+    echo "   sudo tail -f /var/log/mysql/error.log"
+    echo ""
+    echo "2. MySQL'i manuel başlatın:"
+    echo "   sudo systemctl start mysql"
+    echo "   sudo systemctl status mysql"
+    echo ""
+    echo "3. AppArmor sorunuysa:"
+    echo "   sudo aa-complain /usr/sbin/mysqld"
+    echo "   sudo systemctl restart mysql"
+    echo ""
+    echo "4. Konfigürasyon test edin:"
+    echo "   sudo mysqld --validate-config"
+    echo ""
+    
+    log_warning "Kurulum MySQL olmadan devam ediyor..."
 fi
 MYSQL_SCRIPT
 
