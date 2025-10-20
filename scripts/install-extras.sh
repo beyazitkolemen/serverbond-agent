@@ -16,8 +16,14 @@ apt-get install -y -qq \
     traceroute mtr fail2ban \
     2>&1 | grep -v "^$" || true
 
-# Fail2ban'i yapılandır
-cat > /etc/fail2ban/jail.local << 'EOF'
+# Fail2ban configuration
+if [[ -f "${TEMPLATES_DIR}/fail2ban-jail.local" ]]; then
+    log_info "Fail2ban config template'den yükleniyor..."
+    cp "${TEMPLATES_DIR}/fail2ban-jail.local" /etc/fail2ban/jail.local
+else
+    # Fallback
+    log_warning "Template bulunamadı, default config oluşturuluyor..."
+    cat > /etc/fail2ban/jail.local << 'EOF'
 [DEFAULT]
 bantime = 3600
 findtime = 600
@@ -39,6 +45,7 @@ enabled = true
 port = http,https
 logpath = /var/log/nginx/error.log
 EOF
+fi
 
 systemctl_safe enable fail2ban
 systemctl_safe restart fail2ban
@@ -49,8 +56,13 @@ else
     log_warning "Fail2ban başlatılamadı"
 fi
 
-# Logrotate konfigürasyonu
-cat > /etc/logrotate.d/serverbond-agent << 'EOF'
+# Logrotate configuration
+if [[ -f "${TEMPLATES_DIR}/logrotate-serverbond.conf" ]]; then
+    log_info "Logrotate config template'den yükleniyor..."
+    cp "${TEMPLATES_DIR}/logrotate-serverbond.conf" /etc/logrotate.d/serverbond-agent
+else
+    # Fallback
+    cat > /etc/logrotate.d/serverbond-agent << 'EOF'
 /opt/serverbond-agent/logs/*.log {
     daily
     missingok
@@ -62,6 +74,7 @@ cat > /etc/logrotate.d/serverbond-agent << 'EOF'
     sharedscripts
 }
 EOF
+fi
 
 log_success "Ekstra araçlar kuruldu"
 log_info "Kurulu araçlar:"

@@ -1,0 +1,19 @@
+# Redis configuration template
+# This file contains only the modified settings from default
+
+supervised systemd
+bind 127.0.0.1
+port 6379
+
+# Performance
+maxmemory 256mb
+maxmemory-policy allkeys-lru
+
+# Persistence
+save 900 1
+save 300 10
+save 60 10000
+
+# Security
+protected-mode yes
+

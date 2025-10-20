@@ -35,6 +35,7 @@ readonly CONFIG_DIR="${INSTALL_DIR}/config"
 readonly LOGS_DIR="${INSTALL_DIR}/logs"
 readonly BACKUPS_DIR="${INSTALL_DIR}/backups"
 readonly SCRIPTS_DIR="${INSTALL_DIR}/scripts"
+readonly TEMPLATES_DIR="${INSTALL_DIR}/templates"
 
 # System Paths
 readonly NGINX_SITES_AVAILABLE="/etc/nginx/sites-available"
@@ -228,13 +229,17 @@ prepare_system() {
     mkdir -p "$INSTALL_DIR"
     cd "$INSTALL_DIR"
     
-export DEBIAN_FRONTEND=noninteractive
+    export DEBIAN_FRONTEND=noninteractive
     export DEBCONF_NONINTERACTIVE_SEEN=true
     
     # APT optimization for faster downloads
-    echo 'Acquire::Queue-Mode "host";' > /etc/apt/apt.conf.d/99parallel
-    echo 'Acquire::http::Pipeline-Depth "5";' >> /etc/apt/apt.conf.d/99parallel
-    echo 'APT::Get::Assume-Yes "true";' >> /etc/apt/apt.conf.d/99parallel
+    if [[ -f "${TEMPLATES_DIR}/apt-parallel.conf" ]]; then
+        cp "${TEMPLATES_DIR}/apt-parallel.conf" /etc/apt/apt.conf.d/99parallel
+    else
+        echo 'Acquire::Queue-Mode "host";' > /etc/apt/apt.conf.d/99parallel
+        echo 'Acquire::http::Pipeline-Depth "5";' >> /etc/apt/apt.conf.d/99parallel
+        echo 'APT::Get::Assume-Yes "true";' >> /etc/apt/apt.conf.d/99parallel
+    fi
     
     # Update package lists (parallel)
     apt-get update -qq >> "$LOG_FILE" 2>&1 &
@@ -271,6 +276,7 @@ install_service() {
         export MYSQL_ROOT_PASSWORD_FILE CONFIG_DIR
         export REDIS_CONFIG REDIS_HOST REDIS_PORT
         export CERTBOT_RENEWAL_CRON SUPERVISOR_CONF_DIR
+        export TEMPLATES_DIR
         
         bash "$script_file" >> "$LOG_FILE" 2>&1
     else
@@ -301,8 +307,8 @@ wait_services() {
 download_scripts() {
     log_step "Kurulum scriptleri hazırlanıyor..."
     
-    # Create scripts directory
-    mkdir -p "${SCRIPTS_DIR}"
+    # Create directories
+    mkdir -p "${SCRIPTS_DIR}" "${TEMPLATES_DIR}"
     
     # Download from GitHub if not exists
     if [[ ! -d ".git" ]]; then
@@ -320,22 +326,23 @@ download_scripts() {
         wait $clone_pid
         echo ""
         
-        # Copy only scripts directory for speed
+        # Copy scripts and templates
         rsync -a --exclude='.git' /tmp/sb-tmp/scripts/ "${SCRIPTS_DIR}/" >> "$LOG_FILE" 2>&1
+        rsync -a --exclude='.git' /tmp/sb-tmp/templates/ "${TEMPLATES_DIR}/" >> "$LOG_FILE" 2>&1
         rm -rf /tmp/sb-tmp
     fi
     
     # Make scripts executable
     chmod +x "${SCRIPTS_DIR}"/*.sh 2>/dev/null || true
     
-    log_success "Scriptler hazır"
+    log_success "Scriptler ve template'ler hazır"
 }
 
 configure_project() {
     log_step "Agent yapılandırılıyor..."
     
     # Create directory structure
-    mkdir -p "${SITES_DIR}" "${CONFIG_DIR}" "${LOGS_DIR}" "${BACKUPS_DIR}"
+    mkdir -p "${SITES_DIR}" "${CONFIG_DIR}" "${LOGS_DIR}" "${BACKUPS_DIR}" "${TEMPLATES_DIR}"
     
     # Agent configuration
     cat > "${AGENT_CONFIG_FILE}" << EOF

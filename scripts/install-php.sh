@@ -29,7 +29,13 @@ apt-get install -y -qq \
     2>&1 | grep -v "^$" || true
 
 # FPM Pool configuration
-cat > "${PHP_FPM_POOL}" << EOF
+if [[ -f "${TEMPLATES_DIR}/php-fpm-pool.conf" ]]; then
+    log_info "PHP-FPM pool config template'den yükleniyor..."
+    sed "s|/var/run/php/php8.4-fpm.sock|${PHP_FPM_SOCKET}|g" \
+        "${TEMPLATES_DIR}/php-fpm-pool.conf" > "${PHP_FPM_POOL}"
+else
+    # Fallback
+    cat > "${PHP_FPM_POOL}" << EOF
 [www]
 user = www-data
 group = www-data
@@ -44,6 +50,7 @@ pm.min_spare_servers = 5
 pm.max_spare_servers = 35
 pm.max_requests = 500
 EOF
+fi
 
 # PHP.ini optimizations
 sed -i "s/memory_limit = .*/memory_limit = ${PHP_MEMORY_LIMIT}/" "${PHP_INI}"

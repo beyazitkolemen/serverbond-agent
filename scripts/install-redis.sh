@@ -17,9 +17,16 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get install -y -qq redis-server 2>&1 | grep -v "^$" || true
 
 # Configure Redis
-sed -i 's/supervised no/supervised systemd/' "${REDIS_CONFIG}" 2>/dev/null || true
-sed -i "s/bind .*/bind ${REDIS_HOST}/" "${REDIS_CONFIG}"
-sed -i "s/^port .*/port ${REDIS_PORT}/" "${REDIS_CONFIG}"
+if [[ -f "${TEMPLATES_DIR}/redis.conf.template" ]]; then
+    log_info "Redis config template'den yükleniyor..."
+    # Append template to main config
+    cat "${TEMPLATES_DIR}/redis.conf.template" >> "${REDIS_CONFIG}"
+else
+    # Fallback: Manual sed
+    sed -i 's/supervised no/supervised systemd/' "${REDIS_CONFIG}" 2>/dev/null || true
+    sed -i "s/bind .*/bind ${REDIS_HOST}/" "${REDIS_CONFIG}"
+    sed -i "s/^port .*/port ${REDIS_PORT}/" "${REDIS_CONFIG}"
+fi
 
 systemctl_safe enable redis-server
 systemctl_safe restart redis-server
