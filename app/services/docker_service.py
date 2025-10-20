@@ -2,12 +2,18 @@ import docker
 from docker.errors import DockerException, NotFound, APIError
 from typing import Dict, List, Optional, Any
 from app.core.logger import logger
+from app.config import settings
 
 
 class DockerService:
     def __init__(self):
         try:
-            self.client = docker.from_env()
+            # Try to connect using docker socket
+            # DockerClient expects the socket path without protocol for unix sockets
+            socket_path = settings.DOCKER_SOCKET.replace("unix://", "")
+            self.client = docker.DockerClient(base_url=f"unix://{socket_path}")
+            # Test connection
+            self.client.ping()
             logger.info("Docker client connected successfully")
         except DockerException as e:
             logger.error(f"Docker client connection error: {str(e)}")

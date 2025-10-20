@@ -17,15 +17,12 @@ app = FastAPI(
 
 Python agent for Docker container management and site deployment.
 
-## Authentication
-
-All endpoints (except `/ping`) require `x-token` header.
-
 ## Endpoints
 
 - **Agent Management**: `/ping`, `/info`, `/register`, `/metrics`, `/update`, `/shutdown`
 - **Deploy**: `/deploy`, `/deploy/status`
 - **Containers**: `/containers`, `/images`, `/logs/{project}`, `/exec`, `/restart`, `/remove`
+- **System**: `/system/health` - Health check endpoint
     """,
     version="1.0.0",
     docs_url="/docs",

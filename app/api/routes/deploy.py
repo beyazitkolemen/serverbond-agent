@@ -1,7 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, status, Query, BackgroundTasks
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
-from app.core.security import verify_token
 from app.services.docker_service import DockerService
 from app.services.deploy_service import DeployService
 from app.core.logger import logger
@@ -18,7 +17,7 @@ class DeployRequest(BaseModel):
     env: Optional[Dict[str, str]] = Field(default=None, description="Environment variables")
 
 
-@router.post("/deploy", dependencies=[Depends(verify_token)])
+@router.post("/deploy")
 async def deploy(request: DeployRequest, background_tasks: BackgroundTasks) -> Dict[str, Any]:
     """
     Deploy a new site from Git repository
@@ -63,7 +62,7 @@ async def deploy(request: DeployRequest, background_tasks: BackgroundTasks) -> D
         )
 
 
-@router.get("/deploy/status", dependencies=[Depends(verify_token)])
+@router.get("/deploy/status")
 async def deploy_status(project: str = Query(..., description="Project name")) -> Dict[str, Any]:
     """Get deployment status"""
     try:

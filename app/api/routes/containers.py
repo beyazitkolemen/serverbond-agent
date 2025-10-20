@@ -1,7 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, HTTPException, status, Query
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
-from app.core.security import verify_token
 from app.services.docker_service import DockerService
 from app.core.logger import logger
 from docker.errors import NotFound, APIError
@@ -23,7 +22,7 @@ class RemoveRequest(BaseModel):
     project: str = Field(..., description="Project/container name")
 
 
-@router.get("/containers", dependencies=[Depends(verify_token)])
+@router.get("/containers")
 async def list_containers() -> List[Dict[str, Any]]:
     """List all containers with details"""
     try:
@@ -59,7 +58,7 @@ async def list_containers() -> List[Dict[str, Any]]:
         )
 
 
-@router.get("/images", dependencies=[Depends(verify_token)])
+@router.get("/images")
 async def list_images() -> List[Dict[str, Any]]:
     """List all Docker images"""
     try:
@@ -88,7 +87,7 @@ async def list_images() -> List[Dict[str, Any]]:
         )
 
 
-@router.get("/logs/{project}", dependencies=[Depends(verify_token)])
+@router.get("/logs/{project}")
 async def get_logs(
     project: str,
     tail: int = Query(default=100)
@@ -126,7 +125,7 @@ async def get_logs(
         )
 
 
-@router.post("/exec", dependencies=[Depends(verify_token)])
+@router.post("/exec")
 async def execute_command(request: ExecRequest) -> Dict[str, Any]:
     """Execute command inside container"""
     try:
@@ -154,7 +153,7 @@ async def execute_command(request: ExecRequest) -> Dict[str, Any]:
         )
 
 
-@router.post("/restart", dependencies=[Depends(verify_token)])
+@router.post("/restart")
 async def restart_container(request: RestartRequest) -> Dict[str, str]:
     """Restart a container"""
     try:
@@ -179,7 +178,7 @@ async def restart_container(request: RestartRequest) -> Dict[str, str]:
         )
 
 
-@router.delete("/remove", dependencies=[Depends(verify_token)])
+@router.delete("/remove")
 async def remove_site(request: RemoveRequest) -> Dict[str, str]:
     """Remove a site/project completely"""
     try:

@@ -1,7 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional
-from app.core.security import verify_token
 from app.services.system_service import SystemService
 from app.services.docker_service import DockerService
 from app.core.logger import logger
@@ -47,7 +46,7 @@ async def ping():
         }
 
 
-@router.get("/info", dependencies=[Depends(verify_token)])
+@router.get("/info")
 async def info() -> Dict[str, Any]:
     """Get detailed system information"""
     try:
@@ -76,18 +75,14 @@ async def info() -> Dict[str, Any]:
 async def register(request: RegisterRequest) -> Dict[str, str]:
     """Register agent to cloud panel on startup"""
     try:
-        if request.token != settings.AGENT_TOKEN:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token"
-            )
+        logger.info(f"Agent registered: {request.hostname} ({request.os} - v{request.version})")
         
-        logger.info(f"Agent registered: {request.hostname}")
+        return {
+            "status": "registered",
+            "hostname": request.hostname,
+            "message": "Agent registered successfully"
+        }
         
-        return {"status": "registered"}
-        
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Registration error: {str(e)}")
         raise HTTPException(
@@ -96,7 +91,7 @@ async def register(request: RegisterRequest) -> Dict[str, str]:
         )
 
 
-@router.get("/metrics", dependencies=[Depends(verify_token)])
+@router.get("/metrics")
 async def metrics() -> Dict[str, Any]:
     """Get resource metrics for monitoring"""
     try:
@@ -119,7 +114,7 @@ async def metrics() -> Dict[str, Any]:
         )
 
 
-@router.post("/update", dependencies=[Depends(verify_token)])
+@router.post("/update")
 async def update() -> Dict[str, str]:
     """Update agent to latest version"""
     try:
@@ -143,7 +138,7 @@ async def update() -> Dict[str, str]:
         )
 
 
-@router.post("/shutdown", dependencies=[Depends(verify_token)])
+@router.post("/shutdown")
 async def shutdown() -> Dict[str, str]:
     """Shutdown agent gracefully"""
     logger.warning("Shutdown requested from cloud")
