@@ -1,20 +1,20 @@
 # ServerBond Agent
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PHP 8.2+](https://img.shields.io/badge/php-8.2+-777BB4.svg)](https://www.php.net/)
+[![PHP 8.4](https://img.shields.io/badge/php-8.4-777BB4.svg)](https://www.php.net/)
 [![Ubuntu 24.04](https://img.shields.io/badge/ubuntu-24.04-orange.svg)](https://ubuntu.com/)
 
-Ubuntu 24.04 için gelişmiş server management ve multi-site yönetim platformu. Tek komutla sunucunuza Nginx, PHP (8.1, 8.2, 8.3), MySQL, Redis, Node.js ve tüm gerekli altyapıyı kurun.
+Ubuntu 24.04 için gelişmiş server management ve multi-site yönetim platformu. Tek komutla sunucunuza Nginx, PHP 8.4, MySQL, Redis, Node.js ve tüm gerekli altyapıyı kurun.
 
 🌟 **Laravel Forge** benzeri, tamamen **açık kaynak** ve **ücretsiz** server management çözümü!
 
 ## 🚀 Özellikler
 
 - **Tek Komut Kurulum**: Ubuntu 24.04'e tek shell script ile tam altyapı kurulumu
-- **Multi PHP Version**: PHP 8.1, 8.2, 8.3 eşzamanlı desteği
+- **Modern PHP 8.4**: En güncel PHP versiyonu ile optimize edilmiş performans
 - **Multi-Site Hazır Altyapı**: Sınırsız site için hazır sunucu ortamı
 - **Çoklu Site Türü Desteği**:
-  - Laravel (PHP 8.1, 8.2, 8.3)
+  - Laravel (PHP 8.4)
   - PHP (Genel PHP uygulamaları)
   - Static (HTML/CSS/JS)
   - Python (FastAPI, Flask, Django)
@@ -42,7 +42,7 @@ curl -fsSL https://raw.githubusercontent.com/beyazitkolemen/serverbond-agent/mai
 
 Kurulum tamamlandığında aşağıdaki servisler otomatik olarak çalışır durumda olacaktır:
 - **Nginx** (Port 80) - Web server
-- **PHP 8.1, 8.2, 8.3 + FPM** - Multi-version PHP
+- **PHP 8.4 + FPM** - Modern PHP runtime
 - **MySQL 8.0** - Database
 - **Redis** - Cache & sessions
 - **Node.js 20 + PM2** - Node.js runtime ve process manager
@@ -77,14 +77,12 @@ nginx -t
 systemctl reload nginx
 ```
 
-### PHP Versiyon Değiştirme
+### PHP Yönetimi
 
 ```bash
-# Default PHP versiyonunu değiştir
-update-alternatives --config php
-
-# Site bazlı PHP-FPM socket kullanımı
-# Nginx config'de: fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
+# PHP-FPM servisi
+systemctl status php8.4-fpm
+systemctl restart php8.4-fpm
 ```
 
 ## 🔐 Güvenlik
@@ -98,14 +96,13 @@ update-alternatives --config php
 ## 📊 Teknoloji Stack'i
 
 - **Web Server**: Nginx 1.24+
-- **PHP**: 8.1, 8.2, 8.3 (Multi-version)
+- **PHP**: 8.4
 - **Database**: MySQL 8.0
 - **Cache**: Redis 7.0
 - **Node.js**: 20.x LTS
 - **Process Managers**: Supervisor + PM2
 - **SSL/TLS**: Certbot (Let's Encrypt)
 - **Security**: UFW + Fail2ban
-- **Monitoring**: htop, iotop, iftop
 
 ## 🤝 Katkıda Bulunma
 

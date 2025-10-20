@@ -1,974 +1,447 @@
 #!/bin/bash
 
-#############################################
-# ServerBond Agent - Ana Kurulum Scripti
-# Ubuntu 24.04 için tasarlanmıştır
-#############################################
+################################################################################
+# ServerBond Agent - Professional Installer
+# Version: 1.0.0
+# Ubuntu 24.04 LTS
+# 
+# This script performs a complete server setup with:
+# - PHP 8.4, Nginx, MySQL, Redis
+# - Node.js, Composer, Certbot
+# - Security hardening and monitoring tools
+################################################################################
 
-set -e
+set -euo pipefail
+IFS=$'\n\t'
 
-# Renkler
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+################################################################################
+# CONFIGURATION
+################################################################################
 
-# Log fonksiyonları (ÖNCE TANIMLANMALI)
+# Version & Repository
+readonly SCRIPT_VERSION="1.0.0"
+readonly GITHUB_REPO="beyazitkolemen/serverbond-agent"
+readonly GITHUB_BRANCH="main"
+
+# System Requirements
+readonly MIN_DISK_SPACE=5000000  # 5GB in KB
+readonly MIN_MEMORY=1024         # 1GB in MB
+readonly REQUIRED_UBUNTU="24.04"
+
+# Installation Directories
+readonly INSTALL_DIR="/opt/serverbond-agent"
+readonly SITES_DIR="${INSTALL_DIR}/sites"
+readonly CONFIG_DIR="${INSTALL_DIR}/config"
+readonly LOGS_DIR="${INSTALL_DIR}/logs"
+readonly BACKUPS_DIR="${INSTALL_DIR}/backups"
+readonly SCRIPTS_DIR="${INSTALL_DIR}/scripts"
+
+# System Paths
+readonly NGINX_SITES_AVAILABLE="/etc/nginx/sites-available"
+readonly NGINX_SITES_ENABLED="/etc/nginx/sites-enabled"
+readonly NGINX_CONFIG="/etc/nginx/nginx.conf"
+readonly NGINX_DEFAULT_ROOT="/var/www/html"
+
+# MySQL Configuration
+readonly MYSQL_ROOT_PASSWORD_FILE="${CONFIG_DIR}/.mysql_root_password"
+readonly MYSQL_HOST="localhost"
+readonly MYSQL_PORT="3306"
+
+# Redis Configuration
+readonly REDIS_HOST="localhost"
+readonly REDIS_PORT="6379"
+readonly REDIS_DB="0"
+readonly REDIS_CONFIG="/etc/redis/redis.conf"
+
+# PHP Configuration
+readonly PHP_VERSION="8.4"
+readonly PHP_FPM_SOCKET="/var/run/php/php${PHP_VERSION}-fpm.sock"
+readonly PHP_INI="/etc/php/${PHP_VERSION}/fpm/php.ini"
+readonly PHP_FPM_POOL="/etc/php/${PHP_VERSION}/fpm/pool.d/www.conf"
+readonly PHP_MEMORY_LIMIT="256M"
+readonly PHP_UPLOAD_MAX="100M"
+readonly PHP_MAX_EXECUTION="300"
+
+# Node.js Configuration
+readonly NODE_VERSION="20"
+readonly NPM_GLOBAL_PACKAGES="yarn pm2"
+
+# Python Configuration
+readonly PYTHON_VERSION="3.12"
+
+# Supervisor Configuration
+readonly SUPERVISOR_CONF_DIR="/etc/supervisor/conf.d"
+
+# Certbot Configuration
+readonly CERTBOT_RENEWAL_CRON="0 0,12 * * * root certbot renew --quiet"
+
+# Logging
+readonly LOG_FILE="/tmp/serverbond-install-$(date +%Y%m%d-%H%M%S).log"
+readonly LOG_ROTATION_DAYS="14"
+
+# Agent Configuration File
+readonly AGENT_CONFIG_FILE="${CONFIG_DIR}/agent.conf"
+
+# Colors
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly BOLD='\033[1m'
+readonly NC='\033[0m'
+
+# State
+    SKIP_SYSTEMD=false
+INSTALLATION_STARTED=false
+
+################################################################################
+# LOGGING & OUTPUT
+################################################################################
+
+log() {
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE" 2>&1
+}
+
 log_step() {
     echo -e "${GREEN}▸${NC} $1"
+    log "STEP: $1"
 }
 
 log_success() {
     echo -e "${GREEN}✓${NC} $1"
+    log "SUCCESS: $1"
 }
 
 log_error() {
-    echo -e "${RED}✗${NC} $1"
+    echo -e "${RED}✗${NC} $1" >&2
+    log "ERROR: $1"
 }
 
-# Banner
-echo ""
-echo "======================================"
-echo "    ServerBond Agent Installer v1.0"
-echo "======================================"
-echo ""
+log_warn() {
+    echo -e "${YELLOW}⚠${NC} $1"
+    log "WARN: $1"
+}
 
-# Değişkenler
-INSTALL_DIR="/opt/serverbond-agent"
-GITHUB_REPO="beyazitkolemen/serverbond-agent"
-REPO_URL="https://raw.githubusercontent.com/${GITHUB_REPO}/main"
-PYTHON_VERSION="3.12"
+################################################################################
+# ERROR HANDLING & CLEANUP
+################################################################################
 
-# Root kontrolü
-if [[ $EUID -ne 0 ]]; then
-   echo -e "${RED}Bu script root olarak çalıştırılmalıdır!${NC}" 
-   exit 1
+cleanup() {
+    local exit_code=$?
+    
+    if [[ $exit_code -ne 0 ]] && [[ "$INSTALLATION_STARTED" == "true" ]]; then
+        echo ""
+        log_error "Kurulum başarısız (Exit code: $exit_code)"
+        echo "Log: $LOG_FILE"
+        
+        if [[ -d "$INSTALL_DIR" ]]; then
+            log_warn "Temizlik: sudo rm -rf $INSTALL_DIR"
+        fi
+    fi
+}
+
+trap cleanup EXIT
+trap 'log_error "Script interrupted"; exit 130' INT TERM
+
+################################################################################
+# VALIDATION FUNCTIONS
+################################################################################
+
+check_root() {
+    if [[ $EUID -ne 0 ]]; then
+        log_error "Root yetkisi gerekli"
+        echo "Kullanım: sudo bash install.sh"
+    exit 1
+    fi
+}
+
+check_ubuntu() {
+    if [[ ! -f /etc/os-release ]]; then
+        log_error "Ubuntu tespit edilemedi"
+    exit 1
 fi
 
-# Systemd kontrolü
+    . /etc/os-release
+    
+    if [[ "$ID" != "ubuntu" ]]; then
+        log_error "Bu script sadece Ubuntu içindir"
+    exit 1
+fi
+
+    if [[ "$VERSION_ID" != "$REQUIRED_UBUNTU" ]]; then
+        log_warn "Ubuntu ${REQUIRED_UBUNTU} önerilir (Mevcut: ${VERSION_ID})"
+    fi
+}
+
 check_systemd() {
     if ! pidof systemd > /dev/null 2>&1; then
-        return 1
+        log_warn "Systemd bulunamadı"
+        read -p "Devam? (e/h): " -r
+        [[ ! $REPLY =~ ^[Ee]$ ]] && exit 0
+        SKIP_SYSTEMD=true
     fi
-    return 0
+    export SKIP_SYSTEMD
 }
 
-# Ortam kontrolü
-detect_environment() {
-    if [ -f /proc/version ]; then
-        if grep -qi microsoft /proc/version; then
-            echo "wsl"
-            return
-        fi
-    fi
+check_disk_space() {
+    local available
+    available=$(df / | tail -1 | awk '{print $4}')
     
-    if [ -f /.dockerenv ]; then
-        echo "docker"
-        return
-    fi
-    
-    echo "native"
-}
-
-ENVIRONMENT=$(detect_environment)
-
-if ! check_systemd && [ "$ENVIRONMENT" != "native" ]; then
-    log_error "Bu script systemd gerektiriyor!"
-    echo ""
-    echo -e "${YELLOW}Tespit edilen ortam: $ENVIRONMENT${NC}"
-    echo ""
-    echo "Çözümler:"
-    
-    if [ "$ENVIRONMENT" = "wsl" ]; then
-        echo "  • WSL2 kullanıyorsanız, systemd'yi etkinleştirin:"
-        echo "    1. /etc/wsl.conf dosyası oluşturun:"
-        echo "       sudo nano /etc/wsl.conf"
-        echo ""
-        echo "    2. Şu içeriği ekleyin:"
-        echo "       [boot]"
-        echo "       systemd=true"
-        echo ""
-        echo "    3. WSL'i yeniden başlatın:"
-        echo "       wsl --shutdown"
-        echo ""
-    elif [ "$ENVIRONMENT" = "docker" ]; then
-        echo "  • Docker container'da systemd destekli bir imaj kullanın"
-        echo "  • Veya Docker Compose ile privileged mode kullanın"
-        echo ""
-    fi
-    
-    echo "  • Normal bir Ubuntu 24.04 sunucusunda çalıştırın"
-    echo ""
-    
-    read -p "Yine de devam etmek istiyor musunuz? (Bazı servisler çalışmayabilir) (e/h): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Ee]$ ]]; then
-        exit 1
-    fi
-    
-    log_step "Systemd olmadan devam ediliyor. Bazı servisler manuel başlatılmalı!"
-    SKIP_SYSTEMD=true
-else
-    SKIP_SYSTEMD=false
+    if [[ $available -lt $MIN_DISK_SPACE ]]; then
+        log_error "Yetersiz disk (Min 5GB)"
+    exit 1
 fi
+}
 
-# SKIP_SYSTEMD'yi export et ki child script'ler görebilsin
-export SKIP_SYSTEMD
-
-# Ubuntu versiyon kontrolü
-if [ -f /etc/os-release ]; then
-    . /etc/os-release
-    UBUNTU_VERSION=$VERSION_ID
-    
-    if [[ "$UBUNTU_VERSION" != "24.04" ]]; then
-        log_step "Bu script Ubuntu 24.04 için optimize edilmiştir. Mevcut versiyon: $UBUNTU_VERSION"
-        read -p "Devam etmek istiyor musunuz? (e/h): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Ee]$ ]]; then
-            exit 1
-        fi
-    fi
-else
-    log_step "Ubuntu versiyonu tespit edilemedi. Devam ediliyor..."
+check_network() {
+    if ! ping -c 1 -W 3 github.com &> /dev/null; then
+        log_error "İnternet gerekli"
+    exit 1
 fi
-
-# Kurulum dizinini oluştur
-log_step "Kurulum dizini oluşturuluyor..."
-mkdir -p "$INSTALL_DIR"
-cd "$INSTALL_DIR"
-
-# Sistem güncellemesi
-log_step "Sistem güncelleniyor..."
-
-# Debconf'u non-interactive modda ayarla
-export DEBIAN_FRONTEND=noninteractive
-export DEBCONF_NONINTERACTIVE_SEEN=true
-
-# APT uyarılarını sustur
-apt-get update -qq 2>&1 | grep -v "debconf: unable" | grep -v "debconf: falling" | grep -v "frontend" || true
-apt-get upgrade -y -qq 2>&1 | grep -v "debconf: unable" | grep -v "debconf: falling" | grep -v "frontend" || true
-
-# Temel paketleri yükle
-log_step "Temel paketler yükleniyor..."
-
-# Debconf'u non-interactive olarak ayarla
-export DEBIAN_FRONTEND=noninteractive
-export DEBCONF_NONINTERACTIVE_SEEN=true
-
-apt-get install -y -qq \
-    curl \
-    wget \
-    git \
-    software-properties-common \
-    apt-transport-https \
-    ca-certificates \
-    gnupg \
-    lsb-release \
-    unzip \
-    ufw \
-    openssl \
-    jq \
-    build-essential \
-    pkg-config \
-    libssl-dev \
-    dialog \
-    apt-utils
-
-# Scripts dizinini oluştur ve scriptleri indir
-log_step "Kurulum scriptleri indiriliyor..."
-mkdir -p scripts
-
-# Common.sh'ı önce oluştur
-cat > scripts/common.sh << 'COMMON_SCRIPT'
-#!/bin/bash
-
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
 }
 
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
+################################################################################
+# SYSTEM UTILITIES
+################################################################################
 
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-# Systemd servis yönetimi (hata kontrolü ile)
 systemctl_safe() {
-    local action=$1
-    local service=$2
-    
-    if [ "${SKIP_SYSTEMD:-false}" = "true" ]; then
-        log_step "Systemd yok: $action $service atlandı"
-        return 0
-    fi
-    
-    if ! command -v systemctl &> /dev/null; then
-        log_step "systemctl bulunamadı: $action $service atlandı"
-        return 0
-    fi
-    
-    if systemctl $action $service 2>&1; then
-        return 0
-    else
-        log_step "Systemd komutu başarısız: $action $service"
-        return 1
-    fi
+    local action=$1 service=$2
+    [[ "$SKIP_SYSTEMD" == "true" ]] && return 0
+    command -v systemctl &> /dev/null || return 0
+    systemctl "$action" "$service" >> "$LOG_FILE" 2>&1 2>&1 || return 1
 }
 
-# Paket kurulum kontrolü
-check_package_installed() {
-    local package=$1
-    dpkg -l | grep -q "^ii  $package " 2>/dev/null
-}
-
-# Servis durumu kontrolü
-check_service_running() {
+check_service() {
     local service=$1
+    [[ "$SKIP_SYSTEMD" == "true" ]] && return 0
+    systemctl is-active --quiet "$service" 2>/dev/null
+}
+
+################################################################################
+# INSTALLATION FUNCTIONS
+################################################################################
+
+prepare_system() {
+    log_step "Sistem hazırlanıyor..."
     
-    if [ "${SKIP_SYSTEMD:-false}" = "true" ]; then
-        log_step "Systemd yok: $service durumu kontrol edilemiyor"
-        return 0
-    fi
+    mkdir -p "$INSTALL_DIR"
+    cd "$INSTALL_DIR"
     
-    if systemctl is-active --quiet $service 2>/dev/null; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Port kontrolü
-check_port_available() {
-    local port=$1
-    if ! command -v nc &> /dev/null; then
-        # netcat yoksa varsayılan olarak uygun kabul et
-        return 0
-    fi
+    export DEBIAN_FRONTEND=noninteractive
+    export DEBCONF_NONINTERACTIVE_SEEN=true
     
-    if nc -z localhost $port 2>/dev/null; then
-        return 1  # Port kullanımda
-    else
-        return 0  # Port müsait
-    fi
+    apt-get update -qq >> "$LOG_FILE" 2>&1
+    apt-get upgrade -y -qq >> "$LOG_FILE" 2>&1
+    
+    apt-get install -y -qq \
+        curl wget git software-properties-common apt-transport-https \
+        ca-certificates gnupg lsb-release unzip ufw openssl jq rsync \
+        build-essential pkg-config libssl-dev >> "$LOG_FILE" 2>&1
+    
+    log_success "Sistem hazır"
 }
 
-# Hata ile çıkış
-die() {
-    log_error "$1"
-    exit 1
+install_python() {
+    log_step "Python ${PYTHON_VERSION}..."
+    
+    apt-get install -y -qq \
+        python${PYTHON_VERSION} \
+        python${PYTHON_VERSION}-venv \
+        python3-pip \
+        python${PYTHON_VERSION}-dev \
+        >> "$LOG_FILE" 2>&1
+    
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1 >> "$LOG_FILE" 2>&1 || true
+    
+    log_success "Python ${PYTHON_VERSION}"
 }
 
-# Başarı mesajı ile çıkış
-success_exit() {
-    log_success "$1"
-    exit 0
-}
-COMMON_SCRIPT
-
-chmod +x scripts/common.sh
-
-# Eğer local git repo varsa oradan kopyala, yoksa wget ile indir
-if [ -d "/tmp/serverbond-agent" ]; then
-    cp -r /tmp/serverbond-agent/* "$INSTALL_DIR/"
-else
-    # Python kurulum scripti
-    cat > scripts/install-python.sh << 'PYTHON_SCRIPT'
-#!/bin/bash
-set -e
-
-# Common.sh'ı source et
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "$SCRIPT_DIR/common.sh" ]; then
-    source "$SCRIPT_DIR/common.sh"
-elif [ -f "/opt/serverbond-agent/scripts/common.sh" ]; then
-    source /opt/serverbond-agent/scripts/common.sh
-else
-    echo "HATA: common.sh bulunamadı!"
-    exit 1
-fi
-
-log_step "Python 3.12 kuruluyor..."
-export DEBIAN_FRONTEND=noninteractive
-apt-get install -y -qq python3.12 python3.12-venv python3-pip python3.12-dev build-essential 2>&1 | grep -v "debconf:" || true
-update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 2>/dev/null || true
-log_success "Python 3.12 kuruldu"
-PYTHON_SCRIPT
-
-    # Nginx kurulum scripti
-    cat > scripts/install-nginx.sh << 'NGINX_SCRIPT'
-#!/bin/bash
-set -e
-
-# Common.sh'ı source et
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "$SCRIPT_DIR/common.sh" ]; then
-    source "$SCRIPT_DIR/common.sh"
-elif [ -f "/opt/serverbond-agent/scripts/common.sh" ]; then
-    source /opt/serverbond-agent/scripts/common.sh
-else
-    echo "HATA: common.sh bulunamadı!"
-    exit 1
-fi
-
-log_step "Nginx kuruluyor..."
-export DEBIAN_FRONTEND=noninteractive
-apt-get install -y -qq nginx 2>&1 | grep -v "debconf:" || true
-
-systemctl_safe enable nginx
-systemctl_safe start nginx
-
-# Firewall kuralı (varsa)
-if command -v ufw &> /dev/null; then
-    ufw allow 'Nginx Full' 2>/dev/null || log_step "UFW kuralı eklenemedi"
-fi
-
-# Default site konfigürasyonu
-log_step "Nginx default site yapılandırılıyor..."
-cat > /etc/nginx/sites-available/default << 'CONFEOF'
+install_nginx() {
+    log_step "Nginx..."
+    
+    apt-get install -y -qq nginx >> "$LOG_FILE" 2>&1
+    
+    # Default config
+    cat > "${NGINX_SITES_AVAILABLE}/default" << EOF
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
     
-    root /var/www/html;
+    root ${NGINX_DEFAULT_ROOT};
     index index.html index.htm index.php;
-    
     server_name _;
     
-    access_log /var/log/nginx/access.log;
-    error_log /var/log/nginx/error.log;
-    
     location / {
-        try_files $uri $uri/ =404;
+        try_files \$uri \$uri/ =404;
     }
     
-    # Deny hidden files
     location ~ /\.(?!well-known).* {
         deny all;
     }
 }
-CONFEOF
-
-# Nginx'i reload et
-systemctl_safe reload nginx || true
-
-# Test
-if check_service_running nginx; then
-    log_success "Nginx başarıyla kuruldu ve çalışıyor"
-    log_step "Default page: http://$(hostname -I | awk '{print $1}')/"
-elif [ "${SKIP_SYSTEMD:-false}" = "true" ]; then
-    log_step "Nginx kuruldu (systemd olmadan çalıştırma gerekli)"
-else
-    log_error "Nginx kurulumu başarısız!"
-    exit 1
-fi
-NGINX_SCRIPT
-
-    # MySQL kurulum scripti
-    cat > scripts/install-mysql.sh << 'MYSQL_SCRIPT'
-#!/bin/bash
-set -e
-
-# Common.sh'ı source et
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "$SCRIPT_DIR/common.sh" ]; then
-    source "$SCRIPT_DIR/common.sh"
-elif [ -f "/opt/serverbond-agent/scripts/common.sh" ]; then
-    source /opt/serverbond-agent/scripts/common.sh
-else
-    echo "HATA: common.sh bulunamadı!"
-    exit 1
-fi
-
-log_step "MySQL 8.0 kuruluyor..."
-
-# Root şifresi oluştur
-MYSQL_ROOT_PASSWORD=$(openssl rand -base64 32)
-
-# MySQL kurulumu
-export DEBIAN_FRONTEND=noninteractive
-
-# Debconf ile root şifresini preseed et (eski MySQL versiyonları için)
-echo "mysql-server mysql-server/root_password password $MYSQL_ROOT_PASSWORD" | debconf-set-selections 2>/dev/null || true
-echo "mysql-server mysql-server/root_password_again password $MYSQL_ROOT_PASSWORD" | debconf-set-selections 2>/dev/null || true
-
-apt-get install -y -qq mysql-server 2>&1 | grep -v "debconf:" | grep -v "falling back" || true
-
-# MySQL socket dizinini oluştur ve izinleri ayarla
-mkdir -p /var/run/mysqld
-chown mysql:mysql /var/run/mysqld
-chmod 755 /var/run/mysqld
-
-# MySQL data dizini izinlerini kontrol et
-chown -R mysql:mysql /var/lib/mysql
-chmod 750 /var/lib/mysql
-
-# MySQL log dizini
-mkdir -p /var/log/mysql
-chown mysql:mysql /var/log/mysql
-chmod 750 /var/log/mysql
-
-# MySQL'i başlat
-systemctl_safe enable mysql
-
-# MySQL'i başlatmayı dene
-log_step "MySQL başlatılıyor..."
-if systemctl_safe start mysql; then
-    log_success "MySQL servisi başlatıldı"
-else
-    log_step "MySQL servisi başlatılamadı, yeniden deneniyor..."
-    
-    # AppArmor sorununu çöz (varsa)
-    if command -v aa-complain &> /dev/null; then
-        aa-complain /usr/sbin/mysqld 2>/dev/null || true
-    fi
-    
-    # Bir kez daha dene
-    systemctl_safe restart mysql || log_step "MySQL hala başlamıyor"
-fi
-
-sleep 5
-
-# MySQL çalışıyor mu kontrol et
-if check_service_running mysql; then
-    log_step "MySQL çalışıyor, güvenlik ayarları yapılıyor..."
-    
-    # Root şifresini kaydet (önce)
-    mkdir -p /opt/serverbond-agent/config
-    echo "$MYSQL_ROOT_PASSWORD" > /opt/serverbond-agent/config/.mysql_root_password
-    chmod 600 /opt/serverbond-agent/config/.mysql_root_password
-    
-    # Ubuntu 24.04'te MySQL 8.0 varsayılan auth_socket kullanır
-    # Alternatif yöntem 1: mysql -u root ile (şifresiz, auth_socket)
-    log_step "Yöntem 1: Doğrudan root bağlantısı deneniyor..."
-    
-    if mysql -u root -e "SELECT 1;" > /dev/null 2>&1; then
-        # Şifresiz bağlanabiliyoruz, şifreyi ayarla
-        mysql -u root <<EOF
-ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD';
-CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD';
-DELETE FROM mysql.user WHERE User='';
-DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
-DROP DATABASE IF EXISTS test;
-DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
-FLUSH PRIVILEGES;
 EOF
-        
-        if [ $? -eq 0 ]; then
-            log_success "MySQL güvenlik ayarları tamamlandı (Yöntem 1)"
-        fi
-    else
-        # Yöntem 2: systemd unit override ile skip-grant-tables
-        log_step "Yöntem 2: Systemd override ile deneniyor..."
-        
-        systemctl_safe stop mysql
-        sleep 2
-        
-        # Systemd override dizini oluştur
-        mkdir -p /etc/systemd/system/mysql.service.d
-        
-        # Skip-grant-tables override
-        cat > /etc/systemd/system/mysql.service.d/override.conf <<EOF
-[Service]
-ExecStart=
-ExecStart=/usr/sbin/mysqld --skip-grant-tables --skip-networking
-EOF
-        
-        # Systemd'yi yenile ve başlat
-        systemctl daemon-reload
-        systemctl_safe start mysql
-        sleep 5
-        
-        # Şifreyi ayarla
-        mysql -u root <<EOF
-FLUSH PRIVILEGES;
-ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD';
-CREATE USER IF NOT EXISTS 'root'@'127.0.0.1' IDENTIFIED WITH mysql_native_password BY '$MYSQL_ROOT_PASSWORD';
-DELETE FROM mysql.user WHERE User='';
-DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
-DROP DATABASE IF EXISTS test;
-DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
-FLUSH PRIVILEGES;
-EOF
-        
-        # Override'ı kaldır ve normal başlat
-        rm -f /etc/systemd/system/mysql.service.d/override.conf
-        systemctl daemon-reload
-        systemctl_safe restart mysql
-        sleep 3
-        
-        log_success "MySQL güvenlik ayarları tamamlandı (Yöntem 2)"
-    fi
     
-    # Şifre ile test et
-    if mysql -u root -p"$MYSQL_ROOT_PASSWORD" -e "SELECT VERSION();" > /dev/null 2>&1; then
-        MYSQL_VERSION=$(mysql -u root -p"$MYSQL_ROOT_PASSWORD" -e "SELECT VERSION();" -sN 2>/dev/null)
-        log_success "MySQL root şifresi doğrulandı ✓"
-        log_step "MySQL Versiyonu: $MYSQL_VERSION"
-    else
-        log_step "MySQL kuruldu ancak şifre doğrulanamadı"
-        log_step "Şifreyi manuel olarak ayarlamak için:"
-        echo "  mysql -u root  # (şifresiz deneyebilirsiniz)"
-        echo "  ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'your-password';"
-    fi
-else
-    log_step "MySQL kuruldu ancak başlatılamadı"
+    systemctl_safe enable nginx
+    systemctl_safe restart nginx
     
-    # Root şifresini kaydet (yine de)
-    mkdir -p /opt/serverbond-agent/config
-    echo "$MYSQL_ROOT_PASSWORD" > /opt/serverbond-agent/config/.mysql_root_password
-    chmod 600 /opt/serverbond-agent/config/.mysql_root_password
+    command -v ufw &> /dev/null && ufw allow 'Nginx Full' >> "$LOG_FILE" 2>&1 || true
     
-    log_step "MySQL sorun giderme adımları:"
-    echo ""
-    echo "1. Hata loglarını kontrol edin:"
-    echo "   sudo journalctl -u mysql -n 50"
-    echo "   sudo tail -f /var/log/mysql/error.log"
-    echo ""
-    echo "2. MySQL'i manuel başlatın:"
-    echo "   sudo systemctl start mysql"
-    echo "   sudo systemctl status mysql"
-    echo ""
-    echo "3. AppArmor sorunuysa:"
-    echo "   sudo aa-complain /usr/sbin/mysqld"
-    echo "   sudo systemctl restart mysql"
-    echo ""
-    echo "4. Konfigürasyon test edin:"
-    echo "   sudo mysqld --validate-config"
-    echo ""
+    log_success "Nginx"
+}
+
+install_php() {
+    log_step "PHP ${PHP_VERSION}..."
     
-    log_step "Kurulum MySQL olmadan devam ediyor..."
-fi
-MYSQL_SCRIPT
-
-    # Redis kurulum scripti
-    cat > scripts/install-redis.sh << 'REDIS_SCRIPT'
-#!/bin/bash
-set -e
-
-# Common.sh'ı source et
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "$SCRIPT_DIR/common.sh" ]; then
-    source "$SCRIPT_DIR/common.sh"
-elif [ -f "/opt/serverbond-agent/scripts/common.sh" ]; then
-    source /opt/serverbond-agent/scripts/common.sh
-else
-    echo "HATA: common.sh bulunamadı!"
-    exit 1
-fi
-
-log_step "Redis kuruluyor..."
-export DEBIAN_FRONTEND=noninteractive
-apt-get install -y -qq redis-server 2>&1 | grep -v "debconf:" || true
-
-# Redis yapılandırması
-if [ "${SKIP_SYSTEMD:-false}" != "true" ]; then
-    sed -i 's/supervised no/supervised systemd/' /etc/redis/redis.conf
-else
-    log_step "Systemd yok, Redis supervised mode atlandı"
-fi
-sed -i 's/bind 127.0.0.1 ::1/bind 127.0.0.1/' /etc/redis/redis.conf 2>/dev/null || true
-sed -i 's/bind 127.0.0.1 -::1/bind 127.0.0.1/' /etc/redis/redis.conf 2>/dev/null || true
-
-systemctl_safe enable redis-server
-systemctl_safe restart redis-server
-
-if check_service_running redis-server; then
-    log_success "Redis başarıyla kuruldu ve çalışıyor"
-elif [ "${SKIP_SYSTEMD:-false}" = "true" ]; then
-    log_step "Redis kuruldu (systemd olmadan çalıştırma gerekli)"
-else
-    log_error "Redis kurulumu başarısız!"
-    exit 1
-fi
-REDIS_SCRIPT
-
-    # PHP kurulum scripti
-    cat > scripts/install-php.sh << 'PHP_SCRIPT'
-#!/bin/bash
-
-#############################################
-# PHP Multi-Version Kurulum Scripti
-# PHP 8.1, 8.2, 8.3 versiyonlarını kurar
-#############################################
-
-set -e
-
-# Script dizinini bul
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Common fonksiyonları yükle
-if [ -f "$SCRIPT_DIR/common.sh" ]; then
-    source "$SCRIPT_DIR/common.sh"
-elif [ -f "/opt/serverbond-agent/scripts/common.sh" ]; then
-    source /opt/serverbond-agent/scripts/common.sh
-else
-    echo "HATA: common.sh bulunamadı!"
-    exit 1
-fi
-
-# PHP versiyonları
-PHP_VERSIONS=("8.1" "8.2" "8.3")
-DEFAULT_VERSION="8.2"
-
-log_step "PHP kurulumu başlıyor..."
-
-# Ondrej PPA ekle
-log_step "Ondrej PPA repository ekleniyor..."
-export DEBIAN_FRONTEND=noninteractive
-apt-get install -y -qq software-properties-common 2>&1 | grep -v "debconf:" || true
-add-apt-repository -y ppa:ondrej/php 2>&1 | grep -v "debconf:" || true
-apt-get update -qq 2>&1 | grep -v "debconf:" || true
-
-# Her PHP versiyonu için kurulum
-for VERSION in "${PHP_VERSIONS[@]}"; do
-    log_step "PHP $VERSION kuruluyor..."
+    add-apt-repository -y ppa:ondrej/php >> "$LOG_FILE" 2>&1
+    apt-get update -qq >> "$LOG_FILE" 2>&1
     
-    # Ana paketler
     apt-get install -y -qq \
-        php${VERSION}-fpm \
-        php${VERSION}-cli \
-        php${VERSION}-common \
-        php${VERSION}-mysql \
-        php${VERSION}-pgsql \
-        php${VERSION}-sqlite3 \
-        php${VERSION}-redis \
-        php${VERSION}-mbstring \
-        php${VERSION}-xml \
-        php${VERSION}-curl \
-        php${VERSION}-zip \
-        php${VERSION}-gd \
-        php${VERSION}-bcmath \
-        php${VERSION}-intl \
-        php${VERSION}-soap \
-        php${VERSION}-imagick \
-        php${VERSION}-readline
+        php${PHP_VERSION}-{fpm,cli,common,mysql,pgsql,sqlite3,redis} \
+        php${PHP_VERSION}-{mbstring,xml,curl,zip,gd,bcmath,intl,soap,imagick,readline} \
+        >> "$LOG_FILE" 2>&1
     
-    # PHP-FPM servisini başlat ve etkinleştir
-    systemctl_safe enable php${VERSION}-fpm
-    systemctl_safe start php${VERSION}-fpm
-    
-    # Servis durumunu kontrol et
-    if check_service_running php${VERSION}-fpm; then
-        log_success "PHP ${VERSION}-FPM çalışıyor"
-    else
-        log_step "PHP ${VERSION}-FPM başlatılamadı (systemd gerekli)"
-    fi
-    
-    # PHP-FPM yapılandırması
-    PHP_FPM_CONF="/etc/php/${VERSION}/fpm/php-fpm.conf"
-    PHP_FPM_POOL="/etc/php/${VERSION}/fpm/pool.d/www.conf"
-    
-    # PHP-FPM pool ayarları (optimize edilmiş)
-    cat > "$PHP_FPM_POOL" << EOF
+    # FPM Pool
+    cat > "${PHP_FPM_POOL}" << EOF
 [www]
 user = www-data
 group = www-data
-listen = /var/run/php/php${VERSION}-fpm.sock
+listen = ${PHP_FPM_SOCKET}
 listen.owner = www-data
 listen.group = www-data
 listen.mode = 0660
-
 pm = dynamic
 pm.max_children = 50
 pm.start_servers = 5
 pm.min_spare_servers = 5
 pm.max_spare_servers = 35
 pm.max_requests = 500
-
-php_admin_value[error_log] = /var/log/php${VERSION}-fpm.log
-php_admin_flag[log_errors] = on
 EOF
     
-    # PHP.ini optimizasyonları
-    PHP_INI="/etc/php/${VERSION}/fpm/php.ini"
+    # PHP.ini optimization
+    sed -i "s/memory_limit = .*/memory_limit = ${PHP_MEMORY_LIMIT}/" "${PHP_INI}"
+    sed -i "s/upload_max_filesize = .*/upload_max_filesize = ${PHP_UPLOAD_MAX}/" "${PHP_INI}"
+    sed -i "s/post_max_size = .*/post_max_size = ${PHP_UPLOAD_MAX}/" "${PHP_INI}"
+    sed -i "s/max_execution_time = .*/max_execution_time = ${PHP_MAX_EXECUTION}/" "${PHP_INI}"
+    sed -i 's/;opcache.enable=.*/opcache.enable=1/' "${PHP_INI}"
+    sed -i 's/;opcache.memory_consumption=.*/opcache.memory_consumption=256/' "${PHP_INI}"
+    sed -i 's/;date.timezone =.*/date.timezone = Europe\/Istanbul/' "${PHP_INI}"
     
-    # Memory limit
-    sed -i "s/memory_limit = .*/memory_limit = 256M/" "$PHP_INI"
+    systemctl_safe enable "php${PHP_VERSION}-fpm"
+    systemctl_safe restart "php${PHP_VERSION}-fpm"
     
-    # Upload limits
-    sed -i "s/upload_max_filesize = .*/upload_max_filesize = 100M/" "$PHP_INI"
-    sed -i "s/post_max_size = .*/post_max_size = 100M/" "$PHP_INI"
+    # Composer
+    EXPECTED_SIG="$(curl -sS https://composer.github.io/installer.sig)"
+    curl -sS https://getcomposer.org/installer -o /tmp/composer-setup.php
+    ACTUAL_SIG="$(php -r "echo hash_file('sha384', '/tmp/composer-setup.php');")"
     
-    # Execution time
-    sed -i "s/max_execution_time = .*/max_execution_time = 300/" "$PHP_INI"
+    if [ "$EXPECTED_SIG" = "$ACTUAL_SIG" ]; then
+        php /tmp/composer-setup.php --quiet --install-dir=/usr/local/bin --filename=composer
+        rm /tmp/composer-setup.php
+    fi
     
-    # OPcache
-    sed -i "s/;opcache.enable=.*/opcache.enable=1/" "$PHP_INI"
-    sed -i "s/;opcache.memory_consumption=.*/opcache.memory_consumption=256/" "$PHP_INI"
-    sed -i "s/;opcache.interned_strings_buffer=.*/opcache.interned_strings_buffer=16/" "$PHP_INI"
-    sed -i "s/;opcache.max_accelerated_files=.*/opcache.max_accelerated_files=10000/" "$PHP_INI"
+    log_success "PHP ${PHP_VERSION}"
+}
+
+install_mysql() {
+    log_step "MySQL..."
     
-    # Timezone
-    sed -i "s/;date.timezone =.*/date.timezone = Europe\/Istanbul/" "$PHP_INI"
+    local mysql_pass
+    mysql_pass=$(openssl rand -base64 32)
     
-    # Servisi yeniden başlat
-    systemctl_safe restart php${VERSION}-fpm
+    apt-get install -y -qq mysql-server >> "$LOG_FILE" 2>&1
     
-    log_success "PHP $VERSION kuruldu ve yapılandırıldı"
-done
+    mkdir -p /var/run/mysqld /var/log/mysql
+    chown mysql:mysql /var/run/mysqld /var/log/mysql
+    chmod 755 /var/run/mysqld
+    
+    systemctl_safe enable mysql
+    systemctl_safe start mysql
+    
+    sleep 3
+    
+    # Secure installation
+    if mysql -u root -e "SELECT 1;" &> /dev/null; then
+        mysql -u root <<EOSQL >> "$LOG_FILE" 2>&1
+ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${mysql_pass}';
+DELETE FROM mysql.user WHERE User='';
+DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+DROP DATABASE IF EXISTS test;
+FLUSH PRIVILEGES;
+EOSQL
+    fi
+    
+    mkdir -p "${CONFIG_DIR}"
+    echo "$mysql_pass" > "${MYSQL_ROOT_PASSWORD_FILE}"
+    chmod 600 "${MYSQL_ROOT_PASSWORD_FILE}"
+    
+    log_success "MySQL"
+}
 
-# Composer kurulumu
-log_step "Composer kuruluyor..."
-EXPECTED_CHECKSUM="$(php -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
-php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
-ACTUAL_CHECKSUM="$(php -r "echo hash_file('sha384', 'composer-setup.php');")"
+install_redis() {
+    log_step "Redis..."
+    
+    apt-get install -y -qq redis-server >> "$LOG_FILE" 2>&1
+    
+    sed -i 's/supervised no/supervised systemd/' "${REDIS_CONFIG}" 2>/dev/null || true
+    sed -i "s/bind .*/bind ${REDIS_HOST}/" "${REDIS_CONFIG}"
+    sed -i "s/^port .*/port ${REDIS_PORT}/" "${REDIS_CONFIG}"
+    
+    systemctl_safe enable redis-server
+    systemctl_safe restart redis-server
+    
+    log_success "Redis"
+}
 
-if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
-    log_error "Composer kurulum dosyası bozuk!"
-    rm composer-setup.php
-    exit 1
-fi
+install_nodejs() {
+    log_step "Node.js ${NODE_VERSION}..."
+    
+    curl -fsSL "https://deb.nodesource.com/setup_${NODE_VERSION}.x" | bash - >> "$LOG_FILE" 2>&1
+    apt-get install -y -qq nodejs >> "$LOG_FILE" 2>&1
+    
+    npm install -g ${NPM_GLOBAL_PACKAGES} --silent >> "$LOG_FILE" 2>&1
+    
+    [[ "$SKIP_SYSTEMD" == "false" ]] && pm2 startup systemd -u root --hp /root >> "$LOG_FILE" 2>&1 || true
+    
+    log_success "Node.js ${NODE_VERSION}"
+}
 
-php composer-setup.php --quiet --install-dir=/usr/local/bin --filename=composer
-rm composer-setup.php
-log_success "Composer kuruldu"
-
-# Default PHP versiyonunu ayarla
-log_step "Default PHP versiyonu ayarlanıyor: $DEFAULT_VERSION"
-update-alternatives --set php /usr/bin/php${DEFAULT_VERSION}
-
-# PHP versiyonlarını listele
-log_step "Kurulu PHP versiyonları:"
-for VERSION in "${PHP_VERSIONS[@]}"; do
-    PHP_VERSION=$(php${VERSION} -v | head -n 1)
-    echo "  - $PHP_VERSION"
-done
-
-log_success "PHP kurulumu tamamlandı!"
-PHP_SCRIPT
-
-    # Node.js kurulum scripti
-    cat > scripts/install-nodejs.sh << 'NODEJS_SCRIPT'
-#!/bin/bash
-
-#############################################
-# Node.js ve NPM Kurulum Scripti
-# Node.js 20.x LTS versiyonu
-#############################################
-
-set -e
-
-# Script dizinini bul
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Common fonksiyonları yükle
-if [ -f "$SCRIPT_DIR/common.sh" ]; then
-    source "$SCRIPT_DIR/common.sh"
-elif [ -f "/opt/serverbond-agent/scripts/common.sh" ]; then
-    source /opt/serverbond-agent/scripts/common.sh
-else
-    echo "HATA: common.sh bulunamadı!"
-    exit 1
-fi
-
-NODE_VERSION="20"
-
-log_step "Node.js ${NODE_VERSION}.x kuruluyor..."
-
-# NodeSource repository'sini ekle
-curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash -
-
-# Node.js ve NPM kur
-apt-get install -y -qq nodejs
-
-# Yarn kur (opsiyonel)
-npm install -g yarn --quiet
-
-# PM2 kur (process manager)
-npm install -g pm2 --quiet
-
-# Node.js versiyonunu kontrol et
-NODE_INSTALLED_VERSION=$(node -v)
-NPM_VERSION=$(npm -v)
-
-log_success "Node.js kuruldu: $NODE_INSTALLED_VERSION"
-log_success "NPM kuruldu: v$NPM_VERSION"
-log_success "Yarn kuruldu: $(yarn -v)"
-log_success "PM2 kuruldu: $(pm2 -v)"
-
-# PM2 startup script
-if [ "${SKIP_SYSTEMD:-false}" = "false" ]; then
-    pm2 startup systemd -u root --hp /root > /dev/null 2>&1 || log_step "PM2 startup ayarlanamadı"
-    log_step "PM2 systemd entegrasyonu tamamlandı"
-fi
-NODEJS_SCRIPT
-
-    # Certbot kurulum scripti
-    cat > scripts/install-certbot.sh << 'CERTBOT_SCRIPT'
-#!/bin/bash
-
-#############################################
-# Certbot (Let's Encrypt) Kurulum Scripti
-#############################################
-
-set -e
-
-# Script dizinini bul
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Common fonksiyonları yükle
-if [ -f "$SCRIPT_DIR/common.sh" ]; then
-    source "$SCRIPT_DIR/common.sh"
-elif [ -f "/opt/serverbond-agent/scripts/common.sh" ]; then
-    source /opt/serverbond-agent/scripts/common.sh
-else
-    echo "HATA: common.sh bulunamadı!"
-    exit 1
-fi
-
-log_step "Certbot kuruluyor..."
-
-# Certbot ve Nginx plugin'i kur
-apt-get install -y -qq certbot python3-certbot-nginx
-
-# Certbot versiyonunu kontrol et
-CERTBOT_VERSION=$(certbot --version 2>&1 | head -n 1)
-
-log_success "Certbot kuruldu: $CERTBOT_VERSION"
-
-# Auto-renewal timer'ı etkinleştir (systemd varsa)
-if [ "${SKIP_SYSTEMD:-false}" = "false" ]; then
-    if systemctl list-unit-files | grep -q certbot.timer; then
-        systemctl_safe enable certbot.timer
-        systemctl_safe start certbot.timer
-        log_success "Certbot auto-renewal timer etkinleştirildi"
-    else
-        # Cron job ekle
-        CRON_CMD="0 0,12 * * * root certbot renew --quiet"
-        if ! grep -q "certbot renew" /etc/crontab 2>/dev/null; then
-            echo "$CRON_CMD" >> /etc/crontab
-            log_success "Certbot cron job eklendi"
+install_certbot() {
+    log_step "Certbot..."
+    
+    apt-get install -y -qq certbot python3-certbot-nginx >> "$LOG_FILE" 2>&1
+    
+    if [[ "$SKIP_SYSTEMD" == "false" ]]; then
+        if systemctl list-unit-files | grep -q certbot.timer; then
+            systemctl_safe enable certbot.timer
+            systemctl_safe start certbot.timer
+        else
+            echo "${CERTBOT_RENEWAL_CRON}" >> /etc/crontab
         fi
     fi
-else
-    log_step "Systemd yok - Certbot auto-renewal manuel ayarlanmalı"
-fi
+    
+    log_success "Certbot"
+}
 
-log_step "SSL sertifikası almak için:"
-echo "  sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com"
-CERTBOT_SCRIPT
+install_supervisor() {
+    log_step "Supervisor..."
+    
+    apt-get install -y -qq supervisor >> "$LOG_FILE" 2>&1
+    mkdir -p "${SUPERVISOR_CONF_DIR}"
+    
+    systemctl_safe enable supervisor
+    systemctl_safe start supervisor
+    
+    log_success "Supervisor"
+}
 
-    # Supervisor kurulum scripti
-    cat > scripts/install-supervisor.sh << 'SUPERVISOR_SCRIPT'
-#!/bin/bash
-
-#############################################
-# Supervisor Kurulum Scripti
-# Queue/Worker process manager
-#############################################
-
-set -e
-
-# Script dizinini bul
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Common fonksiyonları yükle
-if [ -f "$SCRIPT_DIR/common.sh" ]; then
-    source "$SCRIPT_DIR/common.sh"
-elif [ -f "/opt/serverbond-agent/scripts/common.sh" ]; then
-    source /opt/serverbond-agent/scripts/common.sh
-else
-    echo "HATA: common.sh bulunamadı!"
-    exit 1
-fi
-
-log_step "Supervisor kuruluyor..."
-
-# Supervisor'ı kur
-apt-get install -y -qq supervisor
-
-# Supervisor'ı etkinleştir ve başlat
-systemctl_safe enable supervisor
-systemctl_safe start supervisor
-
-# Config dizinini oluştur
-mkdir -p /etc/supervisor/conf.d
-
-# Supervisor versiyonunu kontrol et
-SUPERVISOR_VERSION=$(supervisorctl version 2>/dev/null || echo "unknown")
-
-if check_service_running supervisor; then
-    log_success "Supervisor kuruldu ve çalışıyor: $SUPERVISOR_VERSION"
-elif [ "${SKIP_SYSTEMD:-false}" = "true" ]; then
-    log_step "Supervisor kuruldu (systemd olmadan çalıştırma gerekli)"
-else
-    log_step "Supervisor kuruldu ancak başlatılamadı"
-fi
-
-log_step "Worker konfigürasyonları /etc/supervisor/conf.d/ dizinine eklenebilir"
-SUPERVISOR_SCRIPT
-
-    # Extras kurulum scripti
-    cat > scripts/install-extras.sh << 'EXTRAS_SCRIPT'
-#!/bin/bash
-
-#############################################
-# Ekstra Araçlar Kurulum Scripti
-# Monitoring, debugging ve utility tools
-#############################################
-
-set -e
-
-# Script dizinini bul
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Common fonksiyonları yükle
-if [ -f "$SCRIPT_DIR/common.sh" ]; then
-    source "$SCRIPT_DIR/common.sh"
-elif [ -f "/opt/serverbond-agent/scripts/common.sh" ]; then
-    source /opt/serverbond-agent/scripts/common.sh
-else
-    echo "HATA: common.sh bulunamadı!"
-    exit 1
-fi
-
-log_step "Ekstra araçlar kuruluyor..."
-
-# System monitoring ve debugging tools
-apt-get install -y -qq \
-    htop \
-    iotop \
-    iftop \
-    ncdu \
-    tree \
-    net-tools \
-    dnsutils \
-    telnet \
-    netcat-openbsd \
-    zip \
-    unzip \
-    rsync \
-    vim \
-    nano \
-    screen \
-    tmux
-
-# Networking tools
-apt-get install -y -qq \
-    traceroute \
-    mtr \
-    iputils-ping \
-    curl \
-    wget
-
-# Fail2ban (brute-force protection)
-log_step "Fail2ban kuruluyor..."
-apt-get install -y -qq fail2ban
-
-# Fail2ban'i yapılandır
+install_extras() {
+    log_step "Monitoring tools..."
+    
+    apt-get install -y -qq htop iotop iftop ncdu tree net-tools \
+        dnsutils telnet netcat-openbsd zip unzip rsync vim \
+        screen tmux traceroute mtr fail2ban >> "$LOG_FILE" 2>&1
+    
+    # Fail2ban config
 cat > /etc/fail2ban/jail.local << 'EOF'
 [DEFAULT]
 bantime = 3600
@@ -979,190 +452,113 @@ maxretry = 5
 enabled = true
 port = ssh
 logpath = %(sshd_log)s
-backend = %(sshd_backend)s
-
-[nginx-http-auth]
-enabled = true
-port = http,https
-logpath = /var/log/nginx/error.log
-
-[nginx-limit-req]
-enabled = true
-port = http,https
-logpath = /var/log/nginx/error.log
 EOF
 
 systemctl_safe enable fail2ban
 systemctl_safe restart fail2ban
 
-if check_service_running fail2ban; then
-    log_success "Fail2ban çalışıyor"
-else
-    log_step "Fail2ban başlatılamadı"
-fi
-
-# Logrotate konfigürasyonu
-cat > /etc/logrotate.d/serverbond-agent << 'EOF'
-/opt/serverbond-agent/logs/*.log {
-    daily
-    missingok
-    rotate 14
-    compress
-    delaycompress
-    notifempty
-    create 0640 root root
-    sharedscripts
+    log_success "Tools"
 }
-EOF
 
-log_success "Ekstra araçlar kuruldu"
-log_step "Kurulu araçlar:"
-echo "  - htop, iotop, iftop: System monitoring"
-echo "  - ncdu: Disk usage analyzer"
-echo "  - fail2ban: Brute-force protection"
-echo "  - vim, nano: Text editors"
-echo "  - screen, tmux: Terminal multiplexers"
-echo "  - Logrotate: Log management"
-EXTRAS_SCRIPT
-
-fi
-
-# Scriptleri çalıştırılabilir yap
-chmod +x scripts/*.sh
-
-# Servis kurulumları
-log_step "=== Temel Servisler Kuruluyor ==="
-echo ""
-
-log_step "1/8: Python kuruluyor..."
-bash scripts/install-python.sh
-echo ""
-
-log_step "2/8: Nginx kuruluyor..."
-bash scripts/install-nginx.sh
-echo ""
-
-log_step "3/8: PHP Multi-Version kuruluyor..."
-bash scripts/install-php.sh
-echo ""
-
-log_step "4/8: MySQL kuruluyor..."
-bash scripts/install-mysql.sh
-echo ""
-
-log_step "5/8: Redis kuruluyor..."
-bash scripts/install-redis.sh
-echo ""
-
-log_step "6/8: Node.js kuruluyor..."
-bash scripts/install-nodejs.sh
-echo ""
-
-log_step "7/8: Certbot (Let's Encrypt) kuruluyor..."
-bash scripts/install-certbot.sh
-echo ""
-
-log_step "8/8: Supervisor kuruluyor..."
-bash scripts/install-supervisor.sh
-echo ""
-
-log_step "=== Ekstra Araçlar Kuruluyor ==="
-bash scripts/install-extras.sh
-echo ""
-
-# Config dizinleri oluştur
-mkdir -p config
-mkdir -p logs
-mkdir -p sites
-mkdir -p backups
-
-# GitHub'dan projeyi indir
-log_step "ServerBond Agent GitHub'dan indiriliyor..."
-if [ ! -d ".git" ]; then
-    # Mevcut dizin boşsa clone yap
-    if [ -z "$(ls -A)" ]; then
-        git clone https://github.com/beyazitkolemen/serverbond-agent.git "$INSTALL_DIR"
-    else
-        # Mevcut dosyalar varsa, geçici dizine clone yap ve taşı
-        TEMP_DIR=$(mktemp -d)
-        git clone https://github.com/beyazitkolemen/serverbond-agent.git "$TEMP_DIR"
-        cp -r "$TEMP_DIR"/* "$INSTALL_DIR/" 2>/dev/null || true
-        cp -r "$TEMP_DIR"/.* "$INSTALL_DIR/" 2>/dev/null || true
-        rm -rf "$TEMP_DIR"
+configure_project() {
+    log_step "Proje..."
+    
+    if [[ ! -d ".git" ]]; then
+        git clone -q --branch "${GITHUB_BRANCH}" "https://github.com/${GITHUB_REPO}.git" /tmp/sb-tmp 2>&1 | tee -a "$LOG_FILE" > /dev/null
+        rsync -a /tmp/sb-tmp/ "$INSTALL_DIR/" >> "$LOG_FILE" 2>&1
+        rm -rf /tmp/sb-tmp
     fi
-    log_success "Proje indirildi"
-else
-    log_step "Git repository mevcut, güncelleniyor..."
-    git pull origin main || log_step "Git pull başarısız, devam ediliyor..."
-fi
-
-# Agent dizin yapısı hazır
-log_success "ServerBond Agent dizin yapısı hazır"
-
-# Agent yapılandırması
-log_step "ServerBond Agent yapılandırılıyor..."
-
-# Agent yapılandırma dosyası
-cat > config/agent.conf << EOF
+    
+    # Create directory structure
+    mkdir -p "${SITES_DIR}" "${CONFIG_DIR}" "${LOGS_DIR}" "${BACKUPS_DIR}" "${SCRIPTS_DIR}"
+    
+    # Agent configuration
+    cat > "${AGENT_CONFIG_FILE}" << EOF
 [paths]
-sites_dir = $INSTALL_DIR/sites
-nginx_sites_available = /etc/nginx/sites-available
-nginx_sites_enabled = /etc/nginx/sites-enabled
-logs_dir = $INSTALL_DIR/logs
-backups_dir = $INSTALL_DIR/backups
+sites_dir = ${SITES_DIR}
+nginx_sites_available = ${NGINX_SITES_AVAILABLE}
+nginx_sites_enabled = ${NGINX_SITES_ENABLED}
+logs_dir = ${LOGS_DIR}
+backups_dir = ${BACKUPS_DIR}
 
 [mysql]
-host = localhost
-port = 3306
-root_password_file = $INSTALL_DIR/config/.mysql_root_password
+host = ${MYSQL_HOST}
+port = ${MYSQL_PORT}
+root_password_file = ${MYSQL_ROOT_PASSWORD_FILE}
 
 [redis]
-host = localhost
-port = 6379
-db = 0
+host = ${REDIS_HOST}
+port = ${REDIS_PORT}
+db = ${REDIS_DB}
+
+[php]
+version = ${PHP_VERSION}
+fpm_socket = ${PHP_FPM_SOCKET}
+
+[node]
+version = ${NODE_VERSION}
+
+[python]
+version = ${PYTHON_VERSION}
 EOF
+    
+    chmod 644 "${AGENT_CONFIG_FILE}"
+    
+    log_success "Proje"
+}
 
-log_success "Agent yapılandırması tamamlandı"
+################################################################################
+# MAIN
+################################################################################
 
-# Kurulum özeti
-echo
-echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}   Kurulum Başarıyla Tamamlandı!${NC}"
-echo -e "${GREEN}========================================${NC}"
-echo
-echo -e "${BLUE}Kurulum Dizini:${NC} $INSTALL_DIR"
-SERVER_IP=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "your-server-ip")
-echo -e "${BLUE}Server:${NC} http://${SERVER_IP}/"
-echo
-echo -e "${BLUE}Servisler:${NC}"
-if [ "$SKIP_SYSTEMD" = "false" ]; then
-    echo "  - Nginx: $(systemctl is-active nginx 2>/dev/null || echo 'unknown')"
-    echo "  - PHP 8.2-FPM: $(systemctl is-active php8.2-fpm 2>/dev/null || echo 'unknown')"
-    echo "  - MySQL: $(systemctl is-active mysql 2>/dev/null || echo 'unknown')"
-    echo "  - Redis: $(systemctl is-active redis-server 2>/dev/null || echo 'unknown')"
-else
-    echo "  - Systemd yok - servisler manuel kontrol edilmeli"
-fi
-echo
-echo -e "${BLUE}Yapılandırma:${NC}"
-echo "  - Agent Config: $INSTALL_DIR/config/agent.conf"
-echo "  - MySQL Root Password: $INSTALL_DIR/config/.mysql_root_password"
-echo
-echo -e "${BLUE}Kurulu Yazılımlar:${NC}"
-echo "  - PHP: $(php -v 2>/dev/null | head -n 1 | awk '{print $2}')"
-echo "  - Composer: $(composer --version 2>/dev/null | awk '{print $3}' || echo 'N/A')"
-echo "  - Node.js: $(node -v 2>/dev/null || echo 'N/A')"
-echo "  - Nginx: $(nginx -v 2>&1 | awk '{print $3}' | cut -d '/' -f2)"
-echo "  - MySQL: $(mysql --version 2>/dev/null | awk '{print $5}' | cut -d ',' -f1)"
-echo "  - Redis: $(redis-server --version 2>/dev/null | awk '{print $3}' | cut -d '=' -f2)"
-echo
-echo -e "${YELLOW}Önemli Notlar:${NC}"
-echo "  - Nginx durumu: systemctl status nginx"
-echo "  - PHP-FPM durumu: systemctl status php8.2-fpm"
-echo "  - MySQL şifresi: $INSTALL_DIR/config/.mysql_root_password"
+main() {
+    echo -e "${BOLD}ServerBond Agent Installer v${SCRIPT_VERSION}${NC}"
 echo ""
-echo -e "${YELLOW}SSL Kurulumu:${NC}"
-echo "  sudo certbot --nginx -d yourdomain.com"
-echo
-log_success "ServerBond Agent hazır!"
+    
+    # Validation
+    log_step "Sistem kontrolleri..."
+    check_root
+    check_ubuntu
+    check_systemd
+    check_network
+    check_disk_space
+    log_success "Kontroller OK"
+    
+    INSTALLATION_STARTED=true
+    
+    # Install
+    prepare_system
+    install_python
+    install_nginx
+    install_php
+    install_mysql
+    install_redis
+    install_nodejs
+    install_certbot
+    install_supervisor
+    install_extras
+    configure_project
+    
+    # Summary
+echo ""
+    log_success "Kurulum tamamlandı!"
+    echo ""
+    
+    local server_ip
+    server_ip=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "localhost")
+    
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  Server    : http://${server_ip}/"
+    echo "  Sites     : ${SITES_DIR}"
+    echo "  Config    : ${AGENT_CONFIG_FILE}"
+    echo "  MySQL Pass: ${MYSQL_ROOT_PASSWORD_FILE}"
+    echo "  Log       : ${LOG_FILE}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+}
 
+################################################################################
+# ENTRY POINT
+################################################################################
+
+main "$@"
