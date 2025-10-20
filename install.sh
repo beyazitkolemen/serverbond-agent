@@ -440,6 +440,435 @@ else
 fi
 REDIS_SCRIPT
 
+    # PHP kurulum scripti
+    cat > scripts/install-php.sh << 'PHP_SCRIPT'
+#!/bin/bash
+
+#############################################
+# PHP Multi-Version Kurulum Scripti
+# PHP 8.1, 8.2, 8.3 versiyonlarını kurar
+#############################################
+
+set -e
+
+# Script dizinini bul
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Common fonksiyonları yükle
+if [ -f "$SCRIPT_DIR/common.sh" ]; then
+    source "$SCRIPT_DIR/common.sh"
+elif [ -f "/opt/serverbond-agent/scripts/common.sh" ]; then
+    source /opt/serverbond-agent/scripts/common.sh
+else
+    echo "HATA: common.sh bulunamadı!"
+    exit 1
+fi
+
+# PHP versiyonları
+PHP_VERSIONS=("8.1" "8.2" "8.3")
+DEFAULT_VERSION="8.2"
+
+log_info "PHP kurulumu başlıyor..."
+
+# Ondrej PPA ekle
+log_info "Ondrej PPA repository ekleniyor..."
+apt-get install -y -qq software-properties-common
+add-apt-repository -y ppa:ondrej/php
+apt-get update -qq
+
+# Her PHP versiyonu için kurulum
+for VERSION in "${PHP_VERSIONS[@]}"; do
+    log_info "PHP $VERSION kuruluyor..."
+    
+    # Ana paketler
+    apt-get install -y -qq \
+        php${VERSION}-fpm \
+        php${VERSION}-cli \
+        php${VERSION}-common \
+        php${VERSION}-mysql \
+        php${VERSION}-pgsql \
+        php${VERSION}-sqlite3 \
+        php${VERSION}-redis \
+        php${VERSION}-mbstring \
+        php${VERSION}-xml \
+        php${VERSION}-curl \
+        php${VERSION}-zip \
+        php${VERSION}-gd \
+        php${VERSION}-bcmath \
+        php${VERSION}-intl \
+        php${VERSION}-soap \
+        php${VERSION}-imagick \
+        php${VERSION}-readline
+    
+    # PHP-FPM servisini başlat ve etkinleştir
+    systemctl_safe enable php${VERSION}-fpm
+    systemctl_safe start php${VERSION}-fpm
+    
+    # Servis durumunu kontrol et
+    if check_service_running php${VERSION}-fpm; then
+        log_success "PHP ${VERSION}-FPM çalışıyor"
+    else
+        log_warning "PHP ${VERSION}-FPM başlatılamadı (systemd gerekli)"
+    fi
+    
+    # PHP-FPM yapılandırması
+    PHP_FPM_CONF="/etc/php/${VERSION}/fpm/php-fpm.conf"
+    PHP_FPM_POOL="/etc/php/${VERSION}/fpm/pool.d/www.conf"
+    
+    # PHP-FPM pool ayarları (optimize edilmiş)
+    cat > "$PHP_FPM_POOL" << EOF
+[www]
+user = www-data
+group = www-data
+listen = /var/run/php/php${VERSION}-fpm.sock
+listen.owner = www-data
+listen.group = www-data
+listen.mode = 0660
+
+pm = dynamic
+pm.max_children = 50
+pm.start_servers = 5
+pm.min_spare_servers = 5
+pm.max_spare_servers = 35
+pm.max_requests = 500
+
+php_admin_value[error_log] = /var/log/php${VERSION}-fpm.log
+php_admin_flag[log_errors] = on
+EOF
+    
+    # PHP.ini optimizasyonları
+    PHP_INI="/etc/php/${VERSION}/fpm/php.ini"
+    
+    # Memory limit
+    sed -i "s/memory_limit = .*/memory_limit = 256M/" "$PHP_INI"
+    
+    # Upload limits
+    sed -i "s/upload_max_filesize = .*/upload_max_filesize = 100M/" "$PHP_INI"
+    sed -i "s/post_max_size = .*/post_max_size = 100M/" "$PHP_INI"
+    
+    # Execution time
+    sed -i "s/max_execution_time = .*/max_execution_time = 300/" "$PHP_INI"
+    
+    # OPcache
+    sed -i "s/;opcache.enable=.*/opcache.enable=1/" "$PHP_INI"
+    sed -i "s/;opcache.memory_consumption=.*/opcache.memory_consumption=256/" "$PHP_INI"
+    sed -i "s/;opcache.interned_strings_buffer=.*/opcache.interned_strings_buffer=16/" "$PHP_INI"
+    sed -i "s/;opcache.max_accelerated_files=.*/opcache.max_accelerated_files=10000/" "$PHP_INI"
+    
+    # Timezone
+    sed -i "s/;date.timezone =.*/date.timezone = Europe\/Istanbul/" "$PHP_INI"
+    
+    # Servisi yeniden başlat
+    systemctl_safe restart php${VERSION}-fpm
+    
+    log_success "PHP $VERSION kuruldu ve yapılandırıldı"
+done
+
+# Composer kurulumu
+log_info "Composer kuruluyor..."
+EXPECTED_CHECKSUM="$(php -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
+php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+ACTUAL_CHECKSUM="$(php -r "echo hash_file('sha384', 'composer-setup.php');")"
+
+if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
+    log_error "Composer kurulum dosyası bozuk!"
+    rm composer-setup.php
+    exit 1
+fi
+
+php composer-setup.php --quiet --install-dir=/usr/local/bin --filename=composer
+rm composer-setup.php
+log_success "Composer kuruldu"
+
+# Default PHP versiyonunu ayarla
+log_info "Default PHP versiyonu ayarlanıyor: $DEFAULT_VERSION"
+update-alternatives --set php /usr/bin/php${DEFAULT_VERSION}
+
+# PHP versiyonlarını listele
+log_info "Kurulu PHP versiyonları:"
+for VERSION in "${PHP_VERSIONS[@]}"; do
+    PHP_VERSION=$(php${VERSION} -v | head -n 1)
+    echo "  - $PHP_VERSION"
+done
+
+log_success "PHP kurulumu tamamlandı!"
+PHP_SCRIPT
+
+    # Node.js kurulum scripti
+    cat > scripts/install-nodejs.sh << 'NODEJS_SCRIPT'
+#!/bin/bash
+
+#############################################
+# Node.js ve NPM Kurulum Scripti
+# Node.js 20.x LTS versiyonu
+#############################################
+
+set -e
+
+# Script dizinini bul
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Common fonksiyonları yükle
+if [ -f "$SCRIPT_DIR/common.sh" ]; then
+    source "$SCRIPT_DIR/common.sh"
+elif [ -f "/opt/serverbond-agent/scripts/common.sh" ]; then
+    source /opt/serverbond-agent/scripts/common.sh
+else
+    echo "HATA: common.sh bulunamadı!"
+    exit 1
+fi
+
+NODE_VERSION="20"
+
+log_info "Node.js ${NODE_VERSION}.x kuruluyor..."
+
+# NodeSource repository'sini ekle
+curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash -
+
+# Node.js ve NPM kur
+apt-get install -y -qq nodejs
+
+# Yarn kur (opsiyonel)
+npm install -g yarn --quiet
+
+# PM2 kur (process manager)
+npm install -g pm2 --quiet
+
+# Node.js versiyonunu kontrol et
+NODE_INSTALLED_VERSION=$(node -v)
+NPM_VERSION=$(npm -v)
+
+log_success "Node.js kuruldu: $NODE_INSTALLED_VERSION"
+log_success "NPM kuruldu: v$NPM_VERSION"
+log_success "Yarn kuruldu: $(yarn -v)"
+log_success "PM2 kuruldu: $(pm2 -v)"
+
+# PM2 startup script
+if [ "${SKIP_SYSTEMD:-false}" = "false" ]; then
+    pm2 startup systemd -u root --hp /root > /dev/null 2>&1 || log_warning "PM2 startup ayarlanamadı"
+    log_info "PM2 systemd entegrasyonu tamamlandı"
+fi
+NODEJS_SCRIPT
+
+    # Certbot kurulum scripti
+    cat > scripts/install-certbot.sh << 'CERTBOT_SCRIPT'
+#!/bin/bash
+
+#############################################
+# Certbot (Let's Encrypt) Kurulum Scripti
+#############################################
+
+set -e
+
+# Script dizinini bul
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Common fonksiyonları yükle
+if [ -f "$SCRIPT_DIR/common.sh" ]; then
+    source "$SCRIPT_DIR/common.sh"
+elif [ -f "/opt/serverbond-agent/scripts/common.sh" ]; then
+    source /opt/serverbond-agent/scripts/common.sh
+else
+    echo "HATA: common.sh bulunamadı!"
+    exit 1
+fi
+
+log_info "Certbot kuruluyor..."
+
+# Certbot ve Nginx plugin'i kur
+apt-get install -y -qq certbot python3-certbot-nginx
+
+# Certbot versiyonunu kontrol et
+CERTBOT_VERSION=$(certbot --version 2>&1 | head -n 1)
+
+log_success "Certbot kuruldu: $CERTBOT_VERSION"
+
+# Auto-renewal timer'ı etkinleştir (systemd varsa)
+if [ "${SKIP_SYSTEMD:-false}" = "false" ]; then
+    if systemctl list-unit-files | grep -q certbot.timer; then
+        systemctl_safe enable certbot.timer
+        systemctl_safe start certbot.timer
+        log_success "Certbot auto-renewal timer etkinleştirildi"
+    else
+        # Cron job ekle
+        CRON_CMD="0 0,12 * * * root certbot renew --quiet"
+        if ! grep -q "certbot renew" /etc/crontab 2>/dev/null; then
+            echo "$CRON_CMD" >> /etc/crontab
+            log_success "Certbot cron job eklendi"
+        fi
+    fi
+else
+    log_warning "Systemd yok - Certbot auto-renewal manuel ayarlanmalı"
+fi
+
+log_info "SSL sertifikası almak için:"
+echo "  sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com"
+CERTBOT_SCRIPT
+
+    # Supervisor kurulum scripti
+    cat > scripts/install-supervisor.sh << 'SUPERVISOR_SCRIPT'
+#!/bin/bash
+
+#############################################
+# Supervisor Kurulum Scripti
+# Queue/Worker process manager
+#############################################
+
+set -e
+
+# Script dizinini bul
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Common fonksiyonları yükle
+if [ -f "$SCRIPT_DIR/common.sh" ]; then
+    source "$SCRIPT_DIR/common.sh"
+elif [ -f "/opt/serverbond-agent/scripts/common.sh" ]; then
+    source /opt/serverbond-agent/scripts/common.sh
+else
+    echo "HATA: common.sh bulunamadı!"
+    exit 1
+fi
+
+log_info "Supervisor kuruluyor..."
+
+# Supervisor'ı kur
+apt-get install -y -qq supervisor
+
+# Supervisor'ı etkinleştir ve başlat
+systemctl_safe enable supervisor
+systemctl_safe start supervisor
+
+# Config dizinini oluştur
+mkdir -p /etc/supervisor/conf.d
+
+# Supervisor versiyonunu kontrol et
+SUPERVISOR_VERSION=$(supervisorctl version 2>/dev/null || echo "unknown")
+
+if check_service_running supervisor; then
+    log_success "Supervisor kuruldu ve çalışıyor: $SUPERVISOR_VERSION"
+elif [ "${SKIP_SYSTEMD:-false}" = "true" ]; then
+    log_warning "Supervisor kuruldu (systemd olmadan çalıştırma gerekli)"
+else
+    log_warning "Supervisor kuruldu ancak başlatılamadı"
+fi
+
+log_info "Worker konfigürasyonları /etc/supervisor/conf.d/ dizinine eklenebilir"
+SUPERVISOR_SCRIPT
+
+    # Extras kurulum scripti
+    cat > scripts/install-extras.sh << 'EXTRAS_SCRIPT'
+#!/bin/bash
+
+#############################################
+# Ekstra Araçlar Kurulum Scripti
+# Monitoring, debugging ve utility tools
+#############################################
+
+set -e
+
+# Script dizinini bul
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Common fonksiyonları yükle
+if [ -f "$SCRIPT_DIR/common.sh" ]; then
+    source "$SCRIPT_DIR/common.sh"
+elif [ -f "/opt/serverbond-agent/scripts/common.sh" ]; then
+    source /opt/serverbond-agent/scripts/common.sh
+else
+    echo "HATA: common.sh bulunamadı!"
+    exit 1
+fi
+
+log_info "Ekstra araçlar kuruluyor..."
+
+# System monitoring ve debugging tools
+apt-get install -y -qq \
+    htop \
+    iotop \
+    iftop \
+    ncdu \
+    tree \
+    net-tools \
+    dnsutils \
+    telnet \
+    netcat \
+    zip \
+    unzip \
+    rsync \
+    vim \
+    nano \
+    screen \
+    tmux
+
+# Networking tools
+apt-get install -y -qq \
+    traceroute \
+    mtr \
+    iputils-ping \
+    curl \
+    wget
+
+# Fail2ban (brute-force protection)
+log_info "Fail2ban kuruluyor..."
+apt-get install -y -qq fail2ban
+
+# Fail2ban'i yapılandır
+cat > /etc/fail2ban/jail.local << 'EOF'
+[DEFAULT]
+bantime = 3600
+findtime = 600
+maxretry = 5
+
+[sshd]
+enabled = true
+port = ssh
+logpath = %(sshd_log)s
+backend = %(sshd_backend)s
+
+[nginx-http-auth]
+enabled = true
+port = http,https
+logpath = /var/log/nginx/error.log
+
+[nginx-limit-req]
+enabled = true
+port = http,https
+logpath = /var/log/nginx/error.log
+EOF
+
+systemctl_safe enable fail2ban
+systemctl_safe restart fail2ban
+
+if check_service_running fail2ban; then
+    log_success "Fail2ban çalışıyor"
+else
+    log_warning "Fail2ban başlatılamadı"
+fi
+
+# Logrotate konfigürasyonu
+cat > /etc/logrotate.d/serverbond-agent << 'EOF'
+/opt/serverbond-agent/logs/*.log {
+    daily
+    missingok
+    rotate 14
+    compress
+    delaycompress
+    notifempty
+    create 0640 root root
+    sharedscripts
+}
+EOF
+
+log_success "Ekstra araçlar kuruldu"
+log_info "Kurulu araçlar:"
+echo "  - htop, iotop, iftop: System monitoring"
+echo "  - ncdu: Disk usage analyzer"
+echo "  - fail2ban: Brute-force protection"
+echo "  - vim, nano: Text editors"
+echo "  - screen, tmux: Terminal multiplexers"
+echo "  - Logrotate: Log management"
+EXTRAS_SCRIPT
+
 fi
 
 # Scriptleri çalıştırılabilir yap
