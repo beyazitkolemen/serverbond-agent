@@ -27,6 +27,23 @@ cat << "EOF"
 EOF
 echo -e "${NC}"
 
+# Log fonksiyonları (en başta tanımlanmalı)
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
 # Değişkenler
 INSTALL_DIR="/opt/serverbond-agent"
 GITHUB_REPO="beyazitkolemen/serverbond-agent"
@@ -45,7 +62,7 @@ if [ -f /etc/os-release ]; then
     UBUNTU_VERSION=$VERSION_ID
     
     if [[ "$UBUNTU_VERSION" != "24.04" ]]; then
-        echo -e "${YELLOW}Uyarı: Bu script Ubuntu 24.04 için optimize edilmiştir. Mevcut versiyon: $UBUNTU_VERSION${NC}"
+        log_warning "Bu script Ubuntu 24.04 için optimize edilmiştir. Mevcut versiyon: $UBUNTU_VERSION"
         read -p "Devam etmek istiyor musunuz? (e/h): " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Ee]$ ]]; then
@@ -55,22 +72,6 @@ if [ -f /etc/os-release ]; then
 else
     log_warning "Ubuntu versiyonu tespit edilemedi. Devam ediliyor..."
 fi
-
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
 
 # Kurulum dizinini oluştur
 log_info "Kurulum dizini oluşturuluyor..."
