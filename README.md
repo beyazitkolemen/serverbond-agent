@@ -63,16 +63,15 @@ curl -fsSL https://raw.githubusercontent.com/beyazitkolemen/serverbond-agent/mai
 ```
 
 Kurulum tamamlandığında:
-- **Dashboard**: http://your-server-ip/
-- **API**: http://your-server-ip/api
-- **Docs**: http://your-server-ip/api/sites
+- **Dashboard**: http://your-server-ip/ (Port 80)
+- **API**: http://your-server-ip/api (Port 80)
 
 Kurulum tamamlandığında aşağıdaki servisler otomatik olarak çalışır durumda olacaktır:
-- Nginx (Port 80)
-- PHP 8.1, 8.2, 8.3 + FPM
-- MySQL 8.0
-- Redis
-- Laravel 11 API + Vue 3 Dashboard (Port 8000 → Nginx Proxy)
+- **Nginx** (Port 80) - Web server
+- **PHP 8.1, 8.2, 8.3 + FPM** - Laravel runtime
+- **MySQL 8.0** - Database
+- **Redis** - Cache & sessions
+- **Laravel 11 + Vue 3** - Full-stack app (Nginx üzerinden)
 
 ## 🎨 Dashboard Özellikleri
 
@@ -109,14 +108,14 @@ http://your-server-ip/deploys   # Deploymentlar
 
 ### API Endpoints
 ```bash
-# Health check
-curl http://localhost:8000/health
-
 # Sites
-curl http://localhost:8000/api/sites
+curl http://localhost/api/sites
 
-# System stats
-curl http://localhost:8000/api/system/stats
+# System stats  
+curl http://localhost/api/system/stats
+
+# Databases
+curl http://localhost/api/database
 ```
 
 ## 🔧 Geliştirme
@@ -127,10 +126,16 @@ cd /opt/serverbond-agent/api
 
 # Vite dev server (Hot Module Replacement)
 npm run dev
+# → http://localhost:5173 (dev mode)
 
-# Laravel serve
-php artisan serve
+# Laravel Queue Worker
+php artisan queue:work
+
+# Laravel Scheduler (add to crontab)
+* * * * * cd /opt/serverbond-agent/api && php artisan schedule:run >> /dev/null 2>&1
 ```
+
+**Production'da Nginx otomatik çalışır, `php artisan serve` gerekmez!**
 
 ### Production Build
 ```bash

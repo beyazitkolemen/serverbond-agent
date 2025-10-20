@@ -1169,16 +1169,8 @@ fi
 # API yapılandırması
 log_info "API yapılandırılıyor..."
 
-# API secret key oluştur
-API_SECRET_KEY=$(openssl rand -hex 32)
-
+# API yapılandırma dosyası
 cat > config/agent.conf << EOF
-[api]
-host = 0.0.0.0
-port = 8000
-secret_key = $API_SECRET_KEY
-debug = false
-
 [paths]
 sites_dir = $INSTALL_DIR/sites
 nginx_sites_available = /etc/nginx/sites-available
@@ -1197,51 +1189,8 @@ port = 6379
 db = 0
 EOF
 
-# Systemd servisi oluştur (Laravel API)
-if [ "$SKIP_SYSTEMD" = "false" ]; then
-    log_info "Systemd servisi oluşturuluyor..."
-    cat > /etc/systemd/system/serverbond-agent.service << EOF
-[Unit]
-Description=ServerBond Agent API (Laravel)
-After=network.target mysql.service redis-server.service nginx.service
-
-[Service]
-Type=simple
-User=www-data
-WorkingDirectory=$INSTALL_DIR/api
-ExecStart=/usr/bin/php $INSTALL_DIR/api/artisan serve --host=0.0.0.0 --port=8000
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # Servisi etkinleştir ve başlat
-    systemctl daemon-reload
-    systemctl enable serverbond-agent
-
-    if [ -f "api/artisan" ]; then
-        systemctl start serverbond-agent
-        log_success "ServerBond Agent (Laravel) servisi başlatıldı"
-    else
-        log_warning "API dosyaları bulunamadı. Servisi manuel olarak başlatmanız gerekecek."
-    fi
-else
-    log_warning "Systemd yok - servis dosyası oluşturulmadı"
-    log_info "Laravel API'yi manuel olarak başlatabilirsiniz:"
-    echo "  cd $INSTALL_DIR/api"
-    echo "  php artisan serve --host=0.0.0.0 --port=8000"
-fi
-
-# Firewall yapılandırması
-if command -v ufw &> /dev/null; then
-    log_info "Firewall yapılandırılıyor..."
-    ufw allow 8000/tcp 2>/dev/null || log_warning "UFW kuralı eklenemedi"
-    ufw --force enable 2>/dev/null || log_warning "UFW etkinleştirilemedi"
-else
-    log_warning "UFW bulunamadı, firewall atlandı"
-fi
+log_success "API yapılandırması tamamlandı"
+log_info "Laravel API Nginx üzerinden çalışıyor (Port 80)"
 
 # Kurulum özeti
 echo
@@ -1250,17 +1199,18 @@ echo -e "${GREEN}   Kurulum Başarıyla Tamamlandı!${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo
 echo -e "${BLUE}Kurulum Dizini:${NC} $INSTALL_DIR"
-echo -e "${BLUE}API Endpoint:${NC} http://$(hostname -I | awk '{print $1}'):8000"
-echo -e "${BLUE}API Dokümantasyonu:${NC} http://$(hostname -I | awk '{print $1}'):8000/docs"
+SERVER_IP=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "your-server-ip")
+echo -e "${BLUE}Dashboard:${NC} http://${SERVER_IP}/"
+echo -e "${BLUE}API:${NC} http://${SERVER_IP}/api"
 echo
 echo -e "${BLUE}Servisler:${NC}"
 if [ "$SKIP_SYSTEMD" = "false" ]; then
     echo "  - Nginx: $(systemctl is-active nginx 2>/dev/null || echo 'unknown')"
+    echo "  - PHP 8.2-FPM: $(systemctl is-active php8.2-fpm 2>/dev/null || echo 'unknown')"
     echo "  - MySQL: $(systemctl is-active mysql 2>/dev/null || echo 'unknown')"
     echo "  - Redis: $(systemctl is-active redis-server 2>/dev/null || echo 'unknown')"
-    echo "  - ServerBond Agent: $(systemctl is-active serverbond-agent 2>/dev/null || echo 'unknown')"
 else
-    echo "  - Systemd yok - servisler manuel başlatılmalı"
+    echo "  - Systemd yok - servisler manuel kontrol edilmeli"
 fi
 echo
 echo -e "${BLUE}Yapılandırma:${NC}"
@@ -1277,7 +1227,8 @@ echo "  - MySQL: $(mysql --version 2>/dev/null | awk '{print $5}' | cut -d ',' -
 echo "  - Redis: $(redis-server --version 2>/dev/null | awk '{print $3}' | cut -d '=' -f2)"
 echo
 echo -e "${YELLOW}Önemli Notlar:${NC}"
-echo "  - API'ye erişim için: curl http://localhost:8000/health"
+echo "  - Dashboard: http://localhost/"
+echo "  - API: http://localhost/api"
 echo "  - Nginx durumu: systemctl status nginx"
 echo "  - PHP-FPM durumu: systemctl status php8.2-fpm"
 echo "  - MySQL şifresi: $INSTALL_DIR/config/.mysql_root_password"
