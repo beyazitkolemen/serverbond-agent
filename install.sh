@@ -335,48 +335,28 @@ if command -v ufw &> /dev/null; then
     ufw allow 'Nginx Full' 2>/dev/null || log_step "UFW kuralı eklenemedi"
 fi
 
-# Default site konfigürasyonu - Laravel + Vue Dashboard
-log_step "Nginx default site yapılandırılıyor (Laravel + Vue)..."
+# Default site konfigürasyonu
+log_step "Nginx default site yapılandırılıyor..."
 cat > /etc/nginx/sites-available/default << 'CONFEOF'
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
     
-    root /opt/serverbond-agent/api/public;
-    index index.php index.html;
+    root /var/www/html;
+    index index.html index.htm index.php;
     
     server_name _;
     
-    access_log /var/log/nginx/serverbond-access.log;
-    error_log /var/log/nginx/serverbond-error.log;
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
     
-    # Gzip compression
-    gzip on;
-    gzip_vary on;
-    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json;
-    
-    # Laravel + Vue.js SPA
     location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-    
-    # PHP-FPM
-    location ~ \.php$ {
-        fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
-        include fastcgi_params;
-        fastcgi_hide_header X-Powered-By;
+        try_files $uri $uri/ =404;
     }
     
     # Deny hidden files
     location ~ /\.(?!well-known).* {
         deny all;
-    }
-    
-    # Static assets caching
-    location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|woff|woff2|ttf|eot)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
     }
 }
 CONFEOF
@@ -1116,81 +1096,13 @@ else
     git pull origin main || log_step "Git pull başarısız, devam ediliyor..."
 fi
 
-# Laravel API kurulumu
-if [ -d "api" ] && command -v composer &> /dev/null; then
-    log_step "Laravel bağımlılıkları kuruluyor..."
-    
-    cd api
-    
-    # Composer install
-    composer install --no-dev --optimize-autoloader --no-interaction --quiet 2>&1 | grep -v "^$" || true
-    
-    # .env oluştur
-    if [ ! -f .env ]; then
-        cp .env.example .env
-        
-        # APP_KEY generate
-        php artisan key:generate --force
-        
-        # Cache ayarlarını development-friendly yap (Redis yerine file)
-        sed -i "s/CACHE_STORE=.*/CACHE_STORE=file/" .env
-        sed -i "s/SESSION_DRIVER=.*/SESSION_DRIVER=file/" .env
-        sed -i "s/QUEUE_CONNECTION=.*/QUEUE_CONNECTION=database/" .env
-        
-        # MySQL şifresini ayarla
-        if [ -f "$INSTALL_DIR/config/.mysql_root_password" ]; then
-            MYSQL_PASS=$(cat "$INSTALL_DIR/config/.mysql_root_password")
-            sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=${MYSQL_PASS}/" .env
-        fi
-        
-        log_success ".env dosyası oluşturuldu"
-    fi
-    
-    # Database oluştur
-    if [ -f "$INSTALL_DIR/config/.mysql_root_password" ]; then
-        log_step "Laravel database oluşturuluyor..."
-        MYSQL_PASS=$(cat "$INSTALL_DIR/config/.mysql_root_password")
-        mysql -u root -p"$MYSQL_PASS" <<EOF 2>/dev/null || true
-CREATE DATABASE IF NOT EXISTS serverbond_agent CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-GRANT ALL PRIVILEGES ON serverbond_agent.* TO 'root'@'localhost';
-FLUSH PRIVILEGES;
-EOF
-        log_success "Laravel database hazır"
-    fi
-    
-    # API route'ları zaten GitHub'dan geldi, kontrol et
-    if grep -q "api: __DIR__" bootstrap/app.php; then
-        log_success "API route'ları aktif"
-    fi
-    
-    # Migration çalıştır
-    log_step "Laravel migration'ları çalıştırılıyor..."
-    php artisan migrate --force --quiet 2>/dev/null || log_step "Laravel migration hatası (MySQL gerekli)"
-    
-    # Cache optimize et
-    log_step "Laravel cache optimize ediliyor..."
-    php artisan config:clear --quiet 2>/dev/null || true
-    php artisan route:clear --quiet 2>/dev/null || true
-    php artisan config:cache --quiet 2>/dev/null || true
-    php artisan route:cache --quiet 2>/dev/null || true
-    
-    # Vue.js dashboard build et
-    if [ -f "package.json" ]; then
-        log_step "Vue.js dashboard build ediliyor..."
-        npm install --silent 2>&1 | grep -v "npm warn" || true
-        npm run build --silent 2>&1 | grep -v "npm warn" || true
-        log_success "Vue.js dashboard build edildi"
-    fi
-    
-    cd "$INSTALL_DIR"
-    
-    log_success "Laravel API ve Vue.js Dashboard kuruldu"
-fi
+# Agent dizin yapısı hazır
+log_success "ServerBond Agent dizin yapısı hazır"
 
-# API yapılandırması
-log_step "API yapılandırılıyor..."
+# Agent yapılandırması
+log_step "ServerBond Agent yapılandırılıyor..."
 
-# API yapılandırma dosyası
+# Agent yapılandırma dosyası
 cat > config/agent.conf << EOF
 [paths]
 sites_dir = $INSTALL_DIR/sites
@@ -1210,8 +1122,7 @@ port = 6379
 db = 0
 EOF
 
-log_success "API yapılandırması tamamlandı"
-log_step "Laravel API Nginx üzerinden çalışıyor (Port 80)"
+log_success "Agent yapılandırması tamamlandı"
 
 # Kurulum özeti
 echo
@@ -1221,8 +1132,7 @@ echo -e "${GREEN}========================================${NC}"
 echo
 echo -e "${BLUE}Kurulum Dizini:${NC} $INSTALL_DIR"
 SERVER_IP=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "your-server-ip")
-echo -e "${BLUE}Dashboard:${NC} http://${SERVER_IP}/"
-echo -e "${BLUE}API:${NC} http://${SERVER_IP}/api"
+echo -e "${BLUE}Server:${NC} http://${SERVER_IP}/"
 echo
 echo -e "${BLUE}Servisler:${NC}"
 if [ "$SKIP_SYSTEMD" = "false" ]; then
@@ -1240,7 +1150,6 @@ echo "  - MySQL Root Password: $INSTALL_DIR/config/.mysql_root_password"
 echo
 echo -e "${BLUE}Kurulu Yazılımlar:${NC}"
 echo "  - PHP: $(php -v 2>/dev/null | head -n 1 | awk '{print $2}')"
-echo "  - Laravel: $(cd api && php artisan --version 2>/dev/null | awk '{print $3}' || echo 'N/A')"
 echo "  - Composer: $(composer --version 2>/dev/null | awk '{print $3}' || echo 'N/A')"
 echo "  - Node.js: $(node -v 2>/dev/null || echo 'N/A')"
 echo "  - Nginx: $(nginx -v 2>&1 | awk '{print $3}' | cut -d '/' -f2)"
@@ -1248,19 +1157,12 @@ echo "  - MySQL: $(mysql --version 2>/dev/null | awk '{print $5}' | cut -d ',' -
 echo "  - Redis: $(redis-server --version 2>/dev/null | awk '{print $3}' | cut -d '=' -f2)"
 echo
 echo -e "${YELLOW}Önemli Notlar:${NC}"
-echo "  - Dashboard: http://localhost/"
-echo "  - API: http://localhost/api"
 echo "  - Nginx durumu: systemctl status nginx"
 echo "  - PHP-FPM durumu: systemctl status php8.2-fpm"
 echo "  - MySQL şifresi: $INSTALL_DIR/config/.mysql_root_password"
 echo ""
 echo -e "${YELLOW}SSL Kurulumu:${NC}"
 echo "  sudo certbot --nginx -d yourdomain.com"
-echo ""
-echo -e "${YELLOW}Geliştirme:${NC}"
-echo "  cd $INSTALL_DIR/api"
-echo "  npm run dev          # Vite dev server (HMR)"
-echo "  php artisan queue:work  # Queue worker"
 echo
 log_success "ServerBond Agent hazır!"
 

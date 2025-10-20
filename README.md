@@ -2,51 +2,29 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PHP 8.2+](https://img.shields.io/badge/php-8.2+-777BB4.svg)](https://www.php.net/)
-[![Laravel 11](https://img.shields.io/badge/laravel-11-FF2D20.svg)](https://laravel.com)
-[![Vue 3](https://img.shields.io/badge/vue-3-42b883.svg)](https://vuejs.org)
 [![Ubuntu 24.04](https://img.shields.io/badge/ubuntu-24.04-orange.svg)](https://ubuntu.com/)
 
-Ubuntu 24.04 için gelişmiş multi-site yönetim ve deploy platformu. Tek komutla sunucunuza nginx, MySQL, Redis altyapısını kurup **Laravel 11 + Vue 3** ile modern web dashboard'dan site yönetimi yapabilirsiniz.
+Ubuntu 24.04 için gelişmiş server management ve multi-site yönetim platformu. Tek komutla sunucunuza Nginx, PHP (8.1, 8.2, 8.3), MySQL, Redis, Node.js ve tüm gerekli altyapıyı kurun.
 
 🌟 **Laravel Forge** benzeri, tamamen **açık kaynak** ve **ücretsiz** server management çözümü!
-
-## 🚀 Modern Full-Stack Platform
-
-### Backend (Laravel 11)
-- ✅ **Laravel 11** - Modern PHP Framework
-- ✅ **Eloquent ORM** - Veritabanı işlemleri kolay
-- ✅ **Service Pattern** - SOLID prensipleri
-- ✅ **Queue & Scheduler** - Native Laravel features
-- ✅ **Form Requests** - Güvenli validasyon
-- ✅ **API Resources** - Clean responses
-
-### Frontend (Vue 3)
-- ✅ **Vue 3** - Progressive JavaScript Framework
-- ✅ **Vue Router** - SPA Navigation
-- ✅ **Pinia** - State Management
-- ✅ **TailwindCSS** - Modern UI Design
-- ✅ **Heroicons** - Beautiful Icons
-- ✅ **Vite** - Lightning Fast Build Tool
 
 ## 🚀 Özellikler
 
 - **Tek Komut Kurulum**: Ubuntu 24.04'e tek shell script ile tam altyapı kurulumu
-- **Modern Dashboard**: Vue 3 ile güzel ve hızlı web arayüzü
-- **Multi-Site Yönetimi**: Sınırsız sayıda site oluşturma ve yönetme
-- **Laravel 11 API**: Modern PHP framework ile güçlü backend
 - **Multi PHP Version**: PHP 8.1, 8.2, 8.3 eşzamanlı desteği
-- **Git Entegrasyonu**: Repository'lerden otomatik çekme ve deploy
-- **Çoklu Site Türü**:
+- **Multi-Site Hazır Altyapı**: Sınırsız site için hazır sunucu ortamı
+- **Çoklu Site Türü Desteği**:
   - Laravel (PHP 8.1, 8.2, 8.3)
   - PHP (Genel PHP uygulamaları)
   - Static (HTML/CSS/JS)
   - Python (FastAPI, Flask, Django)
   - Node.js (Express, Next.js, vb.)
-- **Otomatik Nginx Konfigürasyonu**: Her site için optimize edilmiş nginx ayarları
-- **Database Yönetimi**: MySQL veritabanı ve kullanıcı oluşturma/yönetme
-- **Deploy Sistemi**: Laravel Queue ile arka planda deploy
-- **Real-time Monitoring**: CPU, RAM, Disk kullanımını canlı izleme
-- **RESTful API**: Laravel 11 tabanlı modern API
+- **Otomatik Nginx Konfigürasyonu**: Optimize edilmiş web server ayarları
+- **Database Stack**: MySQL 8.0 + Redis cache
+- **SSL/TLS Desteği**: Let's Encrypt Certbot entegrasyonu
+- **Process Management**: Supervisor + PM2
+- **Security**: UFW Firewall + Fail2ban
+- **Monitoring Tools**: htop, iotop, iftop ve daha fazlası
 
 ## 📋 Gereksinimler
 
@@ -62,105 +40,72 @@ Ubuntu 24.04 için gelişmiş multi-site yönetim ve deploy platformu. Tek komut
 curl -fsSL https://raw.githubusercontent.com/beyazitkolemen/serverbond-agent/main/install.sh | sudo bash
 ```
 
-Kurulum tamamlandığında:
-- **Dashboard**: http://your-server-ip/ (Port 80)
-- **API**: http://your-server-ip/api (Port 80)
-
 Kurulum tamamlandığında aşağıdaki servisler otomatik olarak çalışır durumda olacaktır:
 - **Nginx** (Port 80) - Web server
-- **PHP 8.1, 8.2, 8.3 + FPM** - Laravel runtime
+- **PHP 8.1, 8.2, 8.3 + FPM** - Multi-version PHP
 - **MySQL 8.0** - Database
 - **Redis** - Cache & sessions
-- **Laravel 11 + Vue 3** - Full-stack app (Nginx üzerinden)
-
-## 🎨 Dashboard Özellikleri
-
-### Ana Sayfa
-- 📊 Real-time sistem istatistikleri (CPU, RAM, Disk)
-- 📈 Site sayısı, deploy sayısı, database sayısı
-- 🚀 Son deploymentlar listesi
-- 💚 Canlı sistem durumu
-
-### Sayfalar
-- 🏠 **Dashboard** - Sistem özeti ve istatistikler
-- 🌐 **Sites** - Site listesi ve yönetimi
-- 🚀 **Deployments** - Deploy geçmişi ve tracking
-- 🗄️ **Databases** - MySQL veritabanı yönetimi
-- 🐘 **PHP Versions** - PHP version management
-- 💻 **System** - Sistem bilgileri ve servisler
-
-### UI/UX
-- ✨ Modern gradient design (Purple → Indigo)
-- 📱 Fully responsive
-- ⚡ Fast SPA navigation
-- 🎨 TailwindCSS styling
-- 🔄 Real-time updates
-- 💫 Smooth animations
+- **Node.js 20 + PM2** - Node.js runtime ve process manager
+- **Supervisor** - Queue/worker management
+- **Certbot** - SSL certificate manager
 
 ## 📚 Kullanım
 
-### Web Dashboard
-```
-http://your-server-ip/          # Vue.js Dashboard
-http://your-server-ip/sites     # Site yönetimi
-http://your-server-ip/deploys   # Deploymentlar
-```
+### Kurulum Sonrası
 
-### API Endpoints
+Kurulum tamamlandıktan sonra sunucunuz multi-site hosting için hazır hale gelir. Şu dizinlerde önemli dosyalar bulunur:
+
 ```bash
-# Sites
-curl http://localhost/api/sites
-
-# System stats  
-curl http://localhost/api/system/stats
-
-# Databases
-curl http://localhost/api/database
+/opt/serverbond-agent/          # Ana kurulum dizini
+/opt/serverbond-agent/config/   # Yapılandırma dosyaları
+/opt/serverbond-agent/sites/    # Site dosyaları
+/opt/serverbond-agent/logs/     # Log dosyaları
+/opt/serverbond-agent/backups/  # Yedekler
 ```
 
-## 🔧 Geliştirme
+### Nginx Site Yönetimi
 
-### Local Development
 ```bash
-cd /opt/serverbond-agent/api
+# Yeni site eklemek için nginx konfigürasyonu
+nano /etc/nginx/sites-available/your-site.conf
 
-# Vite dev server (Hot Module Replacement)
-npm run dev
-# → http://localhost:5173 (dev mode)
+# Site'ı etkinleştir
+ln -s /etc/nginx/sites-available/your-site.conf /etc/nginx/sites-enabled/
 
-# Laravel Queue Worker
-php artisan queue:work
-
-# Laravel Scheduler (add to crontab)
-* * * * * cd /opt/serverbond-agent/api && php artisan schedule:run >> /dev/null 2>&1
+# Nginx test ve reload
+nginx -t
+systemctl reload nginx
 ```
 
-**Production'da Nginx otomatik çalışır, `php artisan serve` gerekmez!**
+### PHP Versiyon Değiştirme
 
-### Production Build
 ```bash
-cd /opt/serverbond-agent/api
-npm run build
+# Default PHP versiyonunu değiştir
+update-alternatives --config php
+
+# Site bazlı PHP-FPM socket kullanımı
+# Nginx config'de: fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
 ```
 
 ## 🔐 Güvenlik
 
-- MySQL root şifresi otomatik: `/opt/serverbond-agent/config/.mysql_root_password`
-- Laravel APP_KEY otomatik: `/opt/serverbond-agent/api/.env`
-- Firewall (UFW) otomatik
+- MySQL root şifresi otomatik oluşturulur: `/opt/serverbond-agent/config/.mysql_root_password`
+- UFW Firewall otomatik yapılandırılır
+- Fail2ban brute-force koruması
 - PHP-FPM pool izolasyonu
+- Nginx güvenlik başlıkları
 
 ## 📊 Teknoloji Stack'i
 
-- **Backend**: Laravel 11 + PHP 8.2+
-- **Frontend**: Vue 3 + Vite
-- **Database**: MySQL 8.0 + Eloquent ORM
+- **Web Server**: Nginx 1.24+
+- **PHP**: 8.1, 8.2, 8.3 (Multi-version)
+- **Database**: MySQL 8.0
 - **Cache**: Redis 7.0
-- **Web Server**: Nginx 1.24
-- **Styling**: TailwindCSS 3
-- **Icons**: Heroicons
-- **State**: Pinia
-- **HTTP**: Axios
+- **Node.js**: 20.x LTS
+- **Process Managers**: Supervisor + PM2
+- **SSL/TLS**: Certbot (Let's Encrypt)
+- **Security**: UFW + Fail2ban
+- **Monitoring**: htop, iotop, iftop
 
 ## 🤝 Katkıda Bulunma
 
@@ -185,7 +130,7 @@ MIT License
 
 ---
 
-**ServerBond Agent** - Laravel 11 + Vue 3 ile professional server management! 🚀
+**ServerBond Agent** - Professional server management için tek komutla tam altyapı! 🚀
 
 [![GitHub stars](https://img.shields.io/github/stars/beyazitkolemen/serverbond-agent?style=social)](https://github.com/beyazitkolemen/serverbond-agent/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/beyazitkolemen/serverbond-agent?style=social)](https://github.com/beyazitkolemen/serverbond-agent/network/members)
