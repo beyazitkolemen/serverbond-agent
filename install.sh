@@ -791,7 +791,7 @@ apt-get install -y -qq \
     net-tools \
     dnsutils \
     telnet \
-    netcat \
+    netcat-openbsd \
     zip \
     unzip \
     rsync \
