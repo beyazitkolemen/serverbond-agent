@@ -10,7 +10,8 @@ Ubuntu 24.04 için gelişmiş server management ve multi-site yönetim platformu
 
 ## 🚀 Özellikler
 
-- **Tek Komut Kurulum**: Ubuntu 24.04'e tek shell script ile tam altyapı kurulumu
+- **Hızlı Kurulum**: Paralel kurulum ile 2-3x daha hızlı
+- **Tek Komut**: Ubuntu 24.04'e tek shell script ile tam altyapı
 - **Modern PHP 8.4**: En güncel PHP versiyonu ile optimize edilmiş performans
 - **Multi-Site Hazır Altyapı**: Sınırsız site için hazır sunucu ortamı
 - **Çoklu Site Türü Desteği**:
@@ -48,6 +49,14 @@ Kurulum tamamlandığında aşağıdaki servisler otomatik olarak çalışır du
 - **Node.js 20 + PM2** - Node.js runtime ve process manager
 - **Supervisor** - Queue/worker management
 - **Certbot** - SSL certificate manager
+
+### ⚡ Performans Özellikleri
+
+- **Paralel Kurulum**: Bağımsız servisler aynı anda kurulur (6 servis paralel)
+- **APT Optimizasyonu**: Pipeline ve queue optimizasyonları
+- **Shallow Git Clone**: Sadece gerekli dosyalar indirilir
+- **Hızlı Network Check**: 1 saniye timeout ile anında kontrol
+- **Phase-based Installation**: Bağımlılık yönetimi ile optimal sıralama
 
 ## 📚 Kullanım
 

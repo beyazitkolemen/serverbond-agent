@@ -194,7 +194,8 @@ fi
 }
 
 check_network() {
-    if ! ping -c 1 -W 3 github.com &> /dev/null; then
+    # Quick network check (1 second timeout)
+    if ! timeout 1 bash -c ">/dev/tcp/8.8.8.8/53" 2>/dev/null; then
         log_error "İnternet gerekli"
     exit 1
 fi
@@ -227,12 +228,27 @@ prepare_system() {
     mkdir -p "$INSTALL_DIR"
     cd "$INSTALL_DIR"
     
-    export DEBIAN_FRONTEND=noninteractive
+export DEBIAN_FRONTEND=noninteractive
     export DEBCONF_NONINTERACTIVE_SEEN=true
     
-    apt-get update -qq >> "$LOG_FILE" 2>&1
-    apt-get upgrade -y -qq >> "$LOG_FILE" 2>&1
+    # APT optimization for faster downloads
+    echo 'Acquire::Queue-Mode "host";' > /etc/apt/apt.conf.d/99parallel
+    echo 'Acquire::http::Pipeline-Depth "5";' >> /etc/apt/apt.conf.d/99parallel
+    echo 'APT::Get::Assume-Yes "true";' >> /etc/apt/apt.conf.d/99parallel
     
+    # Update package lists (parallel)
+    apt-get update -qq >> "$LOG_FILE" 2>&1 &
+    local update_pid=$!
+    
+    # Install base packages after update completes
+    wait $update_pid
+    
+    # Skip upgrade in fresh installations for speed
+    if [[ "${SKIP_UPGRADE:-false}" != "true" ]]; then
+        apt-get upgrade -y -qq >> "$LOG_FILE" 2>&1 &
+    fi
+    
+    # Install essential packages
     apt-get install -y -qq \
         curl wget git software-properties-common apt-transport-https \
         ca-certificates gnupg lsb-release unzip ufw openssl jq rsync \
@@ -263,6 +279,25 @@ install_service() {
     fi
 }
 
+install_service_async() {
+    local service_name=$1
+    install_service "$service_name" &
+    echo $!
+}
+
+wait_services() {
+    local pids=("$@")
+    local failed=0
+    
+    for pid in "${pids[@]}"; do
+        if ! wait "$pid"; then
+            ((failed++))
+        fi
+    done
+    
+    return $failed
+}
+
 download_scripts() {
     log_step "Kurulum scriptleri hazırlanıyor..."
     
@@ -271,8 +306,22 @@ download_scripts() {
     
     # Download from GitHub if not exists
     if [[ ! -d ".git" ]]; then
-        git clone -q --branch "${GITHUB_BRANCH}" "https://github.com/${GITHUB_REPO}.git" /tmp/sb-tmp 2>&1 | tee -a "$LOG_FILE" > /dev/null
-        rsync -a /tmp/sb-tmp/scripts/ "${SCRIPTS_DIR}/" >> "$LOG_FILE" 2>&1
+        # Use shallow clone for speed (depth 1)
+        git clone -q --depth 1 --single-branch --branch "${GITHUB_BRANCH}" \
+            "https://github.com/${GITHUB_REPO}.git" /tmp/sb-tmp 2>&1 | tee -a "$LOG_FILE" > /dev/null &
+        
+        local clone_pid=$!
+        
+        # Show progress
+        while kill -0 $clone_pid 2>/dev/null; do
+            echo -n "."
+            sleep 1
+        done
+        wait $clone_pid
+        echo ""
+        
+        # Copy only scripts directory for speed
+        rsync -a --exclude='.git' /tmp/sb-tmp/scripts/ "${SCRIPTS_DIR}/" >> "$LOG_FILE" 2>&1
         rm -rf /tmp/sb-tmp
     fi
     
@@ -330,7 +379,7 @@ EOF
 main() {
     echo -e "${BOLD}ServerBond Agent Installer v${SCRIPT_VERSION}${NC}"
 echo ""
-    
+
     # Validation
     log_step "Sistem kontrolleri..."
     check_root
@@ -346,17 +395,42 @@ echo ""
     prepare_system
     download_scripts
     
-    # Install services using external scripts
-    log_step "Servisler kuruluyor..."
-    install_service "python"
+    # Install services using parallel execution for speed
+    log_step "Servisler kuruluyor (paralel)..."
+    
+    local pids=()
+    
+    # Phase 1: Independent services (parallel)
+    log_step "Bağımsız servisler (paralel)..."
+    pids+=($(install_service_async "python"))
+    pids+=($(install_service_async "mysql"))
+    pids+=($(install_service_async "redis"))
+    pids+=($(install_service_async "nodejs"))
+    pids+=($(install_service_async "certbot"))
+    pids+=($(install_service_async "supervisor"))
+    
+    # Wait for phase 1
+    if ! wait_services "${pids[@]}"; then
+        log_warn "Bazı servisler başarısız oldu, devam ediliyor..."
+    fi
+    log_success "Bağımsız servisler kuruldu"
+    
+    # Phase 2: Nginx (needed before PHP)
+    log_step "Nginx..."
     install_service "nginx"
+    
+    # Phase 3: PHP (depends on Nginx)
+    log_step "PHP ${PHP_VERSION}..."
     install_service "php"
-    install_service "mysql"
-    install_service "redis"
-    install_service "nodejs"
-    install_service "certbot"
-    install_service "supervisor"
-    install_service "extras"
+    
+    # Phase 4: Extras (can be parallel but low priority)
+    log_step "Monitoring tools..."
+    install_service "extras" &
+    local extras_pid=$!
+    
+    # Wait for extras in background
+    wait $extras_pid || log_warn "Extras kurulumu başarısız"
+    
     log_success "Tüm servisler kuruldu"
     
     # Configure agent
@@ -377,7 +451,7 @@ echo ""
     echo "  MySQL Pass: ${MYSQL_ROOT_PASSWORD_FILE}"
     echo "  Log       : ${LOG_FILE}"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
+echo ""
 }
 
 ################################################################################
