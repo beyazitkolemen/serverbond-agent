@@ -128,15 +128,32 @@ sudo ./scripts/install-redis.sh
 
 ## 🔧 Troubleshooting
 
-### MySQL Bağlantı Testi
+### ❌ Hata: Access denied for user 'laravel'@'localhost'
 
-Kurulum sonrası MySQL bağlantı sorunlarında:
+Laravel panel "Access denied" hatası veriyorsa:
 
 ```bash
-sudo ./scripts/test-mysql-connection.sh
+# .env dosyasını otomatik düzelt
+sudo /opt/serverbond-agent/scripts/fix-mysql-credentials.sh
 ```
 
-### Docker Sistem Durumu
+Bu script:
+- ✅ MySQL şifresini okur
+- ✅ .env dosyasını yedekler
+- ✅ DB_USERNAME'i root olarak ayarlar
+- ✅ Doğru şifreyi ekler
+- ✅ Laravel cache'i temizler
+- ✅ Bağlantıyı test eder
+
+### 🔍 MySQL Bağlantı Testi
+
+MySQL bağlantı sorunlarında:
+
+```bash
+sudo /opt/serverbond-agent/scripts/test-mysql-connection.sh
+```
+
+### 🐳 Docker Sistem Durumu
 
 ```bash
 docker-monitor          # Sistem bilgileri
@@ -144,12 +161,43 @@ docker-cleanup          # Temizlik
 docker system df        # Disk kullanımı
 ```
 
-### Log Dosyaları
+### 📋 Log Dosyaları
 
-Kurulum sırasında oluşan log dosyası:
+Kurulum logları:
 ```bash
 ls -lh /tmp/serverbond-install-*.log
 tail -100 /tmp/serverbond-install-*.log
+```
+
+### 🔄 Yeniden Kurulum
+
+Kurulum başarısız olduysa:
+
+```bash
+# 1. Temizlik
+sudo rm -rf /opt/serverbond-agent
+
+# 2. MySQL şifresini kontrol et (varsa sakla)
+sudo cat /opt/serverbond-agent/config/.mysql_root_password
+
+# 3. Yeniden kurulum
+curl -fsSL https://raw.githubusercontent.com/beyazitkolemen/serverbond-agent/main/install.sh | sudo bash
+```
+
+### 🩺 Panel Sağlık Kontrolü
+
+```bash
+# Servisleri kontrol et
+sudo systemctl status nginx
+sudo systemctl status php8.4-fpm
+sudo systemctl status mysql
+sudo systemctl status redis-server
+
+# Laravel logları
+sudo tail -50 /var/www/html/storage/logs/laravel.log
+
+# Nginx logları
+sudo tail -50 /var/log/nginx/error.log
 ```
 
 ## 📚 Dokümantasyon

@@ -208,13 +208,18 @@ EOSQL
     ESCAPED_DB_NAME=$(echo "${LARAVEL_DB_NAME}" | sed 's/[&/\]/\\&/g')
     ESCAPED_PASSWORD=$(echo "${MYSQL_ROOT_PASSWORD}" | sed 's/[&/\]/\\&/g')
     
-    # Update database name
+    # Update database configuration
     sed -i "s|^DB_DATABASE=.*|DB_DATABASE=${ESCAPED_DB_NAME}|" .env
-    
-    # Update database password
+    sed -i "s|^DB_USERNAME=.*|DB_USERNAME=root|" .env
     sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=${ESCAPED_PASSWORD}|" .env
+    sed -i "s|^DB_HOST=.*|DB_HOST=127.0.0.1|" .env
+    sed -i "s|^DB_PORT=.*|DB_PORT=3306|" .env
     
     log_success ".env dosyası güncellendi"
+    
+    # Verify .env database configuration
+    log_info "Veritabanı yapılandırması:"
+    grep "^DB_" .env | grep -v "DB_PASSWORD" || true
 else
     log_error "MySQL şifre dosyası bulunamadı: ${MYSQL_ROOT_PASSWORD_FILE}"
     exit 1
