@@ -48,11 +48,53 @@ fi
 
 cd "${LARAVEL_DIR}"
 
-# Set permissions
+# Set comprehensive permissions
+log_info "Dosya izinleri ayarlanıyor..."
+
+# Give www-data full access to /var/www for site management
+log_info "/var/www dizinine tam yetki veriliyor..."
+chown -R www-data:www-data /var/www
+chmod 775 /var/www
+
+# Also ensure srv/serverbond/sites is accessible
+if [[ -d /srv/serverbond/sites ]]; then
+    log_info "/srv/serverbond/sites dizinine yetki veriliyor..."
+    chown -R www-data:www-data /srv/serverbond/sites
+    chmod -R 775 /srv/serverbond/sites
+fi
+
+# Give www-data access to nginx config directories for site management
+if [[ -d /etc/nginx/sites-available ]]; then
+    log_info "Nginx config dizinlerine yetki veriliyor..."
+    chown -R www-data:www-data /etc/nginx/sites-available
+    chown -R www-data:www-data /etc/nginx/sites-enabled
+    chmod 775 /etc/nginx/sites-available
+    chmod 775 /etc/nginx/sites-enabled
+fi
+
+# Set ownership to www-data
 chown -R www-data:www-data "${LARAVEL_DIR}"
-chmod -R 755 "${LARAVEL_DIR}"
+
+# Base directory permissions
+find "${LARAVEL_DIR}" -type f -exec chmod 644 {} \; 2>/dev/null || true
+find "${LARAVEL_DIR}" -type d -exec chmod 755 {} \; 2>/dev/null || true
+
+# Critical Laravel directories - full write permissions
 chmod -R 775 "${LARAVEL_DIR}/storage" 2>/dev/null || true
 chmod -R 775 "${LARAVEL_DIR}/bootstrap/cache" 2>/dev/null || true
+
+# Public directory for uploads
+chmod -R 775 "${LARAVEL_DIR}/public" 2>/dev/null || true
+
+# Logs directory if exists
+if [[ -d "${LARAVEL_DIR}/storage/logs" ]]; then
+    chmod -R 775 "${LARAVEL_DIR}/storage/logs"
+fi
+
+# Make sure www-data can write to all necessary dirs
+chown -R www-data:www-data "${LARAVEL_DIR}/storage" 2>/dev/null || true
+chown -R www-data:www-data "${LARAVEL_DIR}/bootstrap/cache" 2>/dev/null || true
+chown -R www-data:www-data "${LARAVEL_DIR}/public" 2>/dev/null || true
 
 # Install Composer dependencies
 log_info "Composer dependencies kuruluyor..."
@@ -143,6 +185,11 @@ sudo -u www-data php artisan migrate --force --seed 2>&1 | grep -v "^$" || {
 # Storage link
 sudo -u www-data php artisan storage:link 2>&1 | grep -v "^$" || true
 
+# Set permissions for storage link
+if [[ -L "${LARAVEL_DIR}/public/storage" ]]; then
+    chown -h www-data:www-data "${LARAVEL_DIR}/public/storage"
+fi
+
 # Filament optimizations
 log_info "Filament optimize ediliyor..."
 sudo -u www-data php artisan filament:optimize 2>&1 | grep -v "^$" || true
@@ -155,11 +202,43 @@ sudo -u www-data php artisan route:cache 2>&1 | grep -v "^$" || true
 sudo -u www-data php artisan view:cache 2>&1 | grep -v "^$" || true
 sudo -u www-data php artisan event:cache 2>&1 | grep -v "^$" || true
 
-# Final permissions
+# Final permissions - ensure everything is correct
+log_info "Son kontroller yapılıyor..."
+
+# Ensure /var/www is accessible for site management
+chown -R www-data:www-data /var/www
+chmod 775 /var/www
+
+# Also ensure srv/serverbond/sites is accessible
+if [[ -d /srv/serverbond/sites ]]; then
+    chown -R www-data:www-data /srv/serverbond/sites
+    chmod -R 775 /srv/serverbond/sites
+fi
+
+# Give www-data access to nginx config directories
+if [[ -d /etc/nginx/sites-available ]]; then
+    chown -R www-data:www-data /etc/nginx/sites-available
+    chown -R www-data:www-data /etc/nginx/sites-enabled
+    chmod 775 /etc/nginx/sites-available
+    chmod 775 /etc/nginx/sites-enabled
+fi
+
+# Set ownership to www-data
 chown -R www-data:www-data "${LARAVEL_DIR}"
-chmod -R 755 "${LARAVEL_DIR}"
-chmod -R 775 "${LARAVEL_DIR}/storage"
-chmod -R 775 "${LARAVEL_DIR}/bootstrap/cache"
+
+# Base permissions
+find "${LARAVEL_DIR}" -type f -exec chmod 644 {} \; 2>/dev/null || true
+find "${LARAVEL_DIR}" -type d -exec chmod 755 {} \; 2>/dev/null || true
+
+# Critical directories - full write permissions
+chmod -R 775 "${LARAVEL_DIR}/storage" 2>/dev/null || true
+chmod -R 775 "${LARAVEL_DIR}/bootstrap/cache" 2>/dev/null || true
+chmod -R 775 "${LARAVEL_DIR}/public" 2>/dev/null || true
+
+# Ensure www-data owns writable directories
+chown -R www-data:www-data "${LARAVEL_DIR}/storage" 2>/dev/null || true
+chown -R www-data:www-data "${LARAVEL_DIR}/bootstrap/cache" 2>/dev/null || true
+chown -R www-data:www-data "${LARAVEL_DIR}/public" 2>/dev/null || true
 
 log_success "ServerBond Panel kuruldu!"
 log_info "Dizin: ${LARAVEL_DIR}"
