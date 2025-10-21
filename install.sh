@@ -280,7 +280,47 @@ prepare_system() {
         ca-certificates gnupg lsb-release unzip ufw openssl jq rsync \
         build-essential pkg-config libssl-dev >> "$LOG_FILE" 2>&1
     
+    # Configure git globally
+    log_step "Configuring Git system-wide..."
+    configure_git_global
+    
     log_success "System ready"
+}
+
+configure_git_global() {
+    # System-wide git configuration (/etc/gitconfig)
+    
+    # Safe directory - özellikle farklı kullanıcılarla çalışırken önemli
+    git config --system --add safe.directory '*'
+    
+    # Default branch name
+    git config --system init.defaultBranch main
+    
+    # Pull strategy
+    git config --system pull.rebase false
+    
+    # File mode - izin değişikliklerini ignore et
+    git config --system core.fileMode false
+    
+    # Credential helper - credentials cache'le (15 dakika)
+    git config --system credential.helper 'cache --timeout=900'
+    
+    # Auto CRLF - Unix line endings
+    git config --system core.autocrlf input
+    
+    # Default editor
+    git config --system core.editor vim
+    
+    # Color output
+    git config --system color.ui auto
+    
+    # Prune on fetch
+    git config --system fetch.prune true
+    
+    # Fast-forward only merge (safer)
+    git config --system merge.ff only
+    
+    log_success "Git global configuration applied"
 }
 
 install_service() {
