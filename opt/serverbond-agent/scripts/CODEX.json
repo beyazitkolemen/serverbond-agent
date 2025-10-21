@@ -1,0 +1,1169 @@
+{
+    "codex": {
+        "name": "ServerBond Forge-like Agent Codex",
+        "version": "1.0",
+        "base_dir": "/opt/serverbond-agent/scripts",
+        "lib": "/opt/serverbond-agent/scripts/lib.sh",
+        "output_format": {
+            "type": "json",
+            "schema": {
+                "status": "success | error",
+                "message": "string",
+                "data": "object (optional)"
+            }
+        },
+        "conventions": [
+            "Her script tek i\u015f yapar (UNIX felsefesi).",
+            "Idempotent: Birden \u00e7ok kez \u00e7al\u0131\u015fsa da sistem tutarl\u0131 kalmal\u0131.",
+            "Parametre yoksa g\u00fcvenli varsay\u0131lanlar\u0131 kullan.",
+            "T\u00fcm riskli i\u015flemler \u00f6ncesi config test, dry-run ve yedek al.",
+            "Log: /opt/serverbond-agent/logs/script_exec.log"
+        ]
+    },
+    "scripts": [
+        {
+            "path": "system/update_os.sh",
+            "description": "Apt paketlerini g\u00fcncelle & y\u00fckselt",
+            "category": "system",
+            "returns": [
+                "status",
+                "message",
+                "data: {upgraded, kept_back}"
+            ]
+        },
+        {
+            "path": "system/reboot.sh",
+            "description": "Sunucuyu yeniden ba\u015flat",
+            "category": "system"
+        },
+        {
+            "path": "system/status.sh",
+            "description": "CPU/RAM/Disk/Load/Service \u00f6zetini JSON d\u00f6nd\u00fcr",
+            "category": "system"
+        },
+        {
+            "path": "system/hostname.sh",
+            "description": "Hostname g\u00f6r\u00fcnt\u00fcle/de\u011fi\u015ftir",
+            "category": "system",
+            "params": [
+                {
+                    "name": "action",
+                    "type": "enum(view|set)",
+                    "required": true
+                },
+                {
+                    "name": "hostname",
+                    "type": "string",
+                    "required": false
+                }
+            ]
+        },
+        {
+            "path": "system/ufw_configure.sh",
+            "description": "UFW (firewall) kur & temel kurallar (80/443/22)",
+            "category": "system"
+        },
+        {
+            "path": "system/fail2ban_install.sh",
+            "description": "Fail2ban kur ve ssh/nginx jails etkinle\u015ftir",
+            "category": "system"
+        },
+        {
+            "path": "system/logs.sh",
+            "description": "Son sistem loglar\u0131n\u0131 d\u00f6nd\u00fcr",
+            "category": "system",
+            "params": [
+                {
+                    "name": "lines",
+                    "type": "int",
+                    "default": 200
+                }
+            ]
+        },
+        {
+            "path": "system/timezone.sh",
+            "description": "Sistem saat dilimi g\u00f6r\u00fcnt\u00fcle/de\u011fi\u015ftir",
+            "category": "system",
+            "params": [
+                {
+                    "name": "action",
+                    "type": "enum(view|set)",
+                    "required": true
+                },
+                {
+                    "name": "tz",
+                    "type": "string",
+                    "required": false,
+                    "example": "Europe/Istanbul"
+                }
+            ]
+        },
+        {
+            "path": "meta/health.sh",
+            "description": "Agent sa\u011fl\u0131k kontrol\u00fc",
+            "category": "meta"
+        },
+        {
+            "path": "meta/version.sh",
+            "description": "Agent s\u00fcr\u00fcm bilgisi",
+            "category": "meta"
+        },
+        {
+            "path": "meta/capabilities.sh",
+            "description": "Mevcut script listesini JSON d\u00f6nd\u00fcr",
+            "category": "meta"
+        },
+        {
+            "path": "meta/update.sh",
+            "description": "Agent self-update (git pull + restart service)",
+            "category": "meta"
+        },
+        {
+            "path": "meta/diagnostics.sh",
+            "description": "Nginx/PHP/MySQL/Redis quick diagnostics",
+            "category": "meta"
+        },
+        {
+            "path": "nginx/install.sh",
+            "description": "Nginx kur ve temel optimizasyon",
+            "category": "nginx"
+        },
+        {
+            "path": "nginx/start.sh",
+            "description": "Nginx ba\u015flat",
+            "category": "nginx"
+        },
+        {
+            "path": "nginx/stop.sh",
+            "description": "Nginx durdur",
+            "category": "nginx"
+        },
+        {
+            "path": "nginx/restart.sh",
+            "description": "Nginx yeniden ba\u015flat",
+            "category": "nginx"
+        },
+        {
+            "path": "nginx/reload.sh",
+            "description": "Nginx konfig reload (nginx -t ile do\u011frulama)",
+            "category": "nginx"
+        },
+        {
+            "path": "nginx/config_test.sh",
+            "description": "Nginx konfig test",
+            "category": "nginx"
+        },
+        {
+            "path": "nginx/add_site.sh",
+            "description": "Yeni site ekle (vhost olu\u015ftur + enable + reload)",
+            "category": "nginx",
+            "params": [
+                {
+                    "name": "domain",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "type",
+                    "type": "enum(laravel|node|static|wordpress|proxy)",
+                    "required": true
+                },
+                {
+                    "name": "root",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "php_version",
+                    "type": "string",
+                    "required": false,
+                    "example": "8.3"
+                },
+                {
+                    "name": "upstream_port",
+                    "type": "int",
+                    "required": false,
+                    "note": "node/proxy i\u00e7in"
+                },
+                {
+                    "name": "server_alias",
+                    "type": "string",
+                    "required": false,
+                    "example": "www.example.com"
+                }
+            ]
+        },
+        {
+            "path": "nginx/remove_site.sh",
+            "description": "Site kald\u0131r (disable + conf sil + reload)",
+            "category": "nginx",
+            "params": [
+                {
+                    "name": "domain",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "nginx/list_sites.sh",
+            "description": "Aktif vhost listesini JSON d\u00f6nd\u00fcr",
+            "category": "nginx"
+        },
+        {
+            "path": "nginx/enable_ssl.sh",
+            "description": "Let\u2019s Encrypt ile SSL alma ve auto-renew ayar\u0131",
+            "category": "nginx",
+            "params": [
+                {
+                    "name": "domain",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "email",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "redirect_https",
+                    "type": "bool",
+                    "default": true
+                }
+            ]
+        },
+        {
+            "path": "nginx/disable_ssl.sh",
+            "description": "SSL\u2019i devre d\u0131\u015f\u0131 b\u0131rak (HTTP-only geri d\u00f6n\u00fc\u015f)",
+            "category": "nginx",
+            "params": [
+                {
+                    "name": "domain",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "nginx/rebuild_conf.sh",
+            "description": "Template\u2019lerden konfig yeniden in\u015fa",
+            "category": "nginx",
+            "params": [
+                {
+                    "name": "domain",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "type",
+                    "type": "enum(laravel|node|static|wordpress|proxy)",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "php/install_stack.sh",
+            "description": "PHP-FPM ve yayg\u0131n eklentileri kur (opcache, mbstring, intl, redis, gd)",
+            "category": "php",
+            "params": [
+                {
+                    "name": "version",
+                    "type": "string",
+                    "default": "8.3"
+                }
+            ]
+        },
+        {
+            "path": "php/restart.sh",
+            "description": "PHP-FPM yeniden ba\u015flat",
+            "category": "php",
+            "params": [
+                {
+                    "name": "version",
+                    "type": "string",
+                    "default": "8.3"
+                }
+            ]
+        },
+        {
+            "path": "php/config_edit.sh",
+            "description": "php.ini/pool.d parametrelerini d\u00fczenle",
+            "category": "php",
+            "params": [
+                {
+                    "name": "version",
+                    "type": "string",
+                    "default": "8.3"
+                },
+                {
+                    "name": "key",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "value",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "php/info.sh",
+            "description": "PHP versiyon ve extension bilgisi",
+            "category": "php"
+        },
+        {
+            "path": "redis/install.sh",
+            "description": "Redis kur ve servis ayarlar\u0131",
+            "category": "redis"
+        },
+        {
+            "path": "redis/start.sh",
+            "description": "Redis ba\u015flat",
+            "category": "redis"
+        },
+        {
+            "path": "redis/stop.sh",
+            "description": "Redis durdur",
+            "category": "redis"
+        },
+        {
+            "path": "redis/restart.sh",
+            "description": "Redis yeniden ba\u015flat",
+            "category": "redis"
+        },
+        {
+            "path": "redis/info.sh",
+            "description": "Redis INFO (uptime/memory/keys)",
+            "category": "redis"
+        },
+        {
+            "path": "redis/flush_all.sh",
+            "description": "T\u00fcm Redis verisini temizle (teyit gerekli)",
+            "category": "redis"
+        },
+        {
+            "path": "mysql/install.sh",
+            "description": "MySQL/MariaDB kur ve root g\u00fcvenli\u011fi",
+            "category": "mysql",
+            "params": [
+                {
+                    "name": "root_password",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "mysql/start.sh",
+            "description": "MySQL ba\u015flat",
+            "category": "mysql"
+        },
+        {
+            "path": "mysql/stop.sh",
+            "description": "MySQL durdur",
+            "category": "mysql"
+        },
+        {
+            "path": "mysql/restart.sh",
+            "description": "MySQL yeniden ba\u015flat",
+            "category": "mysql"
+        },
+        {
+            "path": "mysql/create_database.sh",
+            "description": "Veritaban\u0131 olu\u015ftur",
+            "category": "mysql",
+            "params": [
+                {
+                    "name": "name",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "charset",
+                    "type": "string",
+                    "default": "utf8mb4"
+                },
+                {
+                    "name": "collation",
+                    "type": "string",
+                    "default": "utf8mb4_unicode_ci"
+                }
+            ]
+        },
+        {
+            "path": "mysql/delete_database.sh",
+            "description": "Veritaban\u0131 sil",
+            "category": "mysql",
+            "params": [
+                {
+                    "name": "name",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "mysql/create_user.sh",
+            "description": "Kullan\u0131c\u0131 olu\u015ftur + yetki ver",
+            "category": "mysql",
+            "params": [
+                {
+                    "name": "username",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "password",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "host",
+                    "type": "string",
+                    "default": "%"
+                },
+                {
+                    "name": "database",
+                    "type": "string",
+                    "required": false
+                },
+                {
+                    "name": "privileges",
+                    "type": "string",
+                    "default": "ALL PRIVILEGES"
+                }
+            ]
+        },
+        {
+            "path": "mysql/delete_user.sh",
+            "description": "Kullan\u0131c\u0131 sil",
+            "category": "mysql",
+            "params": [
+                {
+                    "name": "username",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "host",
+                    "type": "string",
+                    "default": "%"
+                }
+            ]
+        },
+        {
+            "path": "mysql/import_sql.sh",
+            "description": "SQL dump i\u00e7e aktar",
+            "category": "mysql",
+            "params": [
+                {
+                    "name": "database",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "file",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "mysql/export_sql.sh",
+            "description": "Veritaban\u0131n\u0131 dump et",
+            "category": "mysql",
+            "params": [
+                {
+                    "name": "database",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "file",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "mysql/status.sh",
+            "description": "MySQL durum ve s\u00fcr\u00fcm",
+            "category": "mysql"
+        },
+        {
+            "path": "node/install_nvm.sh",
+            "description": "NVM kur ve varsay\u0131lan Node s\u00fcr\u00fcm\u00fc ayarla",
+            "category": "node",
+            "params": [
+                {
+                    "name": "version",
+                    "type": "string",
+                    "default": "20"
+                }
+            ]
+        },
+        {
+            "path": "node/use_version.sh",
+            "description": "Proje i\u00e7in Node s\u00fcr\u00fcm\u00fc se\u00e7",
+            "category": "node",
+            "params": [
+                {
+                    "name": "version",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "node/pm2_install.sh",
+            "description": "PM2 kur ve startup ayarla",
+            "category": "node"
+        },
+        {
+            "path": "node/pm2_app_add.sh",
+            "description": "PM2 uygulamas\u0131 ekle (ecosystem ya da entrypoint)",
+            "category": "node",
+            "params": [
+                {
+                    "name": "name",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "cwd",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "script",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "env",
+                    "type": "object",
+                    "required": false
+                }
+            ]
+        },
+        {
+            "path": "node/pm2_app_remove.sh",
+            "description": "PM2 uygulamas\u0131 kald\u0131r",
+            "category": "node",
+            "params": [
+                {
+                    "name": "name",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "node/pm2_app_restart.sh",
+            "description": "PM2 uygulamas\u0131 restart",
+            "category": "node",
+            "params": [
+                {
+                    "name": "name",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "node/pm2_list.sh",
+            "description": "PM2 s\u00fcre\u00e7 listesini JSON d\u00f6nd\u00fcr",
+            "category": "node"
+        },
+        {
+            "path": "static/create_site.sh",
+            "description": "Static site olu\u015ftur (nginx + root path + SSL opsiyonel)",
+            "category": "static",
+            "params": [
+                {
+                    "name": "domain",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "root",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "ssl",
+                    "type": "bool",
+                    "default": false
+                },
+                {
+                    "name": "email",
+                    "type": "string",
+                    "required": false
+                }
+            ]
+        },
+        {
+            "path": "static/deploy_artifact.sh",
+            "description": "Build artifact\u2019\u0131 (zip/tar) site k\u00f6k\u00fcne a\u00e7",
+            "category": "static",
+            "params": [
+                {
+                    "name": "domain",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "artifact",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "wp/install_stack.sh",
+            "description": "WordPress i\u00e7in PHP eklentileri + Nginx + MySQL ayarlar\u0131",
+            "category": "wordpress"
+        },
+        {
+            "path": "wp/new_site.sh",
+            "description": "Yeni WordPress site kur (db+user+wp-config+install)",
+            "category": "wordpress",
+            "params": [
+                {
+                    "name": "domain",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "db_name",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "db_user",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "db_pass",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "admin_user",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "admin_pass",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "admin_email",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "title",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "wp/enable_ssl.sh",
+            "description": "WP site i\u00e7in Let\u2019s Encrypt SSL",
+            "category": "wordpress",
+            "params": [
+                {
+                    "name": "domain",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "email",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "wp/plugin_install.sh",
+            "description": "WP eklentisi kur/aktif et",
+            "category": "wordpress",
+            "params": [
+                {
+                    "name": "domain",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "slug",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "activate",
+                    "type": "bool",
+                    "default": true
+                }
+            ]
+        },
+        {
+            "path": "wp/theme_install.sh",
+            "description": "WP tema kur/aktif et",
+            "category": "wordpress",
+            "params": [
+                {
+                    "name": "domain",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "slug",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "activate",
+                    "type": "bool",
+                    "default": true
+                }
+            ]
+        },
+        {
+            "path": "wp/cache_flush.sh",
+            "description": "WP cache temizli\u011fi (wp-cli)",
+            "category": "wordpress",
+            "params": [
+                {
+                    "name": "domain",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "laravel/env_write.sh",
+            "description": "Projeye .env yaz (JSON \u2192 KEY=VAL)",
+            "category": "laravel",
+            "params": [
+                {
+                    "name": "project",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "env_json",
+                    "type": "json",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "laravel/deploy_pipeline.sh",
+            "description": "Full deploy pipeline (git pull, composer, migrate, build)",
+            "category": "laravel",
+            "params": [
+                {
+                    "name": "project",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "run_build",
+                    "type": "bool",
+                    "default": true
+                }
+            ]
+        },
+        {
+            "path": "laravel/artisan.sh",
+            "description": "Arbitrary artisan \u00e7a\u011fr\u0131s\u0131 (whitelist k\u0131s\u0131tl\u0131)",
+            "category": "laravel",
+            "params": [
+                {
+                    "name": "project",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "cmd",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "laravel/queue_restart.sh",
+            "description": "Laravel queue restart",
+            "category": "laravel",
+            "params": [
+                {
+                    "name": "project",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "laravel/schedule_run.sh",
+            "description": "Laravel schedule:run tetikle",
+            "category": "laravel",
+            "params": [
+                {
+                    "name": "project",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "deploy/clone_repo.sh",
+            "description": "Repo ilk klon",
+            "category": "deploy",
+            "params": [
+                {
+                    "name": "repo",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "branch",
+                    "type": "string",
+                    "default": "main"
+                },
+                {
+                    "name": "dest",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "deploy/git_pull.sh",
+            "description": "Git pull (ff-only)",
+            "category": "deploy",
+            "params": [
+                {
+                    "name": "cwd",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "branch",
+                    "type": "string",
+                    "default": "main"
+                }
+            ]
+        },
+        {
+            "path": "deploy/composer_install.sh",
+            "description": "Composer install (no-dev, prefer-dist)",
+            "category": "deploy",
+            "params": [
+                {
+                    "name": "cwd",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "deploy/npm_build.sh",
+            "description": "npm install + build (Vite/Nuxt/Next)",
+            "category": "deploy",
+            "params": [
+                {
+                    "name": "cwd",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "cmd",
+                    "type": "string",
+                    "default": "build"
+                }
+            ]
+        },
+        {
+            "path": "deploy/custom_script_write.sh",
+            "description": "Projeye custom deploy.sh yaz",
+            "category": "deploy",
+            "params": [
+                {
+                    "name": "project",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "content_base64",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "deploy/custom_script_run.sh",
+            "description": "Projede deploy.sh \u00e7al\u0131\u015ft\u0131r",
+            "category": "deploy",
+            "params": [
+                {
+                    "name": "project",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "deploy/json_pipeline_run.sh",
+            "description": "JSON steps ile pipeline y\u00fcr\u00fct",
+            "category": "deploy",
+            "params": [
+                {
+                    "name": "steps_json",
+                    "type": "json",
+                    "required": true
+                },
+                {
+                    "name": "cwd",
+                    "type": "string",
+                    "required": false
+                }
+            ]
+        },
+        {
+            "path": "supervisor/install.sh",
+            "description": "Supervisor kur ve varsay\u0131lan ayarlar",
+            "category": "supervisor"
+        },
+        {
+            "path": "supervisor/reload.sh",
+            "description": "Supervisor reload",
+            "category": "supervisor"
+        },
+        {
+            "path": "supervisor/restart.sh",
+            "description": "Supervisor restart",
+            "category": "supervisor"
+        },
+        {
+            "path": "supervisor/add_program.sh",
+            "description": "Yeni program ekle (queue:work vb.)",
+            "category": "supervisor",
+            "params": [
+                {
+                    "name": "name",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "config_base64",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "supervisor/remove_program.sh",
+            "description": "Program kald\u0131r",
+            "category": "supervisor",
+            "params": [
+                {
+                    "name": "name",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "ssl/install_certbot.sh",
+            "description": "Certbot kurulumu",
+            "category": "ssl"
+        },
+        {
+            "path": "ssl/create_ssl.sh",
+            "description": "Let\u2019s Encrypt sertifika olu\u015ftur",
+            "category": "ssl",
+            "params": [
+                {
+                    "name": "domain",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "email",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "ssl/renew_ssl.sh",
+            "description": "Sertifika yenile",
+            "category": "ssl"
+        },
+        {
+            "path": "ssl/list_certs.sh",
+            "description": "Sertifikalar\u0131 listele",
+            "category": "ssl"
+        },
+        {
+            "path": "ssl/remove_ssl.sh",
+            "description": "Sertifikay\u0131 kald\u0131r ve HTTP\u2019ye d\u00f6n",
+            "category": "ssl",
+            "params": [
+                {
+                    "name": "domain",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "user/add_user.sh",
+            "description": "Sistem kullan\u0131c\u0131s\u0131 ekle",
+            "category": "user",
+            "params": [
+                {
+                    "name": "username",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "with_sudo",
+                    "type": "bool",
+                    "default": false
+                }
+            ]
+        },
+        {
+            "path": "user/delete_user.sh",
+            "description": "Sistem kullan\u0131c\u0131s\u0131 sil",
+            "category": "user",
+            "params": [
+                {
+                    "name": "username",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "user/ssh_key_add.sh",
+            "description": "Kullan\u0131c\u0131ya SSH public key ekle",
+            "category": "user",
+            "params": [
+                {
+                    "name": "username",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "public_key",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "user/ssh_key_remove.sh",
+            "description": "Kullan\u0131c\u0131dan SSH key kald\u0131r",
+            "category": "user",
+            "params": [
+                {
+                    "name": "username",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "public_key_fingerprint",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "user/list_users.sh",
+            "description": "Kullan\u0131c\u0131lar\u0131 listele",
+            "category": "user"
+        },
+        {
+            "path": "maintenance/enable_mode.sh",
+            "description": "Laravel maintenance mode ON",
+            "category": "maintenance",
+            "params": [
+                {
+                    "name": "project",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "maintenance/disable_mode.sh",
+            "description": "Laravel maintenance mode OFF",
+            "category": "maintenance",
+            "params": [
+                {
+                    "name": "project",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "maintenance/backup_files.sh",
+            "description": "Proje dosyalar\u0131n\u0131 ar\u015fivle",
+            "category": "maintenance",
+            "params": [
+                {
+                    "name": "path",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "dest",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "maintenance/backup_db.sh",
+            "description": "DB backup (mysqldump)",
+            "category": "maintenance",
+            "params": [
+                {
+                    "name": "database",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "dest",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        },
+        {
+            "path": "maintenance/restore_db.sh",
+            "description": "DB geri y\u00fckleme",
+            "category": "maintenance",
+            "params": [
+                {
+                    "name": "database",
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "src",
+                    "type": "string",
+                    "required": true
+                }
+            ]
+        }
+    ]
+}
