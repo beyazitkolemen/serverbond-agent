@@ -56,12 +56,15 @@ log_info "/var/www dizinine tam yetki veriliyor..."
 chown -R www-data:www-data /var/www
 chmod 775 /var/www
 
-# Also ensure srv/serverbond/sites is accessible
-if [[ -d /srv/serverbond/sites ]]; then
-    log_info "/srv/serverbond/sites dizinine yetki veriliyor..."
-    chown -R www-data:www-data /srv/serverbond/sites
-    chmod -R 775 /srv/serverbond/sites
-fi
+# Create and setup /srv/serverbond/sites with full permissions
+log_info "/srv/serverbond/sites dizini hazırlanıyor..."
+mkdir -p /srv/serverbond/sites
+mkdir -p /srv/serverbond/logs
+chown -R www-data:www-data /srv/serverbond
+chmod -R 775 /srv/serverbond
+# Give full write permissions to sites directory
+chmod -R 777 /srv/serverbond/sites
+chown -R www-data:www-data /srv/serverbond/sites
 
 # Give www-data access to nginx config directories for site management
 if [[ -d /etc/nginx/sites-available ]]; then
@@ -209,11 +212,13 @@ log_info "Son kontroller yapılıyor..."
 chown -R www-data:www-data /var/www
 chmod 775 /var/www
 
-# Also ensure srv/serverbond/sites is accessible
-if [[ -d /srv/serverbond/sites ]]; then
-    chown -R www-data:www-data /srv/serverbond/sites
-    chmod -R 775 /srv/serverbond/sites
-fi
+# Ensure /srv/serverbond/sites has full permissions
+mkdir -p /srv/serverbond/sites
+mkdir -p /srv/serverbond/logs
+chown -R www-data:www-data /srv/serverbond
+chmod -R 775 /srv/serverbond
+chmod -R 777 /srv/serverbond/sites
+chown -R www-data:www-data /srv/serverbond/sites
 
 # Give www-data access to nginx config directories
 if [[ -d /etc/nginx/sites-available ]]; then
