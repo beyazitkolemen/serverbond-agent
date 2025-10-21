@@ -65,12 +65,12 @@ if mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SELECT 1;" >/dev/null 2>&1; then
     log_success "Password authentication verified successfully"
 else
     log_error "Root login via password still failing!"
-    log_info "You can still access via: sudo mysql"
+    log_info "You can still access via: sudo mysql -u root -p"
     exit 1
 fi
 
 # --- Basic hardening ---
-sudo mysql <<EOSQL
+sudo mysql -u root -p"${MYSQL_ROOT_PASSWORD}" <<EOSQL
 DELETE FROM mysql.user WHERE User='' OR (User='root' AND Host NOT IN ('localhost','127.0.0.1','::1'));
 DROP DATABASE IF EXISTS test;
 FLUSH PRIVILEGES;
