@@ -252,11 +252,60 @@ sudo tail -50 /var/www/html/storage/logs/laravel.log
 sudo tail -50 /var/log/nginx/error.log
 ```
 
+## 🔐 Sudoers İzinleri
+
+ServerBond Panel, sistem kaynaklarını yönetebilmek için `www-data` kullanıcısına sudo yetkileri verir. Tüm izinler güvenli bir şekilde `/etc/sudoers.d/` dizininde yapılandırılır.
+
+### Otomatik Oluşturulan Sudoers Dosyaları
+
+| Dosya | Servis | İzinler |
+|-------|--------|---------|
+| `serverbond-nginx` | Nginx | Servis yönetimi, config düzenleme, log okuma |
+| `serverbond-php` | PHP-FPM | Servis yönetimi, pool config, Composer |
+| `serverbond-mysql` | MySQL | Servis yönetimi, veritabanı işlemleri |
+| `serverbond-redis` | Redis | Servis yönetimi, redis-cli komutları |
+| `serverbond-supervisor` | Supervisor | Process yönetimi, config düzenleme |
+| `serverbond-certbot` | Certbot/SSL | SSL sertifika yönetimi |
+| `serverbond-cloudflare` | Cloudflared | Tunnel yönetimi, config düzenleme |
+| `serverbond-docker` | Docker | Container yönetimi, Docker komutları |
+| `serverbond-nodejs` | Node.js/PM2 | NPM, PM2 komutları |
+| `serverbond-python` | Python | Python3, pip3, venv yönetimi |
+| `serverbond-system` | Sistem | Genel sistem yönetimi, UFW, cron |
+
+### Güvenlik Özellikleri
+
+- ✅ Her servis için ayrı sudoers dosyası (modüler yapı)
+- ✅ Tüm dosyalar `440` izinleriyle korunur
+- ✅ `visudo -c` ile otomatik doğrulama
+- ✅ Geçersiz dosyalar otomatik silinir
+- ✅ Minimal izin prensibi (sadece gerekli olan)
+- ✅ `NOPASSWD` - Panel otomasyonu için
+
+### Detaylı Döküman
+
+Tüm sudoers izinlerinin detaylı listesi için:
+
+👉 **[SUDOERS-PERMISSIONS.md](SUDOERS-PERMISSIONS.md)**
+
+### Manuel Kontrol
+
+```bash
+# Tüm sudoers dosyalarını listele
+ls -la /etc/sudoers.d/serverbond-*
+
+# Belirli bir dosyayı görüntüle
+sudo cat /etc/sudoers.d/serverbond-nginx
+
+# www-data kullanıcısı olarak test
+sudo -u www-data sudo systemctl status nginx
+```
+
 ## 📚 Dokümantasyon
 
 - **Panel**: Tüm site yönetimi web arayüzünden
 - **Docker**: [`templates/docker/DOCKER-README.md`](templates/docker/DOCKER-README.md)
 - **Templates**: [`templates/docker/README.md`](templates/docker/README.md)
+- **Sudoers**: [`SUDOERS-PERMISSIONS.md`](SUDOERS-PERMISSIONS.md)
 
 Panel kurulumu sonrasında tüm site yönetimi işlemlerini web arayüzünden yapabilirsiniz.
 
