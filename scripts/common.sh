@@ -34,17 +34,17 @@ systemctl_safe() {
     local action=$1 service=$2
     
     if [[ "${SKIP_SYSTEMD:-false}" == "true" ]]; then
-        log_warning "Systemd yok: $action $service atlandı"
+        log_warning "No systemd: skipping $action $service"
         return 0
     fi
     
     if ! command -v systemctl &> /dev/null; then
-        log_warning "systemctl bulunamadı: $action $service atlandı"
+        log_warning "systemctl not found: skipping $action $service"
         return 0
     fi
     
     systemctl "$action" "$service" 2>&1 || {
-        log_warning "Systemd komutu başarısız: $action $service"
+        log_warning "Systemd command failed: $action $service"
         return 1
     }
 }

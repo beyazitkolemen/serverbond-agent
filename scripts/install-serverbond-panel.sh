@@ -13,14 +13,14 @@ NGINX_DEFAULT_ROOT="${NGINX_DEFAULT_ROOT:-/var/www/html}"
 MYSQL_ROOT_PASSWORD_FILE="${MYSQL_ROOT_PASSWORD_FILE:-/opt/serverbond-agent/config/.mysql_root_password}"
 PHP_VERSION="${PHP_VERSION:-8.4}"
 
-log_info "ServerBond Panel kuruluyor..."
-log_info "Repo: ${LARAVEL_PROJECT_URL}"
+log_info "Installing ServerBond Panel..."
+log_info "Repository: ${LARAVEL_PROJECT_URL}"
 
 # Clone or Update ServerBond Panel project
 LARAVEL_DIR="${NGINX_DEFAULT_ROOT}"
 
 if [[ -d "${LARAVEL_DIR}/.git" ]]; then
-    log_info "Mevcut repo güncelleniyor..."
+    log_info "Updating existing repository..."
     cd "${LARAVEL_DIR}"
     
     # Fix ownership first
@@ -35,13 +35,13 @@ if [[ -d "${LARAVEL_DIR}/.git" ]]; then
     sudo -u www-data git fetch origin "${LARAVEL_PROJECT_BRANCH}" 2>&1 | grep -v "^$" || true
     sudo -u www-data git reset --hard "origin/${LARAVEL_PROJECT_BRANCH}" 2>&1 | grep -v "^$" || true
 else
-    log_info "Git clone yapılıyor..."
+    log_info "Cloning from Git..."
     rm -rf "${LARAVEL_DIR}"
     mkdir -p "$(dirname ${LARAVEL_DIR})"
     
     git clone -q --depth 1 --branch "${LARAVEL_PROJECT_BRANCH}" \
         "${LARAVEL_PROJECT_URL}" "${LARAVEL_DIR}" 2>&1 || {
-        log_error "Git clone başarısız!"
+        log_error "Git clone failed!"
         exit 1
     }
 fi
@@ -49,15 +49,15 @@ fi
 cd "${LARAVEL_DIR}"
 
 # Set comprehensive permissions
-log_info "Dosya izinleri ayarlanıyor..."
+log_info "Setting file permissions..."
 
 # Give www-data full access to /var/www for site management
-log_info "/var/www dizinine tam yetki veriliyor..."
+log_info "Granting full access to /var/www directory..."
 chown -R www-data:www-data /var/www
 chmod 775 /var/www
 
 # Create and setup /srv/serverbond/sites with full permissions
-log_info "/srv/serverbond/sites dizini hazırlanıyor..."
+log_info "Preparing /srv/serverbond/sites directory..."
 mkdir -p /srv/serverbond/sites
 mkdir -p /srv/serverbond/logs
 chown -R www-data:www-data /srv/serverbond
@@ -68,7 +68,7 @@ chown -R www-data:www-data /srv/serverbond/sites
 
 # Give www-data access to nginx config directories for site management
 if [[ -d /etc/nginx/sites-available ]]; then
-    log_info "Nginx config dizinlerine yetki veriliyor..."
+    log_info "Granting access to Nginx config directories..."
     chown -R www-data:www-data /etc/nginx/sites-available
     chown -R www-data:www-data /etc/nginx/sites-enabled
     chmod 775 /etc/nginx/sites-available
@@ -100,20 +100,20 @@ chown -R www-data:www-data "${LARAVEL_DIR}/bootstrap/cache" 2>/dev/null || true
 chown -R www-data:www-data "${LARAVEL_DIR}/public" 2>/dev/null || true
 
 # Install Composer dependencies
-log_info "Composer dependencies kuruluyor..."
+log_info "Installing Composer dependencies..."
 sudo -u www-data composer install --no-dev --optimize-autoloader --no-interaction 2>&1 | grep -v "^$" || true
 
 # Install NPM dependencies
-log_info "NPM dependencies kuruluyor..."
+log_info "Installing NPM dependencies..."
 sudo -u www-data npm install --silent 2>&1 | grep -v "^$" || true
 
 # Build assets
-log_info "Assets build ediliyor..."
+log_info "Building assets..."
 sudo -u www-data npm run build 2>&1 | grep -v "^$" || true
 
 # Setup .env
 if [[ ! -f .env ]]; then
-    log_info ".env dosyası oluşturuluyor..."
+    log_info "Creating .env file..."
     
     if [[ -f .env.example ]]; then
         cp .env.example .env
@@ -154,7 +154,7 @@ EOF
 fi
 
 # Generate APP_KEY
-log_info "APP_KEY generate ediliyor..."
+log_info "Generating APP_KEY..."
 sudo -u www-data php artisan key:generate --force 2>&1 | grep -v "^$" || true
 
 # Configure database
@@ -162,34 +162,34 @@ if [[ -f "$MYSQL_ROOT_PASSWORD_FILE" ]]; then
     MYSQL_ROOT_PASSWORD=$(cat "$MYSQL_ROOT_PASSWORD_FILE" | tr -d '\n\r')
     
     if [[ -z "$MYSQL_ROOT_PASSWORD" ]]; then
-        log_error "MySQL root şifresi okunamadı!"
+        log_error "Failed to read MySQL root password!"
         exit 1
     fi
     
-    log_info "MySQL şifresi okundu: ${#MYSQL_ROOT_PASSWORD} karakter"
+    log_info "MySQL password read: ${#MYSQL_ROOT_PASSWORD} characters"
     
     # Test MySQL connection first
     if ! mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SELECT 1;" &> /dev/null 2>&1; then
-        log_error "MySQL bağlantı hatası! Şifre doğru değil."
-        log_info "Şifre dosyası: ${MYSQL_ROOT_PASSWORD_FILE}"
+        log_error "MySQL connection failed! Password is incorrect."
+        log_info "Password file: ${MYSQL_ROOT_PASSWORD_FILE}"
         exit 1
     fi
     
-    log_success "MySQL bağlantısı başarılı"
+    log_success "MySQL connection successful"
     
     # Check if database already exists
     if mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "USE ${LARAVEL_DB_NAME}; SELECT 1;" &> /dev/null 2>&1; then
-        log_info "Veritabanı zaten mevcut: ${LARAVEL_DB_NAME}"
+        log_info "Database already exists: ${LARAVEL_DB_NAME}"
         
         # Count existing tables
         TABLE_COUNT=$(mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -D "${LARAVEL_DB_NAME}" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${LARAVEL_DB_NAME}';" -N -B 2>/dev/null)
-        log_info "Mevcut tablo sayısı: ${TABLE_COUNT}"
+        log_info "Existing table count: ${TABLE_COUNT}"
         
         if [[ "$TABLE_COUNT" -gt 0 ]]; then
-            log_warn "Veritabanında tablolar var, migration atlanabilir"
+            log_warn "Database contains tables, migration may be skipped"
         fi
     else
-        log_info "Veritabanı oluşturuluyor: ${LARAVEL_DB_NAME}"
+        log_info "Creating database: ${LARAVEL_DB_NAME}"
         
         # Create database
         mysql -u root -p"${MYSQL_ROOT_PASSWORD}" <<EOSQL 2>&1 | grep -v "Warning" || true
@@ -244,19 +244,19 @@ if [[ -L "${LARAVEL_DIR}/public/storage" ]]; then
 fi
 
 # Filament optimizations
-log_info "Filament optimize ediliyor..."
+log_info "Optimizing Filament..."
 sudo -u www-data php artisan filament:optimize 2>&1 | grep -v "^$" || true
 sudo -u www-data php artisan icons:cache 2>&1 | grep -v "^$" || true
 
 # Cache optimization
-log_info "Cache optimize ediliyor..."
+log_info "Optimizing cache..."
 sudo -u www-data php artisan config:cache 2>&1 | grep -v "^$" || true
 sudo -u www-data php artisan route:cache 2>&1 | grep -v "^$" || true
 sudo -u www-data php artisan view:cache 2>&1 | grep -v "^$" || true
 sudo -u www-data php artisan event:cache 2>&1 | grep -v "^$" || true
 
 # Final permissions - ensure everything is correct
-log_info "Son kontroller yapılıyor..."
+log_info "Running final checks..."
 
 # Ensure /var/www is accessible for site management
 chown -R www-data:www-data /var/www
@@ -295,7 +295,7 @@ chown -R www-data:www-data "${LARAVEL_DIR}/storage" 2>/dev/null || true
 chown -R www-data:www-data "${LARAVEL_DIR}/bootstrap/cache" 2>/dev/null || true
 chown -R www-data:www-data "${LARAVEL_DIR}/public" 2>/dev/null || true
 
-log_success "ServerBond Panel kuruldu!"
-log_info "Dizin: ${LARAVEL_DIR}"
+log_success "ServerBond Panel installed successfully!"
+log_info "Directory: ${LARAVEL_DIR}"
 log_info "Database: ${LARAVEL_DB_NAME}"
 

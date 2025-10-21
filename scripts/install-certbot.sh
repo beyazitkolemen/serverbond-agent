@@ -8,7 +8,7 @@ source "${SCRIPT_DIR}/common.sh"
 # Load config from parent if available
 CERTBOT_RENEWAL_CRON="${CERTBOT_RENEWAL_CRON:-0 0,12 * * * root certbot renew --quiet}"
 
-log_info "Certbot kuruluyor..."
+log_info "Installing Certbot..."
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -19,15 +19,14 @@ if [[ "${SKIP_SYSTEMD:-false}" == "false" ]]; then
     if systemctl list-unit-files | grep -q certbot.timer; then
         systemctl_safe enable certbot.timer
         systemctl_safe start certbot.timer
-        log_success "Certbot timer etkinleştirildi"
+        log_success "Certbot timer enabled"
     else
         # Cron fallback
         if ! grep -q "certbot renew" /etc/crontab 2>/dev/null; then
             echo "${CERTBOT_RENEWAL_CRON}" >> /etc/crontab
-            log_success "Certbot cron job eklendi"
+            log_success "Certbot cron job added"
         fi
     fi
 fi
 
-log_success "Certbot kuruldu"
-
+log_success "Certbot installed successfully"

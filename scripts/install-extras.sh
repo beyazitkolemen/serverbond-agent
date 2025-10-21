@@ -5,7 +5,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
-log_info "Monitoring & security tools kuruluyor..."
+log_info "Installing monitoring & security tools..."
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -18,11 +18,11 @@ apt-get install -y -qq \
 
 # Fail2ban configuration
 if [[ -f "${TEMPLATES_DIR}/fail2ban-jail.local" ]]; then
-    log_info "Fail2ban config template'den yükleniyor..."
+    log_info "Loading Fail2ban config from template..."
     cp "${TEMPLATES_DIR}/fail2ban-jail.local" /etc/fail2ban/jail.local
 else
     # Fallback
-    log_warning "Template bulunamadı, default config oluşturuluyor..."
+    log_warning "Template not found, creating default config..."
     cat > /etc/fail2ban/jail.local << 'EOF'
 [DEFAULT]
 bantime = 3600
@@ -50,15 +50,15 @@ fi
 systemctl_safe enable fail2ban
 systemctl_safe restart fail2ban
 
-if check_service_running fail2ban; then
-    log_success "Fail2ban çalışıyor"
+if check_service fail2ban; then
+    log_success "Fail2ban is running"
 else
-    log_warning "Fail2ban başlatılamadı"
+    log_warning "Failed to start Fail2ban"
 fi
 
 # Logrotate configuration
 if [[ -f "${TEMPLATES_DIR}/logrotate-serverbond.conf" ]]; then
-    log_info "Logrotate config template'den yükleniyor..."
+    log_info "Loading Logrotate config from template..."
     cp "${TEMPLATES_DIR}/logrotate-serverbond.conf" /etc/logrotate.d/serverbond-agent
 else
     # Fallback
@@ -76,12 +76,11 @@ else
 EOF
 fi
 
-log_success "Ekstra araçlar kuruldu"
-log_info "Kurulu araçlar:"
+log_success "Extra tools installed successfully"
+log_info "Installed tools:"
 echo "  - htop, iotop, iftop: System monitoring"
 echo "  - ncdu: Disk usage analyzer"
 echo "  - fail2ban: Brute-force protection"
 echo "  - vim, nano: Text editors"
 echo "  - screen, tmux: Terminal multiplexers"
 echo "  - Logrotate: Log management"
-

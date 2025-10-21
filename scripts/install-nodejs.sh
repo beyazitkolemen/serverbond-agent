@@ -9,7 +9,7 @@ source "${SCRIPT_DIR}/common.sh"
 NODE_VERSION="${NODE_VERSION:-20}"
 NPM_GLOBAL_PACKAGES="${NPM_GLOBAL_PACKAGES:-yarn pm2}"
 
-log_info "Node.js ${NODE_VERSION} kuruluyor..."
+log_info "Installing Node.js ${NODE_VERSION}..."
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -27,5 +27,5 @@ if [[ "${SKIP_SYSTEMD:-false}" == "false" ]]; then
     pm2 startup systemd -u root --hp /root 2>&1 | grep -v "^$" || true
 fi
 
-log_success "Node.js ${NODE_VERSION} kuruldu"
+log_success "Node.js ${NODE_VERSION} installed successfully"
 log_info "Global packages: ${NPM_GLOBAL_PACKAGES}"

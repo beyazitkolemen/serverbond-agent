@@ -10,7 +10,7 @@ NGINX_SITES_AVAILABLE="${NGINX_SITES_AVAILABLE:-/etc/nginx/sites-available}"
 NGINX_DEFAULT_ROOT="${NGINX_DEFAULT_ROOT:-/var/www/html}"
 TEMPLATES_DIR="${TEMPLATES_DIR:-$(dirname "$SCRIPT_DIR")/templates}"
 
-log_info "Nginx kuruluyor..."
+log_info "Installing Nginx..."
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -21,14 +21,14 @@ mkdir -p "${NGINX_DEFAULT_ROOT}"
 
 # Copy config based on Laravel project
 if [[ -n "${LARAVEL_PROJECT_URL:-}" ]] && [[ -f "${TEMPLATES_DIR}/nginx-laravel.conf" ]]; then
-    log_info "Nginx Laravel config template'den yükleniyor..."
+    log_info "Loading Nginx Laravel config from template..."
     cp "${TEMPLATES_DIR}/nginx-laravel.conf" "${NGINX_SITES_AVAILABLE}/default"
 elif [[ -f "${TEMPLATES_DIR}/nginx-default.conf" ]]; then
-    log_info "Nginx default config template'den yükleniyor..."
+    log_info "Loading Nginx default config from template..."
     cp "${TEMPLATES_DIR}/nginx-default.conf" "${NGINX_SITES_AVAILABLE}/default"
 else
     # Fallback: Create basic config
-    log_warning "Template bulunamadı, default config oluşturuluyor..."
+    log_warning "Template not found, creating default config..."
     cat > "${NGINX_SITES_AVAILABLE}/default" << 'EOF'
 server {
     listen 80 default_server;
@@ -52,7 +52,7 @@ fi
 # Copy default HTML page if no Laravel project
 if [[ -z "${LARAVEL_PROJECT_URL:-}" ]]; then
     if [[ -f "${TEMPLATES_DIR}/nginx-default.html" ]]; then
-        log_info "Default HTML sayfası kopyalanıyor..."
+        log_info "Copying default HTML page..."
         cp "${TEMPLATES_DIR}/nginx-default.html" "${NGINX_DEFAULT_ROOT}/index.html"
     else
         # Fallback: Create simple HTML
@@ -74,7 +74,7 @@ if [[ -z "${LARAVEL_PROJECT_URL:-}" ]]; then
 EOF
     fi
 else
-    log_info "Laravel projesi kurulacak, default HTML atlanıyor..."
+    log_info "Laravel project will be installed, skipping default HTML..."
 fi
 
 # Set permissions
@@ -89,5 +89,4 @@ if check_command ufw; then
     ufw allow 'Nginx Full' 2>&1 || true
 fi
 
-log_success "Nginx kuruldu"
-
+log_success "Nginx installed successfully"

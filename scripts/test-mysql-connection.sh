@@ -13,90 +13,89 @@ source "${SCRIPT_DIR}/common.sh"
 CONFIG_DIR="${CONFIG_DIR:-/opt/serverbond-agent/config}"
 MYSQL_ROOT_PASSWORD_FILE="${MYSQL_ROOT_PASSWORD_FILE:-${CONFIG_DIR}/.mysql_root_password}"
 
-echo "=== MySQL Bağlantı Testi ==="
+echo "=== MySQL Connection Test ==="
 echo ""
 
 # Check if MySQL is running
-log_step "MySQL servisi kontrol ediliyor..."
+log_step "Checking MySQL service..."
 if systemctl is-active --quiet mysql 2>/dev/null; then
-    log_success "MySQL servisi çalışıyor"
+    log_success "MySQL service is running"
 else
-    log_error "MySQL servisi çalışmıyor!"
-    echo "Başlatmak için: sudo systemctl start mysql"
+    log_error "MySQL service is not running!"
+    echo "To start: sudo systemctl start mysql"
     exit 1
 fi
 
 # Check if password file exists
-log_step "Şifre dosyası kontrol ediliyor..."
+log_step "Checking password file..."
 if [[ ! -f "$MYSQL_ROOT_PASSWORD_FILE" ]]; then
-    log_error "Şifre dosyası bulunamadı: ${MYSQL_ROOT_PASSWORD_FILE}"
+    log_error "Password file not found: ${MYSQL_ROOT_PASSWORD_FILE}"
     exit 1
 fi
 
-log_success "Şifre dosyası mevcut: ${MYSQL_ROOT_PASSWORD_FILE}"
+log_success "Password file exists: ${MYSQL_ROOT_PASSWORD_FILE}"
 
 # Read password
 MYSQL_ROOT_PASSWORD=$(cat "$MYSQL_ROOT_PASSWORD_FILE" | tr -d '\n\r')
 
 if [[ -z "$MYSQL_ROOT_PASSWORD" ]]; then
-    log_error "Şifre dosyası boş!"
+    log_error "Password file is empty!"
     exit 1
 fi
 
-log_info "Şifre uzunluğu: ${#MYSQL_ROOT_PASSWORD} karakter"
+log_info "Password length: ${#MYSQL_ROOT_PASSWORD} characters"
 
 # Test connection without password
-log_step "Şifresiz bağlantı test ediliyor..."
+log_step "Testing connection without password..."
 if mysql -u root -e "SELECT 1;" &> /dev/null 2>&1; then
-    log_warn "MySQL şifre gerektirmiyor! (Güvenlik riski)"
+    log_warn "MySQL doesn't require password! (Security risk)"
     echo ""
-    echo "Şifre ayarlamak için:"
+    echo "To set password:"
     echo "  mysql -u root -e \"ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASSWORD}';\""
 else
-    log_success "MySQL şifre korumalı"
+    log_success "MySQL is password protected"
 fi
 
 # Test connection with password
-log_step "Şifreli bağlantı test ediliyor..."
+log_step "Testing connection with password..."
 if mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SELECT 1;" &> /dev/null 2>&1; then
-    log_success "MySQL bağlantısı başarılı!"
+    log_success "MySQL connection successful!"
 else
-    log_error "MySQL bağlantısı başarısız!"
+    log_error "MySQL connection failed!"
     echo ""
-    echo "Hata giderme:"
-    echo "  1. Şifre dosyasını kontrol et: cat ${MYSQL_ROOT_PASSWORD_FILE}"
-    echo "  2. MySQL loglarını kontrol et: sudo tail -50 /var/log/mysql/error.log"
-    echo "  3. MySQL'i yeniden başlat: sudo systemctl restart mysql"
+    echo "Troubleshooting:"
+    echo "  1. Check password file: cat ${MYSQL_ROOT_PASSWORD_FILE}"
+    echo "  2. Check MySQL logs: sudo tail -50 /var/log/mysql/error.log"
+    echo "  3. Restart MySQL: sudo systemctl restart mysql"
     echo ""
     exit 1
 fi
 
 # Get MySQL version
-log_step "MySQL bilgileri..."
+log_step "MySQL information..."
 MYSQL_VERSION=$(mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SELECT VERSION();" -N -B 2>/dev/null)
 log_info "MySQL Version: ${MYSQL_VERSION}"
 
 # List databases
-log_step "Veritabanları listeleniyor..."
+log_step "Listing databases..."
 echo ""
 mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SHOW DATABASES;" 2>/dev/null
 
 # Check serverbond database
 echo ""
-log_step "ServerBond veritabanı kontrol ediliyor..."
+log_step "Checking ServerBond database..."
 if mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "USE serverbond; SELECT 1;" &> /dev/null 2>&1; then
-    log_success "ServerBond veritabanı mevcut"
+    log_success "ServerBond database exists"
     
     # Count tables
     TABLE_COUNT=$(mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -D serverbond -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='serverbond';" -N -B 2>/dev/null)
-    log_info "Tablo sayısı: ${TABLE_COUNT}"
+    log_info "Table count: ${TABLE_COUNT}"
 else
-    log_warn "ServerBond veritabanı bulunamadı"
+    log_warn "ServerBond database not found"
     echo ""
-    echo "Oluşturmak için:"
+    echo "To create:"
     echo "  mysql -u root -p'${MYSQL_ROOT_PASSWORD}' -e \"CREATE DATABASE serverbond CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\""
 fi
 
 echo ""
-log_success "Test tamamlandı!"
-
+log_success "Test completed!"

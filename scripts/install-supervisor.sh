@@ -8,7 +8,7 @@ source "${SCRIPT_DIR}/common.sh"
 # Load config from parent if available
 SUPERVISOR_CONF_DIR="${SUPERVISOR_CONF_DIR:-/etc/supervisor/conf.d}"
 
-log_info "Supervisor kuruluyor..."
+log_info "Installing Supervisor..."
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -19,4 +19,4 @@ mkdir -p "${SUPERVISOR_CONF_DIR}"
 systemctl_safe enable supervisor
 systemctl_safe start supervisor
 
-log_success "Supervisor kuruldu"
+log_success "Supervisor installed successfully"

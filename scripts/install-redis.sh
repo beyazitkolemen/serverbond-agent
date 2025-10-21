@@ -10,7 +10,7 @@ REDIS_CONFIG="${REDIS_CONFIG:-/etc/redis/redis.conf}"
 REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
 REDIS_PORT="${REDIS_PORT:-6379}"
 
-log_info "Redis kuruluyor..."
+log_info "Installing Redis..."
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -18,7 +18,7 @@ apt-get install -y -qq redis-server 2>&1 | grep -v "^$" || true
 
 # Configure Redis
 if [[ -f "${TEMPLATES_DIR}/redis.conf.template" ]]; then
-    log_info "Redis config template'den yükleniyor..."
+    log_info "Loading Redis config from template..."
     # Append template to main config
     cat "${TEMPLATES_DIR}/redis.conf.template" >> "${REDIS_CONFIG}"
 else
@@ -31,5 +31,4 @@ fi
 systemctl_safe enable redis-server
 systemctl_safe restart redis-server
 
-log_success "Redis kuruldu"
-
+log_success "Redis installed successfully"

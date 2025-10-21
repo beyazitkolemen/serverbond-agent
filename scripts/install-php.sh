@@ -14,7 +14,7 @@ PHP_MEMORY_LIMIT="${PHP_MEMORY_LIMIT:-256M}"
 PHP_UPLOAD_MAX="${PHP_UPLOAD_MAX:-100M}"
 PHP_MAX_EXECUTION="${PHP_MAX_EXECUTION:-300}"
 
-log_info "PHP ${PHP_VERSION} kuruluyor..."
+log_info "Installing PHP ${PHP_VERSION}..."
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -30,7 +30,7 @@ apt-get install -y -qq \
 
 # FPM Pool configuration
 if [[ -f "${TEMPLATES_DIR}/php-fpm-pool.conf" ]]; then
-    log_info "PHP-FPM pool config template'den yükleniyor..."
+    log_info "Loading PHP-FPM pool config from template..."
     sed "s|/var/run/php/php8.4-fpm.sock|${PHP_FPM_SOCKET}|g" \
         "${TEMPLATES_DIR}/php-fpm-pool.conf" > "${PHP_FPM_POOL}"
 else
@@ -65,7 +65,7 @@ systemctl_safe enable "php${PHP_VERSION}-fpm"
 systemctl_safe restart "php${PHP_VERSION}-fpm"
 
 # Install Composer
-log_info "Composer kuruluyor..."
+log_info "Installing Composer..."
 EXPECTED_SIG="$(curl -sS https://composer.github.io/installer.sig 2>/dev/null)"
 curl -sS https://getcomposer.org/installer -o /tmp/composer-setup.php 2>/dev/null
 ACTUAL_SIG="$(php -r "echo hash_file('sha384', '/tmp/composer-setup.php');" 2>/dev/null)"
@@ -73,7 +73,7 @@ ACTUAL_SIG="$(php -r "echo hash_file('sha384', '/tmp/composer-setup.php');" 2>/d
 if [ "$EXPECTED_SIG" = "$ACTUAL_SIG" ]; then
     php /tmp/composer-setup.php --quiet --install-dir=/usr/local/bin --filename=composer
     rm /tmp/composer-setup.php
-    log_success "Composer kuruldu"
+    log_success "Composer installed successfully"
 fi
 
-log_success "PHP ${PHP_VERSION} kuruldu"
+log_success "PHP ${PHP_VERSION} installed successfully"
