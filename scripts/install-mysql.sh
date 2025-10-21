@@ -80,18 +80,18 @@ EOSQL
 log_info "Sudoers yapılandırması oluşturuluyor..."
 
 # www-data kullanıcısı için MySQL yetkileri
-cat > /etc/sudoers.d/serverbond-mysql <<'EOF'
+cat > /etc/sudoers.d/serverbond-mysql <<EOF
 # ServerBond Panel - MySQL Yönetimi
 # www-data kullanıcısının MySQL işlemlerini yapabilmesi için gerekli izinler
 
 # MySQL servisi yönetimi
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl start mysql
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl stop mysql
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl restart mysql
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl reload mysql
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl status mysql
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl enable mysql
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl disable mysql
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} start mysql
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} stop mysql
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} restart mysql
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} reload mysql
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} status mysql
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} enable mysql
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} disable mysql
 
 # MySQL komutları
 www-data ALL=(ALL) NOPASSWD: /usr/bin/mysql *

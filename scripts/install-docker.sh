@@ -129,18 +129,18 @@ usermod -aG docker www-data || log_warn "www-data kullanıcısı docker grubuna 
 log_info "Sudoers yapılandırması oluşturuluyor..."
 
 # www-data kullanıcısı için Docker yetkileri
-cat > /etc/sudoers.d/serverbond-docker <<'EOF'
+cat > /etc/sudoers.d/serverbond-docker <<EOF
 # ServerBond Panel - Docker Yönetimi
 # www-data kullanıcısının Docker işlemlerini yapabilmesi için gerekli izinler
 
 # Docker servisi yönetimi
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl start docker
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl stop docker
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl restart docker
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl reload docker
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl status docker
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl enable docker
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl disable docker
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} start docker
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} stop docker
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} restart docker
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} reload docker
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} status docker
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} enable docker
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} disable docker
 
 # Docker komutları (www-data docker grubunda olduğu için çoğu direkt çalışır)
 www-data ALL=(ALL) NOPASSWD: /usr/bin/docker *

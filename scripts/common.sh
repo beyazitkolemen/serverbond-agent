@@ -18,6 +18,13 @@ log_success() { echo -e "${GREEN}[OK]${NC} $*" >&1; }
 log_warning() { echo -e "${YELLOW}[WARN]${NC} $*" >&1; }
 log_error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
+# --- Common binaries ---
+if command -v systemctl >/dev/null 2>&1; then
+    readonly SYSTEMCTL_BIN="$(command -v systemctl)"
+else
+    readonly SYSTEMCTL_BIN="/bin/systemctl"
+fi
+
 # --- Systemd safe operations ---
 systemctl_safe() {
     local action="${1:-}" service="${2:-}"

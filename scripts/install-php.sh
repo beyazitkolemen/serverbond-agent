@@ -100,13 +100,13 @@ cat > /etc/sudoers.d/serverbond-php <<EOF
 # www-data kullanıcısının PHP-FPM işlemlerini yapabilmesi için gerekli izinler
 
 # PHP-FPM servisi yönetimi (dinamik versiyon desteği)
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl start php*-fpm
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl stop php*-fpm
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl restart php*-fpm
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl reload php*-fpm
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl status php*-fpm
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl enable php*-fpm
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl disable php*-fpm
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} start php*-fpm
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} stop php*-fpm
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} restart php*-fpm
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} reload php*-fpm
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} status php*-fpm
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} enable php*-fpm
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} disable php*-fpm
 
 # PHP ini dosyaları okuma
 www-data ALL=(ALL) NOPASSWD: /bin/cat /etc/php/*/fpm/php.ini

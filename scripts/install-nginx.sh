@@ -86,18 +86,18 @@ fi
 log_info "Sudoers yapılandırması oluşturuluyor..."
 
 # www-data kullanıcısı için nginx yetkileri
-cat > /etc/sudoers.d/serverbond-nginx <<'EOF'
+cat > /etc/sudoers.d/serverbond-nginx <<EOF
 # ServerBond Panel - Nginx Yönetimi
 # www-data kullanıcısının nginx işlemlerini yapabilmesi için gerekli izinler
 
 # Nginx servisi yönetimi
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl start nginx
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl stop nginx
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl restart nginx
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl reload nginx
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl status nginx
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl enable nginx
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl disable nginx
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} start nginx
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} stop nginx
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} restart nginx
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} reload nginx
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} status nginx
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} enable nginx
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} disable nginx
 
 # Nginx configuration test
 www-data ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t
