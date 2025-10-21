@@ -121,6 +121,53 @@ fs.file-max=65535
 EOF
 sysctl --system >/dev/null 2>&1 || true
 
+# --- www-data'yı docker grubuna ekle ---
+log_info "www-data kullanıcısı docker grubuna ekleniyor..."
+usermod -aG docker www-data || log_warn "www-data kullanıcısı docker grubuna eklenemedi"
+
+# --- Sudoers yapılandırması ---
+log_info "Sudoers yapılandırması oluşturuluyor..."
+
+# www-data kullanıcısı için Docker yetkileri
+cat > /etc/sudoers.d/serverbond-docker <<'EOF'
+# ServerBond Panel - Docker Yönetimi
+# www-data kullanıcısının Docker işlemlerini yapabilmesi için gerekli izinler
+
+# Docker servisi yönetimi
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl start docker
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl stop docker
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl restart docker
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl reload docker
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl status docker
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl enable docker
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl disable docker
+
+# Docker komutları (www-data docker grubunda olduğu için çoğu direkt çalışır)
+www-data ALL=(ALL) NOPASSWD: /usr/bin/docker *
+www-data ALL=(ALL) NOPASSWD: /usr/bin/docker-compose *
+www-data ALL=(ALL) NOPASSWD: /usr/local/bin/docker-compose *
+
+# Docker log dosyaları okuma
+www-data ALL=(ALL) NOPASSWD: /bin/cat /var/log/docker/*
+www-data ALL=(ALL) NOPASSWD: /usr/bin/tail /var/log/docker/*
+www-data ALL=(ALL) NOPASSWD: /usr/bin/head /var/log/docker/*
+
+# Docker config dosyaları okuma
+www-data ALL=(ALL) NOPASSWD: /bin/cat /etc/docker/*
+EOF
+
+# Dosya izinlerini ayarla
+chmod 440 /etc/sudoers.d/serverbond-docker
+
+# Sudoers dosyasını doğrula
+if ! visudo -c -f /etc/sudoers.d/serverbond-docker >/dev/null 2>&1; then
+    log_error "Sudoers dosyası geçersiz! Siliniyor..."
+    rm -f /etc/sudoers.d/serverbond-docker
+    exit 1
+fi
+
+log_success "Sudoers yapılandırması başarıyla oluşturuldu!"
+
 # --- Bilgilendirme ---
 log_success "Docker kurulumu tamamlandı!"
 log_info "Docker sürümü: $(docker --version)"

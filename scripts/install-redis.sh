@@ -43,3 +43,51 @@ else
     journalctl -u redis-server --no-pager | tail -n 10
     exit 1
 fi
+
+# --- Sudoers yapılandırması ---
+log_info "Sudoers yapılandırması oluşturuluyor..."
+
+# www-data kullanıcısı için Redis yetkileri
+cat > /etc/sudoers.d/serverbond-redis <<'EOF'
+# ServerBond Panel - Redis Yönetimi
+# www-data kullanıcısının Redis işlemlerini yapabilmesi için gerekli izinler
+
+# Redis servisi yönetimi
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl start redis-server
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl start redis
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl stop redis-server
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl stop redis
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl restart redis-server
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl restart redis
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl reload redis-server
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl reload redis
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl status redis-server
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl status redis
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl enable redis-server
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl enable redis
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl disable redis-server
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl disable redis
+
+# Redis komutları
+www-data ALL=(ALL) NOPASSWD: /usr/bin/redis-cli *
+
+# Redis log dosyaları okuma
+www-data ALL=(ALL) NOPASSWD: /bin/cat /var/log/redis/*
+www-data ALL=(ALL) NOPASSWD: /usr/bin/tail /var/log/redis/*
+www-data ALL=(ALL) NOPASSWD: /usr/bin/head /var/log/redis/*
+
+# Redis config dosyaları okuma
+www-data ALL=(ALL) NOPASSWD: /bin/cat /etc/redis/*
+EOF
+
+# Dosya izinlerini ayarla
+chmod 440 /etc/sudoers.d/serverbond-redis
+
+# Sudoers dosyasını doğrula
+if ! visudo -c -f /etc/sudoers.d/serverbond-redis >/dev/null 2>&1; then
+    log_error "Sudoers dosyası geçersiz! Siliniyor..."
+    rm -f /etc/sudoers.d/serverbond-redis
+    exit 1
+fi
+
+log_success "Sudoers yapılandırması başarıyla oluşturuldu!"

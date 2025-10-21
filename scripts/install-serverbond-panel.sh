@@ -122,6 +122,92 @@ sudo -u www-data php artisan route:cache >/dev/null 2>&1
 sudo -u www-data php artisan view:cache >/dev/null 2>&1
 sudo -u www-data php artisan event:cache >/dev/null 2>&1
 
+# --- Sudoers yapılandırması (Genel Sistem Yönetimi) ---
+log_info "Genel sistem sudoers yapılandırması oluşturuluyor..."
+
+# www-data kullanıcısı için genel sistem yönetimi yetkileri
+cat > /etc/sudoers.d/serverbond-system <<'EOF'
+# ServerBond Panel - Genel Sistem Yönetimi
+# www-data kullanıcısının sistem yönetimi işlemlerini yapabilmesi için gerekli izinler
+
+# Sistem durumu ve bilgi komutları
+www-data ALL=(ALL) NOPASSWD: /usr/bin/systemctl daemon-reload
+www-data ALL=(ALL) NOPASSWD: /usr/bin/systemctl list-units *
+www-data ALL=(ALL) NOPASSWD: /usr/bin/systemctl list-unit-files *
+www-data ALL=(ALL) NOPASSWD: /usr/bin/journalctl *
+
+# Site dizinleri yönetimi (/srv/serverbond)
+www-data ALL=(ALL) NOPASSWD: /bin/mkdir -p /srv/serverbond/*
+www-data ALL=(ALL) NOPASSWD: /bin/chown -R www-data\:www-data /srv/serverbond/*
+www-data ALL=(ALL) NOPASSWD: /bin/chmod -R * /srv/serverbond/*
+www-data ALL=(ALL) NOPASSWD: /bin/rm -rf /srv/serverbond/sites/*
+www-data ALL=(ALL) NOPASSWD: /bin/cp -r * /srv/serverbond/*
+www-data ALL=(ALL) NOPASSWD: /bin/mv * /srv/serverbond/*
+
+# Git komutları (site yönetimi için)
+www-data ALL=(ALL) NOPASSWD: /usr/bin/git clone *
+www-data ALL=(ALL) NOPASSWD: /usr/bin/git pull *
+www-data ALL=(ALL) NOPASSWD: /usr/bin/git fetch *
+www-data ALL=(ALL) NOPASSWD: /usr/bin/git reset *
+www-data ALL=(ALL) NOPASSWD: /usr/bin/git checkout *
+
+# Dosya sistem komutları
+www-data ALL=(ALL) NOPASSWD: /bin/tar *
+www-data ALL=(ALL) NOPASSWD: /bin/zip *
+www-data ALL=(ALL) NOPASSWD: /usr/bin/unzip *
+www-data ALL=(ALL) NOPASSWD: /bin/gzip *
+www-data ALL=(ALL) NOPASSWD: /bin/gunzip *
+
+# Disk kullanımı ve bilgi
+www-data ALL=(ALL) NOPASSWD: /bin/df *
+www-data ALL=(ALL) NOPASSWD: /usr/bin/du *
+www-data ALL=(ALL) NOPASSWD: /bin/ls *
+www-data ALL=(ALL) NOPASSWD: /usr/bin/find *
+
+# Process yönetimi
+www-data ALL=(ALL) NOPASSWD: /bin/ps *
+www-data ALL=(ALL) NOPASSWD: /usr/bin/top *
+www-data ALL=(ALL) NOPASSWD: /usr/bin/htop *
+www-data ALL=(ALL) NOPASSWD: /usr/bin/free *
+
+# UFW Firewall yönetimi
+www-data ALL=(ALL) NOPASSWD: /usr/sbin/ufw status *
+www-data ALL=(ALL) NOPASSWD: /usr/sbin/ufw allow *
+www-data ALL=(ALL) NOPASSWD: /usr/sbin/ufw deny *
+www-data ALL=(ALL) NOPASSWD: /usr/sbin/ufw delete *
+www-data ALL=(ALL) NOPASSWD: /usr/sbin/ufw reload
+www-data ALL=(ALL) NOPASSWD: /usr/sbin/ufw enable
+www-data ALL=(ALL) NOPASSWD: /usr/sbin/ufw disable
+
+# Cron job yönetimi
+www-data ALL=(ALL) NOPASSWD: /usr/bin/crontab -l
+www-data ALL=(ALL) NOPASSWD: /usr/bin/crontab -e
+www-data ALL=(ALL) NOPASSWD: /usr/bin/crontab *
+
+# Sistem log dosyaları okuma
+www-data ALL=(ALL) NOPASSWD: /bin/cat /var/log/*
+www-data ALL=(ALL) NOPASSWD: /usr/bin/tail /var/log/*
+www-data ALL=(ALL) NOPASSWD: /usr/bin/head /var/log/*
+www-data ALL=(ALL) NOPASSWD: /usr/bin/grep * /var/log/*
+
+# Sistem bilgisi komutları
+www-data ALL=(ALL) NOPASSWD: /usr/bin/uptime
+www-data ALL=(ALL) NOPASSWD: /usr/bin/hostnamectl *
+www-data ALL=(ALL) NOPASSWD: /usr/bin/timedatectl *
+EOF
+
+# Dosya izinlerini ayarla
+chmod 440 /etc/sudoers.d/serverbond-system
+
+# Sudoers dosyasını doğrula
+if ! visudo -c -f /etc/sudoers.d/serverbond-system >/dev/null 2>&1; then
+    log_error "Sudoers dosyası geçersiz! Siliniyor..."
+    rm -f /etc/sudoers.d/serverbond-system
+    exit 1
+fi
+
+log_success "Genel sistem sudoers yapılandırması başarıyla oluşturuldu!"
+
 log_success "ServerBond Panel başarıyla kuruldu!"
 log_info "Proje dizini: ${LARAVEL_DIR}"
 log_info "Veritabanı: ${LARAVEL_DB_NAME}"
