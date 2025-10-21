@@ -64,34 +64,34 @@ for i in {1..30}; do
     sleep 1
 done
 
-# Check if MySQL is already secured
-MYSQL_SECURED=false
+# Check current authentication plugin
+log_info "Checking MySQL authentication method..."
 
-# Try with password first
+# First check if password authentication already works
 if mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SELECT 1;" &> /dev/null 2>&1; then
-    log_success "MySQL is already secured (password protected)"
-    MYSQL_SECURED=true
-elif mysql -u root -e "SELECT 1;" &> /dev/null 2>&1; then
-    log_info "MySQL is running without password, applying security settings..."
-    MYSQL_SECURED=false
+    log_success "MySQL already using password authentication"
+    NEEDS_AUTH_FIX=false
 else
-    log_error "Failed to access MySQL root!"
-    exit 1
+    log_info "MySQL needs authentication fix (likely using auth_socket)"
+    NEEDS_AUTH_FIX=true
 fi
 
-# Secure installation only if not already secured
-if [[ "$MYSQL_SECURED" != "true" ]]; then
+# Apply security settings if needed
+if [[ "$NEEDS_AUTH_FIX" == "true" ]]; then
     log_info "Applying MySQL security settings..."
     
-    # Use sudo mysql to bypass auth_socket plugin
-    sudo mysql -u root <<EOSQL 2>&1 | grep -v "^$" || true
+    # Use sudo mysql to bypass auth_socket plugin (works on Ubuntu 24.04)
+    sudo mysql <<EOSQL 2>&1 | grep -v "^$" || {
+        log_error "Failed to configure MySQL!"
+        exit 1
+    }
 -- Change authentication plugin to mysql_native_password
 ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASSWORD}';
 
 -- Remove anonymous users
 DELETE FROM mysql.user WHERE User='';
 
--- Remove remote root access
+-- Remove remote root access  
 DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
 
 -- Remove test database
@@ -102,9 +102,17 @@ FLUSH PRIVILEGES;
 EOSQL
     
     log_success "MySQL security settings applied"
-    log_info "Root user changed to mysql_native_password authentication"
+    
+    # Verify password authentication now works
+    if mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SELECT 1;" &> /dev/null 2>&1; then
+        log_success "Password authentication verified successfully"
+    else
+        log_error "Password authentication still not working!"
+        log_error "Please check MySQL logs: sudo tail -50 /var/log/mysql/error.log"
+        exit 1
+    fi
 else
-    log_info "MySQL security settings already applied, skipping"
+    log_info "MySQL security settings already configured"
 fi
 
 log_success "MySQL installed successfully"
