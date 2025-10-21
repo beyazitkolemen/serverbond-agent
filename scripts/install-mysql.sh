@@ -82,14 +82,27 @@ fi
 # Secure installation only if not already secured
 if [[ "$MYSQL_SECURED" != "true" ]]; then
     log_info "Applying MySQL security settings..."
-    mysql -u root <<EOSQL 2>&1 | grep -v "^$" || true
+    
+    # Use sudo mysql to bypass auth_socket plugin
+    sudo mysql -u root <<EOSQL 2>&1 | grep -v "^$" || true
+-- Change authentication plugin to mysql_native_password
 ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASSWORD}';
+
+-- Remove anonymous users
 DELETE FROM mysql.user WHERE User='';
+
+-- Remove remote root access
 DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+
+-- Remove test database
 DROP DATABASE IF EXISTS test;
+
+-- Flush privileges
 FLUSH PRIVILEGES;
 EOSQL
+    
     log_success "MySQL security settings applied"
+    log_info "Root user changed to mysql_native_password authentication"
 else
     log_info "MySQL security settings already applied, skipping"
 fi
