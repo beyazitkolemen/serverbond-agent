@@ -1,0 +1,263 @@
+version: '3.8'
+
+# Docker Compose Örnek Template
+# ServerBond Agent ile kullanım için hazırlanmıştır
+
+services:
+  
+  # Web Uygulaması (Nginx + PHP-FPM)
+  web:
+    image: nginx:alpine
+    container_name: web-server
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./app:/var/www/html:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./logs/nginx:/var/log/nginx
+    networks:
+      - app-network
+    depends_on:
+      - php
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.serverbond.service=web"
+      - "com.serverbond.environment=production"
+
+  # PHP-FPM
+  php:
+    image: php:8.2-fpm-alpine
+    container_name: php-fpm
+    restart: unless-stopped
+    volumes:
+      - ./app:/var/www/html
+      - ./php/php.ini:/usr/local/etc/php/php.ini:ro
+      - ./php/www.conf:/usr/local/etc/php-fpm.d/www.conf:ro
+    networks:
+      - app-network
+    environment:
+      - PHP_FPM_PM=dynamic
+      - PHP_FPM_PM_MAX_CHILDREN=50
+      - PHP_FPM_PM_START_SERVERS=5
+      - PHP_FPM_PM_MIN_SPARE_SERVERS=5
+      - PHP_FPM_PM_MAX_SPARE_SERVERS=35
+    labels:
+      - "com.serverbond.service=php"
+
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-db
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-app_db}
+      MYSQL_USER: ${MYSQL_USER:-app_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-changeme}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
+      - ./backups/mysql:/backups
+    networks:
+      - app-network
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    labels:
+      - "com.serverbond.service=mysql"
+      - "com.serverbond.backup=enabled"
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: redis-cache
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - app-network
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "com.serverbond.service=redis"
+
+  # PostgreSQL (Alternatif Database)
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-app_db}
+      POSTGRES_USER: ${POSTGRES_USER:-app_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backups/postgres:/backups
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app_user}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    labels:
+      - "com.serverbond.service=postgres"
+      - "com.serverbond.backup=enabled"
+
+  # RabbitMQ Message Queue
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-changeme}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    labels:
+      - "com.serverbond.service=rabbitmq"
+
+  # Elasticsearch
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: elasticsearch
+    restart: unless-stopped
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    labels:
+      - "com.serverbond.service=elasticsearch"
+
+  # Monitoring - Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - app-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    labels:
+      - "com.serverbond.service=prometheus"
+
+  # Monitoring - Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - app-network
+    depends_on:
+      - prometheus
+    labels:
+      - "com.serverbond.service=grafana"
+
+# Networks
+networks:
+  app-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Volumes
+volumes:
+  mysql-data:
+    driver: local
+    labels:
+      - "com.serverbond.volume=mysql"
+  
+  postgres-data:
+    driver: local
+    labels:
+      - "com.serverbond.volume=postgres"
+  
+  redis-data:
+    driver: local
+    labels:
+      - "com.serverbond.volume=redis"
+  
+  rabbitmq-data:
+    driver: local
+    labels:
+      - "com.serverbond.volume=rabbitmq"
+  
+  elasticsearch-data:
+    driver: local
+    labels:
+      - "com.serverbond.volume=elasticsearch"
+  
+  prometheus-data:
+    driver: local
+    labels:
+      - "com.serverbond.volume=prometheus"
+  
+  grafana-data:
+    driver: local
+    labels:
+      - "com.serverbond.volume=grafana"
+

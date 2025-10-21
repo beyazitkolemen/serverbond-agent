@@ -1,0 +1,84 @@
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3",
+    "compress": "true",
+    "labels": "production_status",
+    "env": "os,customer"
+  },
+  "data-root": "/var/lib/docker",
+  "storage-driver": "overlay2",
+  "storage-opts": [
+    "overlay2.override_kernel_check=true"
+  ],
+  "dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"],
+  "dns-opts": ["ndots:0"],
+  "dns-search": [],
+  "default-address-pools": [
+    {
+      "base": "172.17.0.0/12",
+      "size": 24
+    },
+    {
+      "base": "192.168.0.0/16",
+      "size": 24
+    }
+  ],
+  "default-ulimits": {
+    "nofile": {
+      "Name": "nofile",
+      "Hard": 64000,
+      "Soft": 64000
+    },
+    "nproc": {
+      "Name": "nproc",
+      "Hard": 8192,
+      "Soft": 4096
+    }
+  },
+  "live-restore": true,
+  "userland-proxy": false,
+  "icc": false,
+  "no-new-privileges": true,
+  "init": true,
+  "features": {
+    "buildkit": true
+  },
+  "builder": {
+    "gc": {
+      "enabled": true,
+      "defaultKeepStorage": "20GB",
+      "policy": [
+        {
+          "keepStorage": "10GB",
+          "filter": ["unused-for=2160h"]
+        },
+        {
+          "keepStorage": "50GB",
+          "all": true,
+          "filter": ["unused-for=720h"]
+        }
+      ]
+    }
+  },
+  "max-concurrent-downloads": 10,
+  "max-concurrent-uploads": 5,
+  "max-download-attempts": 5,
+  "shutdown-timeout": 15,
+  "debug": false,
+  "metrics-addr": "127.0.0.1:9323",
+  "experimental": false,
+  "ipv6": false,
+  "fixed-cidr-v6": "",
+  "default-runtime": "runc",
+  "runtimes": {
+    "runc": {
+      "path": "runc"
+    }
+  },
+  "seccomp-profile": "/etc/docker/seccomp.json",
+  "selinux-enabled": false,
+  "userns-remap": ""
+}
+

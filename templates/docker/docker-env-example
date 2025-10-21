@@ -1,0 +1,56 @@
+# Docker Compose Environment Variables
+# .env dosyası olarak kopyalayıp kullanabilirsiniz
+
+# MySQL Configuration
+MYSQL_ROOT_PASSWORD=SecureRootPassword123!
+MYSQL_DATABASE=myapp_production
+MYSQL_USER=myapp_user
+MYSQL_PASSWORD=SecurePassword123!
+
+# PostgreSQL Configuration
+POSTGRES_DB=myapp_production
+POSTGRES_USER=myapp_user
+POSTGRES_PASSWORD=SecurePassword123!
+
+# RabbitMQ Configuration
+RABBITMQ_USER=admin
+RABBITMQ_PASS=SecureRabbitMQPassword123!
+
+# Grafana Configuration
+GRAFANA_PASSWORD=SecureGrafanaPassword123!
+
+# Application Configuration
+APP_ENV=production
+APP_DEBUG=false
+APP_KEY=base64:YourBase64EncodedAppKey
+
+# Cache & Session
+CACHE_DRIVER=redis
+SESSION_DRIVER=redis
+QUEUE_CONNECTION=rabbitmq
+
+# Redis Configuration
+REDIS_HOST=redis
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+
+# Database Connection
+DB_CONNECTION=mysql
+DB_HOST=mysql
+DB_PORT=3306
+DB_DATABASE=${MYSQL_DATABASE}
+DB_USERNAME=${MYSQL_USER}
+DB_PASSWORD=${MYSQL_PASSWORD}
+
+# Docker Specific
+COMPOSE_PROJECT_NAME=serverbond
+COMPOSE_FILE=docker-compose.yml
+DOCKER_BUILDKIT=1
+COMPOSE_DOCKER_CLI_BUILD=1
+
+# Resource Limits
+PHP_MEMORY_LIMIT=256M
+PHP_MAX_EXECUTION_TIME=60
+PHP_UPLOAD_MAX_FILESIZE=50M
+PHP_POST_MAX_SIZE=50M
+

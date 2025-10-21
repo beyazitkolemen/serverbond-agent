@@ -1,0 +1,119 @@
+# Laravel Production Dockerfile
+# Multi-stage build for optimized image size
+
+# Stage 1: Composer dependencies
+FROM composer:2.6 AS composer
+
+WORKDIR /app
+
+COPY composer.json composer.lock ./
+
+RUN composer install \
+    --no-dev \
+    --no-scripts \
+    --no-autoloader \
+    --prefer-dist \
+    --ignore-platform-reqs
+
+COPY . .
+
+RUN composer dump-autoload --optimize --classmap-authoritative
+
+# Stage 2: Node.js build
+FROM node:18-alpine AS node
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+
+RUN npm ci --production=false
+
+COPY . .
+
+RUN npm run build
+
+# Stage 3: Production image
+FROM php:8.2-fpm-alpine
+
+LABEL maintainer="ServerBond"
+LABEL version="1.0"
+LABEL description="Laravel production-ready container"
+
+# Install system dependencies
+RUN apk add --no-cache \
+    nginx \
+    supervisor \
+    bash \
+    curl \
+    libpng-dev \
+    libjpeg-turbo-dev \
+    libwebp-dev \
+    freetype-dev \
+    libzip-dev \
+    icu-dev \
+    postgresql-dev \
+    mysql-client \
+    git \
+    unzip \
+    && docker-php-ext-configure gd \
+        --with-freetype \
+        --with-jpeg \
+        --with-webp \
+    && docker-php-ext-install -j$(nproc) \
+        pdo \
+        pdo_mysql \
+        pdo_pgsql \
+        gd \
+        zip \
+        opcache \
+        intl \
+        bcmath \
+        exif \
+        pcntl \
+    && pecl install redis \
+    && docker-php-ext-enable redis
+
+# PHP configuration
+COPY --from=composer /app/docker/php/php.ini /usr/local/etc/php/php.ini
+COPY --from=composer /app/docker/php/www.conf /usr/local/etc/php-fpm.d/www.conf
+
+# Nginx configuration
+COPY --from=composer /app/docker/nginx/nginx.conf /etc/nginx/nginx.conf
+COPY --from=composer /app/docker/nginx/default.conf /etc/nginx/http.d/default.conf
+
+# Supervisor configuration
+COPY --from=composer /app/docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Set working directory
+WORKDIR /var/www/html
+
+# Copy application files
+COPY --from=composer --chown=www-data:www-data /app ./
+COPY --from=node --chown=www-data:www-data /app/public/build ./public/build
+
+# Create necessary directories
+RUN mkdir -p \
+    storage/app/public \
+    storage/framework/cache \
+    storage/framework/sessions \
+    storage/framework/views \
+    storage/logs \
+    bootstrap/cache \
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
+
+# Optimize Laravel
+RUN php artisan config:cache \
+    && php artisan route:cache \
+    && php artisan view:cache
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+    CMD curl -f http://localhost/health || exit 1
+
+# Expose ports
+EXPOSE 80 9000
+
+# Start supervisor
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+

@@ -1,0 +1,75 @@
+# MySQL Configuration for Docker
+# Optimized for Laravel applications
+
+[mysqld]
+# Basic Settings
+default_authentication_plugin = mysql_native_password
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci
+default-time-zone = '+00:00'
+max_connections = 100
+
+# InnoDB Settings
+innodb_buffer_pool_size = 256M
+innodb_log_file_size = 64M
+innodb_flush_log_at_trx_commit = 2
+innodb_flush_method = O_DIRECT
+innodb_file_per_table = 1
+innodb_stats_on_metadata = 0
+
+# Query Cache (disabled in MySQL 8.0)
+# query_cache_type = 1
+# query_cache_size = 32M
+# query_cache_limit = 2M
+
+# Slow Query Log
+slow_query_log = 1
+slow_query_log_file = /var/log/mysql/mysql-slow.log
+long_query_time = 2
+log_queries_not_using_indexes = 0
+
+# General Log (disable in production)
+general_log = 0
+general_log_file = /var/log/mysql/mysql-general.log
+
+# Binary Logging
+log_bin = /var/log/mysql/mysql-bin.log
+binlog_expire_logs_seconds = 604800
+max_binlog_size = 100M
+binlog_format = ROW
+
+# Performance
+table_open_cache = 2000
+table_definition_cache = 1000
+tmp_table_size = 32M
+max_heap_table_size = 32M
+join_buffer_size = 2M
+sort_buffer_size = 2M
+read_buffer_size = 1M
+read_rnd_buffer_size = 2M
+
+# MyISAM Settings
+key_buffer_size = 32M
+myisam_sort_buffer_size = 8M
+
+# Thread Settings
+thread_cache_size = 50
+thread_stack = 256K
+
+# Network Settings
+max_allowed_packet = 64M
+interactive_timeout = 600
+wait_timeout = 600
+
+# Security
+skip_name_resolve
+local_infile = 0
+
+[mysql]
+default-character-set = utf8mb4
+
+[client]
+default-character-set = utf8mb4
+port = 3306
+socket = /var/run/mysqld/mysqld.sock
+
