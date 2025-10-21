@@ -1,47 +1,42 @@
-#!/bin/bash
-
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
-# Load config from parent if available
 NGINX_SITES_AVAILABLE="${NGINX_SITES_AVAILABLE:-/etc/nginx/sites-available}"
 NGINX_DEFAULT_ROOT="${NGINX_DEFAULT_ROOT:-/var/www/html}"
 TEMPLATES_DIR="${TEMPLATES_DIR:-$(dirname "$SCRIPT_DIR")/templates}"
 
-log_info "Installing Nginx..."
-
+log_info "=== Nginx kurulumu başlıyor ==="
 export DEBIAN_FRONTEND=noninteractive
 
-apt-get install -y -qq nginx 2>&1 | grep -v "^$" || true
+# --- Kurulum ---
+apt-get update -qq
+apt-get install -y -qq nginx > /dev/null
 
-# Create web root
+# --- Web root oluştur ---
 mkdir -p "${NGINX_DEFAULT_ROOT}"
 
-# Copy config based on Laravel project
-if [[ -n "${LARAVEL_PROJECT_URL:-}" ]] && [[ -f "${TEMPLATES_DIR}/nginx-laravel.conf" ]]; then
-    log_info "Loading Nginx Laravel config from template..."
+# --- Konfigürasyon seçimi ---
+if [[ -n "${LARAVEL_PROJECT_URL:-}" && -f "${TEMPLATES_DIR}/nginx-laravel.conf" ]]; then
+    log_info "Laravel template kullanılıyor..."
     cp "${TEMPLATES_DIR}/nginx-laravel.conf" "${NGINX_SITES_AVAILABLE}/default"
 elif [[ -f "${TEMPLATES_DIR}/nginx-default.conf" ]]; then
-    log_info "Loading Nginx default config from template..."
+    log_info "Varsayılan Nginx template kullanılıyor..."
     cp "${TEMPLATES_DIR}/nginx-default.conf" "${NGINX_SITES_AVAILABLE}/default"
 else
-    # Fallback: Create basic config
-    log_warning "Template not found, creating default config..."
-    cat > "${NGINX_SITES_AVAILABLE}/default" << 'EOF'
+    log_warn "Template bulunamadı, basit varsayılan yapılandırma oluşturuluyor..."
+    cat > "${NGINX_SITES_AVAILABLE}/default" <<'EOF'
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
-    
     root /var/www/html;
     index index.html index.htm index.php;
     server_name _;
-    
     location / {
         try_files $uri $uri/ =404;
     }
-    
     location ~ /\.(?!well-known).* {
         deny all;
     }
@@ -49,44 +44,49 @@ server {
 EOF
 fi
 
-# Copy default HTML page if no Laravel project
+# --- Default index sayfası ---
 if [[ -z "${LARAVEL_PROJECT_URL:-}" ]]; then
-    if [[ -f "${TEMPLATES_DIR}/nginx-default.html" ]]; then
-        log_info "Copying default HTML page..."
-        cp "${TEMPLATES_DIR}/nginx-default.html" "${NGINX_DEFAULT_ROOT}/index.html"
-    else
-        # Fallback: Create simple HTML
-        cat > "${NGINX_DEFAULT_ROOT}/index.html" << 'EOF'
+    log_info "Basit HTML sayfası oluşturuluyor..."
+    cat > "${NGINX_DEFAULT_ROOT}/index.html" <<'EOF'
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>ServerBond Agent</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
-        h1 { color: #667eea; }
+        body { font-family: system-ui, sans-serif; text-align: center; padding: 60px; background: #f9fafb; }
+        h1 { color: #4f46e5; }
     </style>
 </head>
 <body>
     <h1>ServerBond Agent</h1>
-    <p>Server is running successfully!</p>
+    <p>Nginx başarıyla çalışıyor.</p>
 </body>
 </html>
 EOF
-    fi
 else
-    log_info "Laravel project will be installed, skipping default HTML..."
+    log_info "Laravel projesi kurulacak, varsayılan sayfa atlandı."
 fi
 
-# Set permissions
+# --- İzinler ---
 chown -R www-data:www-data "${NGINX_DEFAULT_ROOT}"
 chmod -R 755 "${NGINX_DEFAULT_ROOT}"
 
+# --- Servis yönetimi ---
 systemctl_safe enable nginx
 systemctl_safe restart nginx
 
-# Firewall
+# --- Firewall ---
 if check_command ufw; then
-    ufw allow 'Nginx Full' 2>&1 || true
+    log_info "UFW kuralı ekleniyor..."
+    ufw allow 'Nginx Full' > /dev/null 2>&1 || true
 fi
 
-log_success "Nginx installed successfully"
+# --- Doğrulama ---
+if systemctl is-active --quiet nginx; then
+    log_success "Nginx başarıyla kuruldu ve çalışıyor"
+else
+    log_error "Nginx başlatılamadı!"
+    journalctl -u nginx --no-pager | tail -n 10
+    exit 1
+fi

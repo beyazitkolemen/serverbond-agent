@@ -1,72 +1,67 @@
-#!/bin/bash
-
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
-log_info "Installing monitoring & security tools..."
+TEMPLATES_DIR="${TEMPLATES_DIR:-${SCRIPT_DIR}/templates}"
+
+log_info "=== Monitoring & Security araçları kurulumu başlıyor ==="
 
 export DEBIAN_FRONTEND=noninteractive
 
-# System monitoring & tools
+# --- Temel sistem araçları ---
+log_info "Sistem araçları yükleniyor..."
+apt-get update -qq
 apt-get install -y -qq \
-    htop iotop iftop ncdu tree net-tools dnsutils \
-    telnet netcat-openbsd zip unzip rsync vim screen tmux \
-    traceroute mtr fail2ban \
-    2>&1 | grep -v "^$" || true
+  htop iotop iftop ncdu tree net-tools dnsutils \
+  telnet netcat-openbsd zip unzip rsync vim screen tmux \
+  traceroute mtr fail2ban > /dev/null
 
-# Fail2ban configuration
+log_success "Temel araçlar kuruldu"
+
+# --- Fail2ban kurulumu ve yapılandırması ---
+log_info "Fail2ban yapılandırması uygulanıyor..."
+mkdir -p /etc/fail2ban
+
 if [[ -f "${TEMPLATES_DIR}/fail2ban-jail.local" ]]; then
-    log_info "Loading Fail2ban config from template..."
-    cp "${TEMPLATES_DIR}/fail2ban-jail.local" /etc/fail2ban/jail.local
+  cp "${TEMPLATES_DIR}/fail2ban-jail.local" /etc/fail2ban/jail.local
 else
-    # Fallback
-    log_warning "Template not found, creating default config..."
-    cat > /etc/fail2ban/jail.local << 'EOF'
+  cat > /etc/fail2ban/jail.local <<'EOF'
 [DEFAULT]
-bantime = 3600
+bantime  = 3600
 findtime = 600
 maxretry = 5
 
 [sshd]
-enabled = true
-port = ssh
-logpath = %(sshd_log)s
-backend = %(sshd_backend)s
-
-[nginx-http-auth]
-enabled = true
-port = http,https
-logpath = /var/log/nginx/error.log
-
-[nginx-limit-req]
-enabled = true
-port = http,https
-logpath = /var/log/nginx/error.log
+enabled  = true
+port     = ssh
+logpath  = %(sshd_log)s
+backend  = %(sshd_backend)s
 EOF
 fi
 
 systemctl_safe enable fail2ban
 systemctl_safe restart fail2ban
 
-if check_service fail2ban; then
-    log_success "Fail2ban is running"
+if systemctl is-active --quiet fail2ban; then
+  log_success "Fail2ban aktif"
 else
-    log_warning "Failed to start Fail2ban"
+  log_warn "Fail2ban başlatılamadı!"
 fi
 
-# Logrotate configuration
+# --- Logrotate yapılandırması ---
+log_info "Logrotate yapılandırması yapılıyor..."
+mkdir -p /etc/logrotate.d
+
 if [[ -f "${TEMPLATES_DIR}/logrotate-serverbond.conf" ]]; then
-    log_info "Loading Logrotate config from template..."
-    cp "${TEMPLATES_DIR}/logrotate-serverbond.conf" /etc/logrotate.d/serverbond-agent
+  cp "${TEMPLATES_DIR}/logrotate-serverbond.conf" /etc/logrotate.d/serverbond-agent
 else
-    # Fallback
-    cat > /etc/logrotate.d/serverbond-agent << 'EOF'
+  cat > /etc/logrotate.d/serverbond-agent <<'EOF'
 /opt/serverbond-agent/logs/*.log {
     daily
-    missingok
     rotate 14
+    missingok
     compress
     delaycompress
     notifempty
@@ -76,11 +71,10 @@ else
 EOF
 fi
 
-log_success "Extra tools installed successfully"
-log_info "Installed tools:"
-echo "  - htop, iotop, iftop: System monitoring"
-echo "  - ncdu: Disk usage analyzer"
-echo "  - fail2ban: Brute-force protection"
-echo "  - vim, nano: Text editors"
-echo "  - screen, tmux: Terminal multiplexers"
-echo "  - Logrotate: Log management"
+log_success "Monitoring & güvenlik araçları başarıyla kuruldu"
+log_info "Kurulan araçlar:"
+echo "  - htop, iotop, iftop  : Sistem ve IO izleme"
+echo "  - ncdu                : Disk kullanımı analizi"
+echo "  - fail2ban            : SSH brute-force koruması"
+echo "  - vim, screen, tmux   : Terminal yardımcıları"
+echo "  - logrotate           : Log yönetimi"

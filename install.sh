@@ -520,6 +520,16 @@ echo ""
         log_error "extras ✗"
     fi
     
+    # Cloudflared (optional - only if enabled)
+    if [[ "${INSTALL_CLOUDFLARED:-false}" == "true" ]]; then
+        log_step "Installing Cloudflared..."
+        if install_service "cloudflared"; then
+            log_success "cloudflared ✓"
+        else
+            log_error "cloudflared ✗"
+        fi
+    fi
+    
     echo ""
     log_success "All installations completed"
     

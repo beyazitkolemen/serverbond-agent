@@ -1,24 +1,37 @@
-#!/bin/bash
-
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
-# Load config from parent if available
 PYTHON_VERSION="${PYTHON_VERSION:-3.12}"
 
-log_info "Installing Python ${PYTHON_VERSION}..."
+log_info "=== Python ${PYTHON_VERSION} kurulumu başlıyor ==="
 
 export DEBIAN_FRONTEND=noninteractive
 
+# --- Kurulum ---
+apt-get update -qq
 apt-get install -y -qq \
-    python${PYTHON_VERSION} \
-    python${PYTHON_VERSION}-venv \
-    python3-pip \
-    python${PYTHON_VERSION}-dev \
-    2>&1 | grep -v "^$" || true
+    "python${PYTHON_VERSION}" \
+    "python${PYTHON_VERSION}-venv" \
+    "python${PYTHON_VERSION}-dev" \
+    python3-pip > /dev/null
 
-update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1 2>&1 || true
+# --- Varsayılan python3 bağlantısını güncelle ---
+PY_BIN="/usr/bin/python${PYTHON_VERSION}"
+if [[ -x "${PY_BIN}" ]]; then
+    log_info "update-alternatives ile python3 bağlantısı ayarlanıyor..."
+    update-alternatives --install /usr/bin/python3 python3 "${PY_BIN}" 1 >/dev/null 2>&1 || true
+else
+    log_warn "Python binary bulunamadı: ${PY_BIN}"
+fi
 
-log_success "Python ${PYTHON_VERSION} installed successfully"
+# --- Doğrulama ---
+PY_CHECK="$(python3 --version 2>/dev/null || echo 'unknown')"
+if [[ "${PY_CHECK}" == *"${PYTHON_VERSION}"* ]]; then
+    log_success "Python ${PYTHON_VERSION} başarıyla kuruldu (${PY_CHECK})"
+else
+    log_error "Python kurulumu doğrulanamadı! Geçerli sürüm: ${PY_CHECK}"
+    exit 1
+fi

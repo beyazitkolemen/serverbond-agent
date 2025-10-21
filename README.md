@@ -35,6 +35,7 @@ E-posta  : admin@serverbond.local
 - **Certbot** - SSL sertifika yöneticisi
 - **Supervisor** - Process manager
 - **Docker** (Opsiyonel) - Container yönetimi
+- **Cloudflared** (Opsiyonel) - Cloudflare Tunnel desteği
 
 ## 📋 Gereksinimler
 
@@ -101,6 +102,54 @@ docker compose up -d
 
 Detaylı bilgi için: [`templates/docker/README.md`](templates/docker/README.md)
 
+## ☁️ Cloudflared Kurulumu (Opsiyonel)
+
+Cloudflare Tunnel ile sunucunuzu güvenli bir şekilde internete açın:
+
+```bash
+# Manuel kurulum
+sudo ./scripts/install-cloudflared.sh
+
+# Otomatik kurulum ile birlikte
+INSTALL_CLOUDFLARED=true sudo bash install.sh
+```
+
+**Cloudflare Tunnel Özellikleri:**
+- ✅ Port forwarding gerekmez
+- ✅ Güvenli encrypted tunnel
+- ✅ DDoS koruması
+- ✅ SSL/TLS otomatik
+- ✅ Kolay DNS yönetimi
+
+**Hızlı Başlangıç:**
+
+```bash
+# 1. Cloudflare'e login
+cloudflared-setup login
+
+# 2. Tunnel oluştur
+cloudflared-setup create my-tunnel
+
+# 3. DNS route ekle
+cloudflared-setup route my-tunnel example.com
+
+# 4. Config oluştur
+cloudflared-setup config my-tunnel
+
+# 5. Servisi başlat
+cloudflared-setup enable
+
+# 6. Durumu kontrol et
+cloudflared-setup status
+```
+
+**Komutlar:**
+```bash
+cloudflared-setup help      # Yardım
+cloudflared-setup list      # Tunnel'ları listele
+cloudflared-setup logs      # Log'ları görüntüle
+```
+
 ## 🛠️ Manuel Script Kurulumu
 
 İstediğiniz servisi ayrı ayrı kurabilirsiniz:
@@ -124,6 +173,9 @@ sudo ./scripts/install-php.sh
 
 # Sadece Redis
 sudo ./scripts/install-redis.sh
+
+# Sadece Cloudflared
+sudo ./scripts/install-cloudflared.sh
 ```
 
 ## 🔧 Troubleshooting

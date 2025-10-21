@@ -1,22 +1,33 @@
-#!/bin/bash
-
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
-# Load config from parent if available
 SUPERVISOR_CONF_DIR="${SUPERVISOR_CONF_DIR:-/etc/supervisor/conf.d}"
 
-log_info "Installing Supervisor..."
+log_info "=== Supervisor kurulumu başlıyor ==="
 
 export DEBIAN_FRONTEND=noninteractive
 
-apt-get install -y -qq supervisor 2>&1 | grep -v "^$" || true
+# --- Kurulum ---
+apt-get update -qq
+apt-get install -y -qq supervisor > /dev/null
 
+# --- Config dizini oluştur ---
 mkdir -p "${SUPERVISOR_CONF_DIR}"
 
+# --- Servis yönetimi ---
 systemctl_safe enable supervisor
-systemctl_safe start supervisor
+systemctl_safe restart supervisor
 
-log_success "Supervisor installed successfully"
+# --- Durum kontrolü ---
+if systemctl is-active --quiet supervisor; then
+    log_success "Supervisor başarıyla kuruldu ve çalışıyor"
+else
+    log_error "Supervisor başlatılamadı!"
+    journalctl -u supervisor --no-pager | tail -n 10
+    exit 1
+fi
+
+log_info "Config dizini: ${SUPERVISOR_CONF_DIR}"
