@@ -59,17 +59,17 @@ Docker ile gelişmiş container yönetimi:
 
 ```bash
 # Temel Docker kurulumu
-sudo ./scripts/install-docker.sh
+sudo ./opt/serverbond-agent/scripts/install-docker.sh
 
 # Kullanıcı ile kurulum (önerilen)
-sudo DOCKER_USER=$USER ./scripts/install-docker.sh
+sudo DOCKER_USER=$USER ./opt/serverbond-agent/scripts/install-docker.sh
 
 # Tüm özellikler (Swarm, Buildx, Trivy)
 sudo DOCKER_USER=$USER \
   ENABLE_DOCKER_SWARM=true \
   ENABLE_DOCKER_BUILDX=true \
   ENABLE_TRIVY=true \
-  ./scripts/install-docker.sh
+  ./opt/serverbond-agent/scripts/install-docker.sh
 ```
 
 **Docker Özellikleri:**
@@ -108,7 +108,7 @@ Cloudflare Tunnel ile sunucunuzu güvenli bir şekilde internete açın:
 
 ```bash
 # Manuel kurulum
-sudo ./scripts/install-cloudflared.sh
+sudo ./opt/serverbond-agent/scripts/install-cloudflared.sh
 
 # Otomatik kurulum ile birlikte
 INSTALL_CLOUDFLARED=true sudo bash install.sh
@@ -160,22 +160,22 @@ git clone https://github.com/beyazitkolemen/serverbond-agent.git
 cd serverbond-agent
 
 # Sadece Docker
-sudo ./scripts/install-docker.sh
+sudo ./opt/serverbond-agent/scripts/install-docker.sh
 
 # Sadece MySQL
-sudo ./scripts/install-mysql.sh
+sudo ./opt/serverbond-agent/scripts/install-mysql.sh
 
 # Sadece Nginx
-sudo ./scripts/install-nginx.sh
+sudo ./opt/serverbond-agent/scripts/install-nginx.sh
 
 # Sadece PHP
-sudo ./scripts/install-php.sh
+sudo ./opt/serverbond-agent/scripts/install-php.sh
 
 # Sadece Redis
-sudo ./scripts/install-redis.sh
+sudo ./opt/serverbond-agent/scripts/install-redis.sh
 
 # Sadece Cloudflared
-sudo ./scripts/install-cloudflared.sh
+sudo ./opt/serverbond-agent/scripts/install-cloudflared.sh
 ```
 
 ## 🔧 Troubleshooting

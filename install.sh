@@ -431,7 +431,7 @@ download_scripts() {
     mkdir -p "${SCRIPTS_DIR}" "${TEMPLATES_DIR}"
     
     # Copy latest scripts and templates
-    rsync -a --exclude='.git' /tmp/sb-tmp/scripts/ "${SCRIPTS_DIR}/" >> "$LOG_FILE" 2>&1
+    rsync -a --exclude='.git' /tmp/sb-tmp/opt/serverbond-agent/scripts/ "${SCRIPTS_DIR}/" >> "$LOG_FILE" 2>&1
     rsync -a --exclude='.git' /tmp/sb-tmp/templates/ "${TEMPLATES_DIR}/" >> "$LOG_FILE" 2>&1
     
     # Clean up
