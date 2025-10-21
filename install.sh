@@ -140,11 +140,11 @@ cleanup() {
     
     if [[ $exit_code -ne 0 ]] && [[ "$INSTALLATION_STARTED" == "true" ]]; then
         echo ""
-        log_error "Kurulum başarısız (Exit code: $exit_code)"
+        log_error "Installation failed (Exit code: $exit_code)"
         echo "Log: $LOG_FILE"
         
         if [[ -d "$INSTALL_DIR" ]]; then
-            log_warn "Temizlik: sudo rm -rf $INSTALL_DIR"
+            log_warn "Cleanup: sudo rm -rf $INSTALL_DIR"
         fi
     fi
 }
@@ -158,35 +158,35 @@ trap 'log_error "Script interrupted"; exit 130' INT TERM
 
 check_root() {
     if [[ $EUID -ne 0 ]]; then
-        log_error "Root yetkisi gerekli"
-        echo "Kullanım: sudo bash install.sh"
+        log_error "Root privileges required"
+        echo "Usage: sudo bash install.sh"
     exit 1
     fi
 }
 
 check_ubuntu() {
     if [[ ! -f /etc/os-release ]]; then
-        log_error "Ubuntu tespit edilemedi"
+        log_error "Unable to detect Ubuntu"
     exit 1
 fi
 
     . /etc/os-release
     
     if [[ "$ID" != "ubuntu" ]]; then
-        log_error "Bu script sadece Ubuntu içindir"
+        log_error "This script is for Ubuntu only"
     exit 1
 fi
 
     if [[ "$VERSION_ID" != "$REQUIRED_UBUNTU" ]]; then
-        log_warn "Ubuntu ${REQUIRED_UBUNTU} önerilir (Mevcut: ${VERSION_ID})"
+        log_warn "Ubuntu ${REQUIRED_UBUNTU} recommended (Current: ${VERSION_ID})"
     fi
 }
 
 check_systemd() {
     if ! pidof systemd > /dev/null 2>&1; then
-        log_warn "Systemd bulunamadı"
-        read -p "Devam? (e/h): " -r
-        [[ ! $REPLY =~ ^[Ee]$ ]] && exit 0
+        log_warn "Systemd not found"
+        read -p "Continue? (y/n): " -r
+        [[ ! $REPLY =~ ^[Yy]$ ]] && exit 0
         SKIP_SYSTEMD=true
     fi
     export SKIP_SYSTEMD
@@ -197,7 +197,7 @@ check_disk_space() {
     available=$(df / | tail -1 | awk '{print $4}')
     
     if [[ $available -lt $MIN_DISK_SPACE ]]; then
-        log_error "Yetersiz disk (Min 5GB)"
+        log_error "Insufficient disk space (Min 5GB required)"
     exit 1
 fi
 }
@@ -205,7 +205,7 @@ fi
 check_network() {
     # Quick network check (1 second timeout)
     if ! timeout 1 bash -c ">/dev/tcp/8.8.8.8/53" 2>/dev/null; then
-        log_error "İnternet gerekli"
+        log_error "Internet connection required"
     exit 1
 fi
 }
@@ -232,7 +232,7 @@ check_service() {
 ################################################################################
 
 prepare_system() {
-    log_step "Sistem hazırlanıyor..."
+    log_step "Preparing system..."
     
     mkdir -p "$INSTALL_DIR"
     cd "$INSTALL_DIR"
@@ -244,23 +244,23 @@ prepare_system() {
     echo 'APT::Get::Assume-Yes "true";' > /etc/apt/apt.conf.d/99serverbond
     
     # Update package lists
-    log_step "Paket listeleri güncelleniyor..."
+    log_step "Updating package lists..."
     apt-get update -qq >> "$LOG_FILE" 2>&1
     
     # Upgrade packages if needed
     if [[ "${SKIP_UPGRADE:-false}" != "true" ]]; then
-        log_step "Paketler güncelleniyor..."
+        log_step "Upgrading packages..."
         apt-get upgrade -y -qq >> "$LOG_FILE" 2>&1
     fi
     
     # Install essential packages
-    log_step "Temel paketler kuruluyor..."
+    log_step "Installing essential packages..."
     apt-get install -y -qq \
         curl wget git software-properties-common apt-transport-https \
         ca-certificates gnupg lsb-release unzip ufw openssl jq rsync \
         build-essential pkg-config libssl-dev >> "$LOG_FILE" 2>&1
     
-    log_success "Sistem hazır"
+    log_success "System ready"
 }
 
 install_service() {
@@ -282,7 +282,7 @@ install_service() {
         
         bash "$script_file" >> "$LOG_FILE" 2>&1
     else
-        log_error "Script bulunamadı: $script_file"
+        log_error "Script not found: $script_file"
         return 1
     fi
 }
@@ -333,14 +333,14 @@ wait_services() {
     
     # Show failed services if any
     if [[ $failed -gt 0 ]]; then
-        log_warn "Başarısız servisler: ${failed_services[*]}"
+        log_warn "Failed services: ${failed_services[*]}"
     fi
     
     return $failed
 }
 
 download_scripts() {
-    log_step "En son scriptler GitHub'dan çekiliyor..."
+    log_step "Downloading latest scripts from GitHub..."
     
     # Create directories
     mkdir -p "${SCRIPTS_DIR}" "${TEMPLATES_DIR}"
@@ -377,11 +377,11 @@ download_scripts() {
     # Make scripts executable
     chmod +x "${SCRIPTS_DIR}"/*.sh 2>/dev/null || true
     
-    log_success "En son scriptler ve template'ler hazır"
+    log_success "Latest scripts and templates ready"
 }
 
 configure_project() {
-    log_step "Agent yapılandırılıyor..."
+    log_step "Configuring agent..."
     
     # Create directory structure
     mkdir -p "${SITES_DIR}" "${CONFIG_DIR}" "${LOGS_DIR}" "${BACKUPS_DIR}" "${TEMPLATES_DIR}"
@@ -418,7 +418,7 @@ EOF
     
     chmod 644 "${AGENT_CONFIG_FILE}"
     
-    log_success "Agent yapılandırıldı"
+    log_success "Agent configured"
 }
 
 ################################################################################
@@ -430,13 +430,13 @@ main() {
 echo ""
 
     # Validation
-    log_step "Sistem kontrolleri..."
+    log_step "System checks..."
     check_root
     check_ubuntu
     check_systemd
     check_network
     check_disk_space
-    log_success "Kontroller OK"
+    log_success "Checks passed"
     
     INSTALLATION_STARTED=true
     
@@ -445,11 +445,11 @@ echo ""
     download_scripts
     
     # Install services sequentially
-    log_step "Servisler kuruluyor (sıralı)..."
+    log_step "Installing services (sequential)..."
     echo ""
     
     # MySQL
-    log_step "MySQL kuruluyor..."
+    log_step "Installing MySQL..."
     if install_service "mysql"; then
         log_success "mysql ✓"
     else
@@ -457,7 +457,7 @@ echo ""
     fi
     
     # Redis
-    log_step "Redis kuruluyor..."
+    log_step "Installing Redis..."
     if install_service "redis"; then
         log_success "redis ✓"
     else
@@ -465,7 +465,7 @@ echo ""
     fi
     
     # Nginx
-    log_step "Nginx kuruluyor..."
+    log_step "Installing Nginx..."
     if install_service "nginx"; then
         log_success "nginx ✓"
     else
@@ -473,7 +473,7 @@ echo ""
     fi
     
     # PHP (depends on Nginx)
-    log_step "PHP ${PHP_VERSION} kuruluyor..."
+    log_step "Installing PHP ${PHP_VERSION}..."
     if install_service "php"; then
         log_success "php ✓"
     else
@@ -481,7 +481,7 @@ echo ""
     fi
     
     # Node.js
-    log_step "Node.js kuruluyor..."
+    log_step "Installing Node.js..."
     if install_service "nodejs"; then
         log_success "nodejs ✓"
     else
@@ -489,7 +489,7 @@ echo ""
     fi
     
     # Python
-    log_step "Python kuruluyor..."
+    log_step "Installing Python..."
     if install_service "python"; then
         log_success "python ✓"
     else
@@ -497,7 +497,7 @@ echo ""
     fi
     
     # Certbot
-    log_step "Certbot kuruluyor..."
+    log_step "Installing Certbot..."
     if install_service "certbot"; then
         log_success "certbot ✓"
     else
@@ -505,7 +505,7 @@ echo ""
     fi
     
     # Supervisor
-    log_step "Supervisor kuruluyor..."
+    log_step "Installing Supervisor..."
     if install_service "supervisor"; then
         log_success "supervisor ✓"
     else
@@ -513,7 +513,7 @@ echo ""
     fi
     
     # Extras (monitoring tools)
-    log_step "Monitoring tools kuruluyor..."
+    log_step "Installing monitoring tools..."
     if install_service "extras"; then
         log_success "extras ✓"
     else
@@ -521,10 +521,10 @@ echo ""
     fi
     
     echo ""
-    log_success "Tüm kurulumlar tamamlandı"
+    log_success "All installations completed"
     
     # Install ServerBond Panel (required)
-    log_step "ServerBond Panel kuruluyor..."
+    log_step "Installing ServerBond Panel..."
     if install_service "serverbond-panel"; then
         log_success "ServerBond Panel ✓"
     else
@@ -537,7 +537,7 @@ echo ""
     
     # Summary
     echo ""
-    log_success "Kurulum tamamlandı!"
+    log_success "Installation completed!"
     echo ""
     
     local server_ip
@@ -546,7 +546,7 @@ echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "  📍 Panel URL : http://${server_ip}/"
     echo "  🚀 Panel     : ServerBond Panel"
-    echo "  📂 Proje     : ${NGINX_DEFAULT_ROOT}"
+    echo "  📂 Project   : ${NGINX_DEFAULT_ROOT}"
     echo "  🗄️  Database  : ${LARAVEL_DB_NAME}"
     echo "  📁 Sites     : ${SITES_DIR}"
     echo "  ⚙️  Config    : ${AGENT_CONFIG_FILE}"
@@ -554,21 +554,21 @@ echo ""
     echo "  📋 Log       : ${LOG_FILE}"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
-    echo "ServerBond Panel Bilgileri:"
+    echo "ServerBond Panel Information:"
     echo "  • Repo: ${LARAVEL_PROJECT_URL}"
     echo "  • Branch: ${LARAVEL_PROJECT_BRANCH}"
     echo "  • Database: ${LARAVEL_DB_NAME}"
     echo "  • Admin: admin@serverbond.local"
-    echo "  • Pass: password (ilk girişte değiştirin!)"
+    echo "  • Pass: password (change on first login!)"
     echo ""
     
-    echo "Kurulu Servisler:"
+    echo "Installed Services:"
     [[ "$SKIP_SYSTEMD" == "false" ]] && {
         echo "  • Nginx    : $(systemctl is-active nginx 2>/dev/null || echo '?')"
         echo "  • PHP-FPM  : $(systemctl is-active php${PHP_VERSION}-fpm 2>/dev/null || echo '?')"
         echo "  • MySQL    : $(systemctl is-active mysql 2>/dev/null || echo '?')"
         echo "  • Redis    : $(systemctl is-active redis-server 2>/dev/null || echo '?')"
-    } || echo "  • Systemd olmadan kuruldu"
+    } || echo "  • Installed without systemd"
     echo ""
 }
 
