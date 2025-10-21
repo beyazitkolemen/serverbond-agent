@@ -92,6 +92,9 @@ readonly DOCKER_COMPOSE_VERSION="2.24.0"
 
 # Cloudflared Configuration (optional)
 readonly CLOUDFLARED_VERSION="latest"
+CLOUDFLARED_TOKEN="${CLOUDFLARED_TOKEN:-}"
+readonly CLOUDFLARED_CONFIG_DIR="/etc/cloudflared"
+readonly CLOUDFLARED_USER="cloudflared"
 
 # Installation Flags (optional services - set to "true" to enable)
 INSTALL_CLOUDFLARED="${INSTALL_CLOUDFLARED:-true}"
@@ -298,7 +301,7 @@ install_service() {
         export LARAVEL_PROJECT_URL LARAVEL_PROJECT_BRANCH LARAVEL_DB_NAME
         export DOCKER_DATA_ROOT DOCKER_LOG_MAX_SIZE DOCKER_LOG_MAX_FILE
         export DOCKER_USER ENABLE_BUILDX ENABLE_SWARM DOCKER_COMPOSE_VERSION
-        export CLOUDFLARED_VERSION
+        export CLOUDFLARED_VERSION CLOUDFLARED_TOKEN CLOUDFLARED_CONFIG_DIR CLOUDFLARED_USER
         
         bash "$script_file" >> "$LOG_FILE" 2>&1
     else
