@@ -117,8 +117,32 @@ readonly BOLD='\033[1m'
 readonly NC='\033[0m'
 
 # State
-    SKIP_SYSTEMD=false
+SKIP_SYSTEMD=false
 INSTALLATION_STARTED=false
+
+readonly PANEL_SERVICE="serverbond-panel"
+readonly REQUIRED_SERVICES=(mysql redis nginx php nodejs python certbot supervisor extras)
+readonly OPTIONAL_SERVICES=(docker cloudflared)
+
+declare -A SERVICE_LABELS=(
+    [mysql]="MySQL"
+    [redis]="Redis"
+    [nginx]="Nginx"
+    [php]="PHP-FPM"
+    [nodejs]="Node.js"
+    [python]="Python"
+    [certbot]="Certbot"
+    [supervisor]="Supervisor"
+    [extras]="Monitoring tools"
+    [docker]="Docker"
+    [cloudflared]="Cloudflared"
+    [serverbond-panel]="ServerBond Panel"
+)
+
+declare -A SERVICE_STATUS=()
+declare -a FAILED_REQUIRED_SERVICES=()
+declare -a FAILED_OPTIONAL_SERVICES=()
+FATAL_FAILURE=false
 
 ################################################################################
 # LOGGING & OUTPUT
@@ -146,6 +170,107 @@ log_error() {
 log_warn() {
     echo -e "${YELLOW}⚠${NC} $1"
     log "WARN: $1"
+}
+
+################################################################################
+# SERVICE STATUS HELPERS
+################################################################################
+
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+service_label() {
+    local service=${1:-}
+    echo "${SERVICE_LABELS[$service]:-$service}"
+}
+
+record_service_status() {
+    local service=${1:-}
+    local status=${2:-pending}
+    SERVICE_STATUS["$service"]="$status"
+}
+
+mark_service_failure() {
+    local service=${1:-}
+    local required=${2:-true}
+    local status=${3:-install_failed}
+    local label
+
+    record_service_status "$service" "$status"
+    label=$(service_label "$service")
+
+    if [[ "$required" == "true" ]]; then
+        FAILED_REQUIRED_SERVICES+=("$label")
+        FATAL_FAILURE=true
+    else
+        FAILED_OPTIONAL_SERVICES+=("$label")
+    fi
+}
+
+mark_service_skipped() {
+    local service=${1:-}
+    local reason=${2:-not requested}
+    record_service_status "$service" "skipped:${reason}"
+}
+
+print_service_summary() {
+    local service=${1:-}
+    local label status state detail
+
+    label=$(service_label "$service")
+    status="${SERVICE_STATUS[$service]:-pending}"
+    IFS=':' read -r state detail <<< "$status"
+
+    case "$state" in
+        ok)
+            echo -e "  ${GREEN}✓${NC} ${label}"
+            ;;
+        install_failed)
+            echo -e "  ${RED}✗${NC} ${label} (installation failed)"
+            ;;
+        verify_failed)
+            echo -e "  ${RED}✗${NC} ${label} (verification failed)"
+            ;;
+        skipped)
+            if [[ -n "$detail" ]]; then
+                echo -e "  ${YELLOW}⚠${NC} ${label} (skipped - ${detail})"
+            else
+                echo -e "  ${YELLOW}⚠${NC} ${label} (skipped)"
+            fi
+            ;;
+        pending)
+            echo -e "  ${YELLOW}⚠${NC} ${label} (not run)"
+            ;;
+        *)
+            echo -e "  ${YELLOW}⚠${NC} ${label} (${status})"
+            ;;
+    esac
+}
+
+show_log_tail() {
+    [[ -f "$LOG_FILE" ]] || return 0
+    echo -e "    ${YELLOW}--- Last 20 log lines ---${NC}" >&2
+    tail -n 20 "$LOG_FILE" 2>/dev/null | sed 's/^/    /' >&2 || true
+}
+
+summarize_installation() {
+    local service
+
+    echo ""
+    log_step "Installation summary"
+
+    for service in "${REQUIRED_SERVICES[@]}"; do
+        print_service_summary "$service"
+    done
+
+    for service in "${OPTIONAL_SERVICES[@]}"; do
+        [[ -n "${SERVICE_STATUS[$service]:-}" ]] || continue
+        print_service_summary "$service"
+    done
+
+    print_service_summary "$PANEL_SERVICE"
+    echo ""
 }
 
 ################################################################################
@@ -180,22 +305,22 @@ check_root() {
     if [[ $EUID -ne 0 ]]; then
         log_error "Root privileges required"
         echo "Usage: sudo bash install.sh"
-    exit 1
+        exit 1
     fi
 }
 
 check_ubuntu() {
     if [[ ! -f /etc/os-release ]]; then
         log_error "Unable to detect Ubuntu"
-    exit 1
-fi
+        exit 1
+    fi
 
     . /etc/os-release
-    
+
     if [[ "$ID" != "ubuntu" ]]; then
         log_error "This script is for Ubuntu only"
-    exit 1
-fi
+        exit 1
+    fi
 
     if [[ "$VERSION_ID" != "$REQUIRED_UBUNTU" ]]; then
         log_warn "Ubuntu ${REQUIRED_UBUNTU} recommended (Current: ${VERSION_ID})"
@@ -215,19 +340,29 @@ check_systemd() {
 check_disk_space() {
     local available
     available=$(df / | tail -1 | awk '{print $4}')
-    
+
     if [[ $available -lt $MIN_DISK_SPACE ]]; then
         log_error "Insufficient disk space (Min 5GB required)"
-    exit 1
-fi
+        exit 1
+    fi
 }
 
 check_network() {
     # Quick network check (1 second timeout)
     if ! timeout 1 bash -c ">/dev/tcp/8.8.8.8/53" 2>/dev/null; then
         log_error "Internet connection required"
-    exit 1
-fi
+        exit 1
+    fi
+}
+
+check_memory() {
+    local total
+    total=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo 2>/dev/null || echo 0)
+
+    if [[ $total -lt $MIN_MEMORY ]]; then
+        log_error "Insufficient memory (Min ${MIN_MEMORY}MB required, detected ${total}MB)"
+        exit 1
+    fi
 }
 
 ################################################################################
@@ -238,13 +373,83 @@ systemctl_safe() {
     local action=$1 service=$2
     [[ "$SKIP_SYSTEMD" == "true" ]] && return 0
     command -v systemctl &> /dev/null || return 0
-    systemctl "$action" "$service" >> "$LOG_FILE" 2>&1 2>&1 || return 1
+    systemctl "$action" "$service" >> "$LOG_FILE" 2>&1 || return 1
 }
 
 check_service() {
     local service=$1
     [[ "$SKIP_SYSTEMD" == "true" ]] && return 0
     systemctl is-active --quiet "$service" 2>/dev/null
+}
+
+service_active_any() {
+    local service
+    for service in "$@"; do
+        [[ -z "$service" ]] && continue
+        if check_service "$service"; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+verify_service() {
+    local service=${1:-}
+
+    case "$service" in
+        mysql)
+            command_exists mysql || return 1
+            command_exists mysqladmin || return 1
+            service_active_any mysql || return 1
+            ;;
+        redis)
+            command_exists redis-cli || command_exists redis-server || return 1
+            service_active_any redis-server redis || return 1
+            ;;
+        nginx)
+            command_exists nginx || return 1
+            service_active_any nginx || return 1
+            ;;
+        php)
+            if ! command_exists "php${PHP_VERSION}" && ! command_exists php; then
+                return 1
+            fi
+            service_active_any "php${PHP_VERSION}-fpm" || return 1
+            ;;
+        nodejs)
+            command_exists node || return 1
+            command_exists npm || return 1
+            ;;
+        python)
+            command_exists python3 || return 1
+            ;;
+        certbot)
+            command_exists certbot || return 1
+            ;;
+        supervisor)
+            command_exists supervisorctl || command_exists supervisord || return 1
+            service_active_any supervisor supervisord || return 1
+            ;;
+        extras)
+            command_exists fail2ban-client || command_exists htop || return 1
+            ;;
+        docker)
+            command_exists docker || return 1
+            service_active_any docker || return 1
+            ;;
+        cloudflared)
+            command_exists cloudflared || return 1
+            ;;
+        serverbond-panel)
+            [[ -d "${NGINX_DEFAULT_ROOT}" ]] || return 1
+            [[ -f "${NGINX_DEFAULT_ROOT}/artisan" ]] || return 1
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+
+    return 0
 }
 
 ################################################################################
@@ -326,28 +531,69 @@ configure_git_global() {
 install_service() {
     local service_name=$1
     local script_file="${SCRIPTS_DIR}/install-${service_name}.sh"
-    
-    if [[ -f "$script_file" ]]; then
-        # Export all config variables for child scripts
-        export SKIP_SYSTEMD
-        export PHP_VERSION PHP_FPM_SOCKET PHP_FPM_POOL PHP_INI
-        export PHP_MEMORY_LIMIT PHP_UPLOAD_MAX PHP_MAX_EXECUTION
-        export PYTHON_VERSION NODE_VERSION NPM_GLOBAL_PACKAGES
-        export NGINX_SITES_AVAILABLE NGINX_DEFAULT_ROOT
-        export MYSQL_ROOT_PASSWORD_FILE CONFIG_DIR
-        export REDIS_CONFIG REDIS_HOST REDIS_PORT
-        export CERTBOT_RENEWAL_CRON SUPERVISOR_CONF_DIR
-        export TEMPLATES_DIR
-        export LARAVEL_PROJECT_URL LARAVEL_PROJECT_BRANCH LARAVEL_DB_NAME
-        export DOCKER_DATA_ROOT DOCKER_LOG_MAX_SIZE DOCKER_LOG_MAX_FILE
-        export DOCKER_USER ENABLE_BUILDX ENABLE_SWARM DOCKER_COMPOSE_VERSION
-        export CLOUDFLARED_VERSION CLOUDFLARED_TOKEN CLOUDFLARED_CONFIG_DIR CLOUDFLARED_USER
-        
-        bash "$script_file" >> "$LOG_FILE" 2>&1
-    else
+
+    if [[ ! -f "$script_file" ]]; then
         log_error "Script not found: $script_file"
         return 1
     fi
+
+    # Export all config variables for child scripts
+    export SKIP_SYSTEMD
+    export PHP_VERSION PHP_FPM_SOCKET PHP_FPM_POOL PHP_INI
+    export PHP_MEMORY_LIMIT PHP_UPLOAD_MAX PHP_MAX_EXECUTION
+    export PYTHON_VERSION NODE_VERSION NPM_GLOBAL_PACKAGES
+    export NGINX_SITES_AVAILABLE NGINX_DEFAULT_ROOT
+    export MYSQL_ROOT_PASSWORD_FILE CONFIG_DIR
+    export REDIS_CONFIG REDIS_HOST REDIS_PORT
+    export CERTBOT_RENEWAL_CRON SUPERVISOR_CONF_DIR
+    export TEMPLATES_DIR
+    export LARAVEL_PROJECT_URL LARAVEL_PROJECT_BRANCH LARAVEL_DB_NAME
+    export DOCKER_DATA_ROOT DOCKER_LOG_MAX_SIZE DOCKER_LOG_MAX_FILE
+    export DOCKER_USER ENABLE_BUILDX ENABLE_SWARM DOCKER_COMPOSE_VERSION
+    export CLOUDFLARED_VERSION CLOUDFLARED_TOKEN CLOUDFLARED_CONFIG_DIR CLOUDFLARED_USER
+
+    local errexit_set=0
+    if [[ $- == *e* ]]; then
+        errexit_set=1
+        set +e
+    fi
+
+    local status
+    bash "$script_file" >> "$LOG_FILE" 2>&1
+    status=$?
+
+    if [[ $errexit_set -eq 1 ]]; then
+        set -e
+    fi
+
+    return $status
+}
+
+install_and_verify() {
+    local service=${1:-}
+    local required=${2:-true}
+    local label
+
+    label=$(service_label "$service")
+    log_step "Installing ${label}..."
+
+    if ! install_service "$service"; then
+        log_error "${label} installation failed. See ${LOG_FILE} for details."
+        show_log_tail
+        mark_service_failure "$service" "$required" "install_failed"
+        return 1
+    fi
+
+    if ! verify_service "$service"; then
+        log_error "${label} verification failed. Please check the service status and logs."
+        show_log_tail
+        mark_service_failure "$service" "$required" "verify_failed"
+        return 1
+    fi
+
+    log_success "${label} ✓"
+    record_service_status "$service" "ok"
+    return 0
 }
 
 install_service_async() {
@@ -443,6 +689,34 @@ download_scripts() {
     log_success "Latest scripts and templates ready"
 }
 
+verify_downloaded_scripts() {
+    local missing=()
+    local service script
+
+    for service in "${REQUIRED_SERVICES[@]}" "$PANEL_SERVICE"; do
+        script="${SCRIPTS_DIR}/install-${service}.sh"
+        [[ -f "$script" ]] || missing+=("$script")
+    done
+
+    if [[ "${INSTALL_DOCKER:-false}" == "true" ]]; then
+        script="${SCRIPTS_DIR}/install-docker.sh"
+        [[ -f "$script" ]] || missing+=("$script")
+    fi
+
+    if [[ "${INSTALL_CLOUDFLARED:-false}" == "true" ]]; then
+        script="${SCRIPTS_DIR}/install-cloudflared.sh"
+        [[ -f "$script" ]] || missing+=("$script")
+    fi
+
+    if ((${#missing[@]} > 0)); then
+        log_error "Missing installer scripts detected:"
+        for script in "${missing[@]}"; do
+            log_error "  - ${script}"
+        done
+        exit 1
+    fi
+}
+
 configure_project() {
     log_step "Configuring agent..."
     
@@ -489,8 +763,12 @@ EOF
 ################################################################################
 
 main() {
+    local service panel_installed=false
+
     echo -e "${BOLD}ServerBond Agent Installer v${SCRIPT_VERSION}${NC}"
-echo ""
+    echo ""
+
+    touch "$LOG_FILE"
 
     # Validation
     log_step "System checks..."
@@ -499,133 +777,65 @@ echo ""
     check_systemd
     check_network
     check_disk_space
+    check_memory
     log_success "Checks passed"
-    
+
     INSTALLATION_STARTED=true
-    
-    # Prepare system
+
+    # Prepare system and fetch latest scripts
     prepare_system
     download_scripts
-    
-    # Install services sequentially
-    log_step "Installing services (sequential)..."
+    log_step "Validating installer scripts..."
+    verify_downloaded_scripts
+    log_success "Installer scripts verified"
+
     echo ""
-    
-    # MySQL
-    log_step "Installing MySQL..."
-    if install_service "mysql"; then
-        log_success "mysql ✓"
-    else
-        log_error "mysql ✗"
-    fi
-    
-    # Redis
-    log_step "Installing Redis..."
-    if install_service "redis"; then
-        log_success "redis ✓"
-    else
-        log_error "redis ✗"
-    fi
-    
-    # Nginx
-    log_step "Installing Nginx..."
-    if install_service "nginx"; then
-        log_success "nginx ✓"
-    else
-        log_error "nginx ✗"
-    fi
-    
-    # PHP (depends on Nginx)
-    log_step "Installing PHP ${PHP_VERSION}..."
-    if install_service "php"; then
-        log_success "php ✓"
-    else
-        log_error "php ✗"
-    fi
-    
-    # Node.js
-    log_step "Installing Node.js..."
-    if install_service "nodejs"; then
-        log_success "nodejs ✓"
-    else
-        log_error "nodejs ✗"
-    fi
-    
-    # Python
-    log_step "Installing Python..."
-    if install_service "python"; then
-        log_success "python ✓"
-    else
-        log_error "python ✗"
-    fi
-    
-    # Certbot
-    log_step "Installing Certbot..."
-    if install_service "certbot"; then
-        log_success "certbot ✓"
-    else
-        log_error "certbot ✗"
-    fi
-    
-    # Supervisor
-    log_step "Installing Supervisor..."
-    if install_service "supervisor"; then
-        log_success "supervisor ✓"
-    else
-        log_error "supervisor ✗"
-    fi
-    
-    # Extras (monitoring tools)
-    log_step "Installing monitoring tools..."
-    if install_service "extras"; then
-        log_success "extras ✓"
-    else
-        log_error "extras ✗"
-    fi
-    
-    # Docker (optional - only if enabled)
+
+    # Required services
+    for service in "${REQUIRED_SERVICES[@]}"; do
+        install_and_verify "$service" true || true
+    done
+
+    # Optional services
     if [[ "${INSTALL_DOCKER:-false}" == "true" ]]; then
-        log_step "Installing Docker..."
-        if install_service "docker"; then
-            log_success "docker ✓"
-        else
-            log_error "docker ✗"
-        fi
-    fi
-    
-    # Cloudflared (optional - only if enabled)
-    if [[ "${INSTALL_CLOUDFLARED:-false}" == "true" ]]; then
-        log_step "Installing Cloudflared..."
-        if install_service "cloudflared"; then
-            log_success "cloudflared ✓"
-        else
-            log_error "cloudflared ✗"
-        fi
-    fi
-    
-    echo ""
-    log_success "All installations completed"
-    
-    # Install ServerBond Panel (required)
-    log_step "Installing ServerBond Panel..."
-    if install_service "serverbond-panel"; then
-        log_success "ServerBond Panel ✓"
+        install_and_verify "docker" false || true
     else
-        log_error "ServerBond Panel ✗"
+        mark_service_skipped "docker" "not enabled"
+    fi
+
+    if [[ "${INSTALL_CLOUDFLARED:-false}" == "true" ]]; then
+        install_and_verify "cloudflared" false || true
+    else
+        mark_service_skipped "cloudflared" "not enabled"
+    fi
+
+    # ServerBond Panel (required)
+    if install_and_verify "$PANEL_SERVICE" true; then
+        panel_installed=true
+    fi
+
+    # Configure agent only if panel was installed successfully
+    if [[ "$panel_installed" == "true" ]]; then
+        configure_project
+    fi
+
+    summarize_installation
+
+    if [[ "$FATAL_FAILURE" == "true" ]]; then
+        log_error "Installation finished with errors. Review ${LOG_FILE}."
         exit 1
     fi
-    
-    # Configure agent
-    configure_project
-    
-    # Summary
-    echo ""
+
+    if ((${#FAILED_OPTIONAL_SERVICES[@]} > 0)); then
+        log_warn "Optional components failed: ${FAILED_OPTIONAL_SERVICES[*]}"
+    fi
+
     log_success "Installation completed!"
     echo ""
-    
+
     local server_ip
     server_ip=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "localhost")
-    
+
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "  📍 Panel URL : http://${server_ip}/"
     echo "  🚀 Panel     : ServerBond Panel"
@@ -643,15 +853,6 @@ echo ""
     echo "  • Database: ${LARAVEL_DB_NAME}"
     echo "  • Admin: admin@serverbond.local"
     echo "  • Pass: password (change on first login!)"
-    echo ""
-    
-    echo "Installed Services:"
-    [[ "$SKIP_SYSTEMD" == "false" ]] && {
-        echo "  • Nginx    : $(systemctl is-active nginx 2>/dev/null || echo '?')"
-        echo "  • PHP-FPM  : $(systemctl is-active php${PHP_VERSION}-fpm 2>/dev/null || echo '?')"
-        echo "  • MySQL    : $(systemctl is-active mysql 2>/dev/null || echo '?')"
-        echo "  • Redis    : $(systemctl is-active redis-server 2>/dev/null || echo '?')"
-    } || echo "  • Installed without systemd"
     echo ""
 }
 
