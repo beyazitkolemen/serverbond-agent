@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
+REDIS_SCRIPT_DIR="${SCRIPT_DIR}/redis"
 
 REDIS_CONFIG="${REDIS_CONFIG:-/etc/redis/redis.conf}"
 REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
@@ -47,47 +48,6 @@ fi
 # --- Sudoers yapılandırması ---
 log_info "Sudoers yapılandırması oluşturuluyor..."
 
-# www-data kullanıcısı için Redis yetkileri
-cat > /etc/sudoers.d/serverbond-redis <<EOF
-# ServerBond Panel - Redis Yönetimi
-# www-data kullanıcısının Redis işlemlerini yapabilmesi için gerekli izinler
-
-# Redis servisi yönetimi
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} start redis-server
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} start redis
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} stop redis-server
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} stop redis
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} restart redis-server
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} restart redis
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} reload redis-server
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} reload redis
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} status redis-server
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} status redis
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} enable redis-server
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} enable redis
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} disable redis-server
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} disable redis
-
-# Redis komutları
-www-data ALL=(ALL) NOPASSWD: /usr/bin/redis-cli *
-
-# Redis log dosyaları okuma
-www-data ALL=(ALL) NOPASSWD: /bin/cat /var/log/redis/*
-www-data ALL=(ALL) NOPASSWD: /usr/bin/tail /var/log/redis/*
-www-data ALL=(ALL) NOPASSWD: /usr/bin/head /var/log/redis/*
-
-# Redis config dosyaları okuma
-www-data ALL=(ALL) NOPASSWD: /bin/cat /etc/redis/*
-EOF
-
-# Dosya izinlerini ayarla
-chmod 440 /etc/sudoers.d/serverbond-redis
-
-# Sudoers dosyasını doğrula
-if ! visudo -c -f /etc/sudoers.d/serverbond-redis >/dev/null 2>&1; then
-    log_error "Sudoers dosyası geçersiz! Siliniyor..."
-    rm -f /etc/sudoers.d/serverbond-redis
+if ! create_script_sudoers "redis" "${REDIS_SCRIPT_DIR}"; then
     exit 1
 fi
-
-log_success "Sudoers yapılandırması başarıyla oluşturuldu!"

@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
+NODE_SCRIPT_DIR="${SCRIPT_DIR}/node"
 
 NODE_VERSION="${NODE_VERSION:-20}"
 NPM_GLOBAL_PACKAGES="${NPM_GLOBAL_PACKAGES:-yarn pm2}"
@@ -53,38 +54,9 @@ npm cache clean --force >/dev/null 2>&1 || true
 # --- Sudoers yapılandırması ---
 log_info "Sudoers yapılandırması oluşturuluyor..."
 
-# www-data kullanıcısı için Node.js/NPM/PM2 yetkileri
-cat > /etc/sudoers.d/serverbond-nodejs <<'EOF'
-# ServerBond Panel - Node.js/PM2 Yönetimi
-# www-data kullanıcısının Node.js ve PM2 işlemlerini yapabilmesi için gerekli izinler
-
-# NPM komutları
-www-data ALL=(ALL) NOPASSWD: /usr/bin/npm *
-
-# PM2 komutları
-www-data ALL=(ALL) NOPASSWD: /usr/bin/pm2 *
-www-data ALL=(ALL) NOPASSWD: /usr/local/bin/pm2 *
-
-# Node.js version management
-www-data ALL=(ALL) NOPASSWD: /usr/bin/node *
-
-# PM2 log dosyaları okuma
-www-data ALL=(ALL) NOPASSWD: /bin/cat /root/.pm2/logs/*
-www-data ALL=(ALL) NOPASSWD: /usr/bin/tail /root/.pm2/logs/*
-www-data ALL=(ALL) NOPASSWD: /usr/bin/head /root/.pm2/logs/*
-EOF
-
-# Dosya izinlerini ayarla
-chmod 440 /etc/sudoers.d/serverbond-nodejs
-
-# Sudoers dosyasını doğrula
-if ! visudo -c -f /etc/sudoers.d/serverbond-nodejs >/dev/null 2>&1; then
-    log_error "Sudoers dosyası geçersiz! Siliniyor..."
-    rm -f /etc/sudoers.d/serverbond-nodejs
+if ! create_script_sudoers "nodejs" "${NODE_SCRIPT_DIR}"; then
     exit 1
 fi
-
-log_success "Sudoers yapılandırması başarıyla oluşturuldu!"
 
 # --- Son durum ---
 log_success "Node.js ortamı başarıyla kuruldu"

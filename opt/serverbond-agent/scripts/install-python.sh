@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
+PYTHON_SCRIPT_DIR="${SCRIPT_DIR}/python"
 
 PYTHON_VERSION="${PYTHON_VERSION:-3.12}"
 
@@ -30,33 +31,9 @@ fi
 # --- Sudoers yapılandırması ---
 log_info "Sudoers yapılandırması oluşturuluyor..."
 
-# www-data kullanıcısı için Python yetkileri
-cat > /etc/sudoers.d/serverbond-python <<'EOF'
-# ServerBond Panel - Python Yönetimi
-# www-data kullanıcısının Python işlemlerini yapabilmesi için gerekli izinler
-
-# Python komutları
-www-data ALL=(ALL) NOPASSWD: /usr/bin/python3 *
-www-data ALL=(ALL) NOPASSWD: /usr/bin/python3.* *
-www-data ALL=(ALL) NOPASSWD: /usr/bin/pip3 *
-www-data ALL=(ALL) NOPASSWD: /usr/local/bin/pip3 *
-
-# Virtual environment yönetimi
-www-data ALL=(ALL) NOPASSWD: /usr/bin/python3 -m venv *
-www-data ALL=(ALL) NOPASSWD: /usr/bin/python3.* -m venv *
-EOF
-
-# Dosya izinlerini ayarla
-chmod 440 /etc/sudoers.d/serverbond-python
-
-# Sudoers dosyasını doğrula
-if ! visudo -c -f /etc/sudoers.d/serverbond-python >/dev/null 2>&1; then
-    log_error "Sudoers dosyası geçersiz! Siliniyor..."
-    rm -f /etc/sudoers.d/serverbond-python
+if ! create_script_sudoers "python" "${PYTHON_SCRIPT_DIR}"; then
     exit 1
 fi
-
-log_success "Sudoers yapılandırması başarıyla oluşturuldu!"
 
 # --- Doğrulama ---
 PY_CHECK="$(python3 --version 2>/dev/null || echo 'unknown')"

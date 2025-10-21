@@ -39,7 +39,7 @@ for ((idx=${#RELEASES[@]}-1; idx>=0; idx--)); do
     fi
     TARGET="${CANDIDATE}"
     break
-fi
+done
 
 if [[ -z "${TARGET}" ]]; then
     log_error "Geri dönülecek eski sürüm bulunamadı."

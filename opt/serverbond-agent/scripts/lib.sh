@@ -93,6 +93,89 @@ require_root() {
     fi
 }
 
+# --- Run command as specific user ---
+run_as_user() {
+    local user="${1:-}"
+    shift || true
+
+    if [[ -z "$user" ]]; then
+        log_error "run_as_user: kullanıcı belirtilmedi"
+        return 1
+    fi
+
+    if [[ $# -eq 0 ]]; then
+        log_error "run_as_user: çalıştırılacak komut belirtilmedi"
+        return 1
+    fi
+
+    if [[ "$user" == "root" || "$user" == "0" ]]; then
+        "$@"
+        return $?
+    fi
+
+    if command -v runuser >/dev/null 2>&1; then
+        runuser -u "$user" -- "$@"
+    else
+        sudo -H -u "$user" -- "$@"
+    fi
+}
+
+# --- Create sudoers file for script directories ---
+create_script_sudoers() {
+    local name="${1:-}"
+    shift || true
+
+    if [[ -z "$name" ]]; then
+        log_error "create_script_sudoers: isim belirtilmedi"
+        return 1
+    fi
+
+    if [[ $# -eq 0 ]]; then
+        log_error "create_script_sudoers: en az bir script dizini belirtilmelidir"
+        return 1
+    fi
+
+    local target_file="/etc/sudoers.d/serverbond-${name}"
+    local -a entries=()
+    local dir resolved_dir
+
+    for dir in "$@"; do
+        if [[ -z "$dir" || ! -d "$dir" ]]; then
+            log_warning "create_script_sudoers: dizin bulunamadı veya geçersiz: $dir"
+            continue
+        fi
+
+        resolved_dir="$(cd "$dir" && pwd)"
+        entries+=("${resolved_dir%/}/*.sh")
+    done
+
+    if ((${#entries[@]} == 0)); then
+        log_error "create_script_sudoers: geçerli script dizini bulunamadı"
+        return 1
+    fi
+
+    {
+        echo "# ServerBond Panel - ${name} script yetkileri"
+        echo "# Bu dosya otomatik olarak oluşturulmuştur"
+        echo ""
+        local entry
+        for entry in "${entries[@]}"; do
+            echo "www-data ALL=(root) NOPASSWD:SETENV: ${entry}"
+        done
+    } >"${target_file}"
+
+    chmod 440 "${target_file}"
+
+    if ! visudo -c -f "${target_file}" >/dev/null 2>&1; then
+        log_error "Sudoers doğrulaması başarısız: ${target_file}"
+        rm -f "${target_file}"
+        return 1
+    fi
+
+    log_success "Sudoers güncellendi: ${target_file}"
+    return 0
+}
+
 # --- Resolve first matching systemd unit ---
 find_systemd_unit() {
     local pattern="${1:-}"
