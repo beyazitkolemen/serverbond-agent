@@ -159,20 +159,47 @@ sudo -u www-data php artisan key:generate --force 2>&1 | grep -v "^$" || true
 
 # Configure database
 if [[ -f "$MYSQL_ROOT_PASSWORD_FILE" ]]; then
-    MYSQL_ROOT_PASSWORD=$(cat "$MYSQL_ROOT_PASSWORD_FILE")
+    MYSQL_ROOT_PASSWORD=$(cat "$MYSQL_ROOT_PASSWORD_FILE" | tr -d '\n\r')
     
+    if [[ -z "$MYSQL_ROOT_PASSWORD" ]]; then
+        log_error "MySQL root şifresi okunamadı!"
+        exit 1
+    fi
+    
+    log_info "MySQL şifresi okundu: ${#MYSQL_ROOT_PASSWORD} karakter"
     log_info "Veritabanı oluşturuluyor..."
-    mysql -u root -p"$MYSQL_ROOT_PASSWORD" <<EOSQL 2>&1 | grep -v "^$" || true
+    
+    # Test MySQL connection first
+    if ! mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SELECT 1;" &> /dev/null; then
+        log_error "MySQL bağlantı hatası! Şifre doğru değil."
+        log_info "Şifre dosyası: ${MYSQL_ROOT_PASSWORD_FILE}"
+        exit 1
+    fi
+    
+    # Create database
+    mysql -u root -p"${MYSQL_ROOT_PASSWORD}" <<EOSQL 2>&1 | grep -v "Warning" || true
 CREATE DATABASE IF NOT EXISTS ${LARAVEL_DB_NAME} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 GRANT ALL PRIVILEGES ON ${LARAVEL_DB_NAME}.* TO 'root'@'localhost';
 FLUSH PRIVILEGES;
 EOSQL
     
-    # Update .env with database credentials
-    sed -i "s/DB_DATABASE=.*/DB_DATABASE=${LARAVEL_DB_NAME}/" .env
-    sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=${MYSQL_ROOT_PASSWORD}/" .env
+    # Update .env with database credentials (escape special characters)
+    log_info ".env dosyası güncelleniyor..."
+    
+    # Escape special characters for sed
+    ESCAPED_DB_NAME=$(echo "${LARAVEL_DB_NAME}" | sed 's/[&/\]/\\&/g')
+    ESCAPED_PASSWORD=$(echo "${MYSQL_ROOT_PASSWORD}" | sed 's/[&/\]/\\&/g')
+    
+    # Update database name
+    sed -i "s|^DB_DATABASE=.*|DB_DATABASE=${ESCAPED_DB_NAME}|" .env
+    
+    # Update database password
+    sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=${ESCAPED_PASSWORD}|" .env
     
     log_success "Veritabanı hazır: ${LARAVEL_DB_NAME}"
+else
+    log_error "MySQL şifre dosyası bulunamadı: ${MYSQL_ROOT_PASSWORD_FILE}"
+    exit 1
 fi
 
 # Clear all caches before migration

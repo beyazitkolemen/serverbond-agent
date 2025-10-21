@@ -1,0 +1,154 @@
+# Docker Management Makefile
+# ServerBond Agent - Docker Helper Commands
+
+.PHONY: help build up down restart logs shell clean backup restore monitor stats
+
+# Default target
+help:
+	@echo "Docker Management Commands:"
+	@echo ""
+	@echo "  make build          - Build all containers"
+	@echo "  make up             - Start all containers"
+	@echo "  make down           - Stop all containers"
+	@echo "  make restart        - Restart all containers"
+	@echo "  make logs           - Show container logs"
+	@echo "  make shell          - Enter web container shell"
+	@echo "  make clean          - Clean unused resources"
+	@echo "  make backup         - Backup databases"
+	@echo "  make restore        - Restore databases"
+	@echo "  make monitor        - Show container stats"
+	@echo "  make stats          - Show resource usage"
+	@echo ""
+	@echo "Laravel Specific:"
+	@echo "  make artisan CMD=   - Run artisan command"
+	@echo "  make composer CMD=  - Run composer command"
+	@echo "  make npm CMD=       - Run npm command"
+	@echo "  make test           - Run tests"
+	@echo "  make optimize       - Optimize Laravel"
+	@echo ""
+
+# Build containers
+build:
+	@echo "Building containers..."
+	docker compose build --parallel
+
+# Start containers
+up:
+	@echo "Starting containers..."
+	docker compose up -d
+	@echo "Containers started successfully!"
+	@docker compose ps
+
+# Stop containers
+down:
+	@echo "Stopping containers..."
+	docker compose down
+
+# Restart containers
+restart:
+	@echo "Restarting containers..."
+	docker compose restart
+
+# Show logs
+logs:
+	docker compose logs -f --tail=100
+
+# Enter web container shell
+shell:
+	docker compose exec web sh
+
+# Clean unused resources
+clean:
+	@echo "Cleaning unused Docker resources..."
+	docker system prune -f
+	docker volume prune -f
+	docker image prune -a -f
+
+# Backup databases
+backup:
+	@echo "Backing up databases..."
+	@mkdir -p ./backups/mysql
+	@mkdir -p ./backups/postgres
+	docker compose exec mysql mysqldump -u root -p"${MYSQL_ROOT_PASSWORD}" --all-databases > ./backups/mysql/backup_$$(date +%Y%m%d_%H%M%S).sql
+	docker compose exec postgres pg_dumpall -U "${POSTGRES_USER}" > ./backups/postgres/backup_$$(date +%Y%m%d_%H%M%S).sql
+	@echo "Backup completed!"
+
+# Restore databases
+restore:
+	@echo "Restore database from backup..."
+	@echo "MySQL: docker compose exec -T mysql mysql -u root -p'password' < ./backups/mysql/backup_file.sql"
+	@echo "PostgreSQL: docker compose exec -T postgres psql -U user < ./backups/postgres/backup_file.sql"
+
+# Monitor containers
+monitor:
+	docker-monitor
+
+# Show stats
+stats:
+	docker stats --no-stream
+
+# Laravel specific commands
+artisan:
+	docker compose exec web php artisan $(CMD)
+
+composer:
+	docker compose exec web composer $(CMD)
+
+npm:
+	docker compose exec web npm $(CMD)
+
+# Run tests
+test:
+	docker compose exec web php artisan test
+
+# Optimize Laravel
+optimize:
+	docker compose exec web php artisan config:cache
+	docker compose exec web php artisan route:cache
+	docker compose exec web php artisan view:cache
+	docker compose exec web php artisan optimize
+	@echo "Laravel optimized!"
+
+# Clear Laravel caches
+cache-clear:
+	docker compose exec web php artisan config:clear
+	docker compose exec web php artisan route:clear
+	docker compose exec web php artisan view:clear
+	docker compose exec web php artisan cache:clear
+	@echo "Caches cleared!"
+
+# Database migration
+migrate:
+	docker compose exec web php artisan migrate
+
+# Database migration with seed
+migrate-seed:
+	docker compose exec web php artisan migrate --seed
+
+# Fresh migration
+migrate-fresh:
+	docker compose exec web php artisan migrate:fresh --seed
+
+# Show container info
+info:
+	@echo "=== Container Status ==="
+	@docker compose ps
+	@echo ""
+	@echo "=== Resource Usage ==="
+	@docker stats --no-stream
+	@echo ""
+	@echo "=== Disk Usage ==="
+	@docker system df
+
+# Security scan
+security-scan:
+	@echo "Scanning images for vulnerabilities..."
+	@docker images --format "{{.Repository}}:{{.Tag}}" | grep -v "<none>" | xargs -I {} trivy image {}
+
+# Update images
+update:
+	@echo "Pulling latest images..."
+	docker compose pull
+	@echo "Rebuilding containers..."
+	docker compose up -d --build
+
