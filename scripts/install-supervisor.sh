@@ -34,18 +34,18 @@ fi
 log_info "Sudoers yapılandırması oluşturuluyor..."
 
 # www-data kullanıcısı için Supervisor yetkileri
-cat > /etc/sudoers.d/serverbond-supervisor <<'EOF'
+cat > /etc/sudoers.d/serverbond-supervisor <<EOF
 # ServerBond Panel - Supervisor Yönetimi
 # www-data kullanıcısının Supervisor işlemlerini yapabilmesi için gerekli izinler
 
 # Supervisor servisi yönetimi
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl start supervisor
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl stop supervisor
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl restart supervisor
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl reload supervisor
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl status supervisor
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl enable supervisor
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl disable supervisor
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} start supervisor
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} stop supervisor
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} restart supervisor
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} reload supervisor
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} status supervisor
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} enable supervisor
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} disable supervisor
 
 # Supervisor komutları
 www-data ALL=(ALL) NOPASSWD: /usr/bin/supervisorctl *

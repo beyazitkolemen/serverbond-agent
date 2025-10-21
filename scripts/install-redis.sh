@@ -48,25 +48,25 @@ fi
 log_info "Sudoers yapılandırması oluşturuluyor..."
 
 # www-data kullanıcısı için Redis yetkileri
-cat > /etc/sudoers.d/serverbond-redis <<'EOF'
+cat > /etc/sudoers.d/serverbond-redis <<EOF
 # ServerBond Panel - Redis Yönetimi
 # www-data kullanıcısının Redis işlemlerini yapabilmesi için gerekli izinler
 
 # Redis servisi yönetimi
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl start redis-server
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl start redis
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl stop redis-server
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl stop redis
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl restart redis-server
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl restart redis
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl reload redis-server
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl reload redis
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl status redis-server
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl status redis
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl enable redis-server
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl enable redis
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl disable redis-server
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl disable redis
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} start redis-server
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} start redis
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} stop redis-server
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} stop redis
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} restart redis-server
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} restart redis
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} reload redis-server
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} reload redis
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} status redis-server
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} status redis
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} enable redis-server
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} enable redis
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} disable redis-server
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} disable redis
 
 # Redis komutları
 www-data ALL=(ALL) NOPASSWD: /usr/bin/redis-cli *

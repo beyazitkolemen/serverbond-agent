@@ -126,14 +126,14 @@ sudo -u www-data php artisan event:cache >/dev/null 2>&1
 log_info "Genel sistem sudoers yapılandırması oluşturuluyor..."
 
 # www-data kullanıcısı için genel sistem yönetimi yetkileri
-cat > /etc/sudoers.d/serverbond-system <<'EOF'
+cat > /etc/sudoers.d/serverbond-system <<EOF
 # ServerBond Panel - Genel Sistem Yönetimi
 # www-data kullanıcısının sistem yönetimi işlemlerini yapabilmesi için gerekli izinler
 
 # Sistem durumu ve bilgi komutları
-www-data ALL=(ALL) NOPASSWD: /usr/bin/systemctl daemon-reload
-www-data ALL=(ALL) NOPASSWD: /usr/bin/systemctl list-units *
-www-data ALL=(ALL) NOPASSWD: /usr/bin/systemctl list-unit-files *
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} daemon-reload
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} list-units *
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} list-unit-files *
 www-data ALL=(ALL) NOPASSWD: /usr/bin/journalctl *
 
 # Site dizinleri yönetimi (/srv/serverbond)

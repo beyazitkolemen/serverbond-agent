@@ -135,18 +135,18 @@ fi
 log_info "Sudoers yapılandırması oluşturuluyor..."
 
 # www-data kullanıcısı için cloudflared yetkileri
-cat > /etc/sudoers.d/serverbond-cloudflare <<'EOF'
+cat > /etc/sudoers.d/serverbond-cloudflare <<EOF
 # ServerBond Panel - Cloudflare Tunnel Yönetimi
 # www-data kullanıcısının cloudflared işlemlerini yapabilmesi için gerekli izinler
 
 # Cloudflared servisi yönetimi
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl start cloudflared
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl stop cloudflared
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl restart cloudflared
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl reload cloudflared
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl status cloudflared
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl enable cloudflared
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl disable cloudflared
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} start cloudflared
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} stop cloudflared
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} restart cloudflared
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} reload cloudflared
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} status cloudflared
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} enable cloudflared
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} disable cloudflared
 
 # Cloudflared komutları
 www-data ALL=(ALL) NOPASSWD: /usr/bin/cloudflared tunnel *
@@ -164,7 +164,7 @@ www-data ALL=(ALL) NOPASSWD: /bin/chown * /etc/cloudflared/*
 
 # Systemd servisi düzenleme
 www-data ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/systemd/system/cloudflared.service
-www-data ALL=(ALL) NOPASSWD: /bin/systemctl daemon-reload
+www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} daemon-reload
 EOF
 
 # Dosya izinlerini ayarla
