@@ -81,6 +81,23 @@ readonly SUPERVISOR_CONF_DIR="/etc/supervisor/conf.d"
 # Certbot Configuration
 readonly CERTBOT_RENEWAL_CRON="0 0,12 * * * root certbot renew --quiet"
 
+# Docker Configuration (optional)
+readonly DOCKER_DATA_ROOT="/var/lib/docker"
+readonly DOCKER_LOG_MAX_SIZE="10m"
+readonly DOCKER_LOG_MAX_FILE="3"
+DOCKER_USER="${DOCKER_USER:-}"
+ENABLE_BUILDX="${ENABLE_BUILDX:-true}"
+ENABLE_SWARM="${ENABLE_SWARM:-false}"
+readonly DOCKER_COMPOSE_VERSION="2.24.0"
+
+# Cloudflared Configuration (optional)
+readonly CLOUDFLARED_VERSION="latest"
+
+# Installation Flags (optional services - set to "true" to enable)
+INSTALL_CLOUDFLARED="${INSTALL_CLOUDFLARED:-true}"
+INSTALL_DOCKER="${INSTALL_DOCKER:-false}"
+SKIP_UPGRADE="${SKIP_UPGRADE:-false}"
+
 # Logging
 readonly LOG_FILE="/tmp/serverbond-install-$(date +%Y%m%d-%H%M%S).log"
 readonly LOG_ROTATION_DAYS="14"
@@ -279,6 +296,9 @@ install_service() {
         export CERTBOT_RENEWAL_CRON SUPERVISOR_CONF_DIR
         export TEMPLATES_DIR
         export LARAVEL_PROJECT_URL LARAVEL_PROJECT_BRANCH LARAVEL_DB_NAME
+        export DOCKER_DATA_ROOT DOCKER_LOG_MAX_SIZE DOCKER_LOG_MAX_FILE
+        export DOCKER_USER ENABLE_BUILDX ENABLE_SWARM DOCKER_COMPOSE_VERSION
+        export CLOUDFLARED_VERSION
         
         bash "$script_file" >> "$LOG_FILE" 2>&1
     else
@@ -518,6 +538,16 @@ echo ""
         log_success "extras ✓"
     else
         log_error "extras ✗"
+    fi
+    
+    # Docker (optional - only if enabled)
+    if [[ "${INSTALL_DOCKER:-false}" == "true" ]]; then
+        log_step "Installing Docker..."
+        if install_service "docker"; then
+            log_success "docker ✓"
+        else
+            log_error "docker ✗"
+        fi
     fi
     
     # Cloudflared (optional - only if enabled)
