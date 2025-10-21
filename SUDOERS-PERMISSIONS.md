@@ -1,371 +1,128 @@
 # ServerBond Panel - Sudoers İzinleri Dökümantasyonu
 
-Bu döküman, ServerBond Panel'in (`www-data` kullanıcısı) sistem kaynaklarını yönetebilmesi için verilen sudo izinlerini açıklamaktadır.
+Bu döküman, ServerBond Panel'in (`www-data` kullanıcısı) sistem kaynaklarını yönetebilmesi için verilen sudo
+izinlerini açıklar. Artık tüm yetkiler doğrudan komutlara değil, `/opt/serverbond-agent/scripts/` altında yer alan
+kontrollü betiklere tanımlıdır.
 
-## 📋 Genel Bakış
+## 🔐 Güvenlik İlkeleri
 
-ServerBond Panel, web sunucusu servisleri, veritabanları, container'lar ve diğer sistem kaynaklarını yönetmek için sudo yetkilerine ihtiyaç duyar. Tüm izinler güvenli bir şekilde `/etc/sudoers.d/` dizininde ayrı dosyalarda tanımlanmıştır.
+- ✅ Tüm sudoers dosyaları `440` izinleriyle korunur.
+- ✅ Her servis için ayrı sudoers dosyası bulunur (modüler yapı).
+- ✅ `www-data` yalnızca belirlenmiş Script API'lerini çalıştırabilir.
+- ✅ Betiklerin tamamı `bash -n` ile doğrulanır, `shellcheck` desteği mevcuttur.
+- ✅ `visudo -c` ile tüm sudoers dosyaları doğrulanır.
+- ✅ Script izinleri otomatik olarak sıkılaştırılır (`root:www-data`, `750/640`).
 
-## 🔐 Güvenlik Özellikleri
+## 🧭 Betik Tabanlı Yetki Modeli
 
-- ✅ Tüm sudoers dosyaları `440` izinleriyle korunur
-- ✅ Her servis için ayrı sudoers dosyası (modüler yapı)
-- ✅ `NOPASSWD` - Panel otomatik çalışabilir
-- ✅ `visudo -c` ile dosya doğrulama
-- ✅ Geçersiz dosyalar otomatik silinir
-- ✅ Wildcard kullanımı kontrollü ve güvenli
+Her sudoers dosyası `www-data` kullanıcısına belirli bir betik dizinindeki `*.sh` dosyalarını
+`sudo` ile çalıştırma yetkisi verir. Scriptler root yetkisi ile başlar, gerekli durumlarda
+kendi içlerinde kullanıcı düşürme desteği sağlar (`run_as_user`).
 
-## 📦 Sudoers Dosyaları ve İzinler
+Aşağıda her sudoers dosyasının kapsadığı script dizinleri ve bu dizindeki kritik betikler yer almaktadır.
 
 ### 1. `/etc/sudoers.d/serverbond-nginx`
-
-**Nginx web sunucusu yönetimi**
-
-- ✓ Nginx servisi başlatma/durdurma/yeniden başlatma
-- ✓ Nginx konfigürasyon test (`nginx -t`)
-- ✓ Site konfigürasyonları (sites-available/sites-enabled)
-- ✓ Symlink yönetimi
-- ✓ Nginx log dosyalarını okuma
-- ✓ Snippet dosyaları yönetimi
-
-**Kullanım Örnekleri:**
-```bash
-sudo systemctl restart nginx
-sudo nginx -t
-sudo ln -s /etc/nginx/sites-available/example.com /etc/nginx/sites-enabled/
-```
-
----
+- **Yetkili dizin:** `/opt/serverbond-agent/scripts/nginx/*.sh`
+- **Önemli betikler:**
+  - `start.sh`, `stop.sh`, `restart.sh`, `reload.sh`: Nginx servisi yönetimi.
+  - `config_test.sh`: `nginx -t` doğrulaması.
+  - `add_site.sh`, `remove_site.sh`, `enable_ssl.sh`: Site ve SSL yönetimi.
+  - `list_sites.sh`, `rebuild_conf.sh`: Konfigürasyon bakım scriptleri.
 
 ### 2. `/etc/sudoers.d/serverbond-php`
-
-**PHP-FPM ve Composer yönetimi**
-
-- ✓ PHP-FPM servisi yönetimi (tüm versiyonlar için)
-- ✓ PHP ini dosyalarını okuma
-- ✓ PHP-FPM pool yapılandırması
-- ✓ PHP log dosyalarını okuma
-- ✓ Composer komutları
-
-**Kullanım Örnekleri:**
-```bash
-sudo systemctl restart php8.4-fpm
-sudo composer install --no-dev
-sudo cat /etc/php/8.4/fpm/php.ini
-```
-
----
+- **Yetkili dizin:** `/opt/serverbond-agent/scripts/php/*.sh`
+- **Önemli betikler:**
+  - `restart.sh`: PHP-FPM servislerini yeniden başlatır.
+  - `change_version.sh`: Laravel projeleri için PHP sürümü değiştirir.
+  - `install_extension.sh`: PHP eklentisi kurulumu.
+  - `config_edit.sh`, `info.sh`: php.ini ve FPM havuzu bilgileri.
 
 ### 3. `/etc/sudoers.d/serverbond-mysql`
-
-**MySQL veritabanı yönetimi**
-
-- ✓ MySQL servisi yönetimi
-- ✓ MySQL komutları (mysql, mysqldump, mysqladmin)
-- ✓ Veritabanı yedekleme
-- ✓ MySQL log dosyalarını okuma
-- ✓ Config dosyalarını okuma
-
-**Kullanım Örnekleri:**
-```bash
-sudo systemctl restart mysql
-sudo mysql -u root -p'password' -e "CREATE DATABASE test;"
-sudo mysqldump -u root -p'password' database_name > backup.sql
-```
-
----
+- **Yetkili dizin:** `/opt/serverbond-agent/scripts/mysql/*.sh`
+- **Önemli betikler:**
+  - `start.sh`, `stop.sh`, `restart.sh`, `status.sh`: MySQL servis yönetimi.
+  - `create_user.sh`, `create_database.sh`, `delete_*`: Kullanıcı ve veritabanı işlemleri.
+  - `import_sql.sh`, `export_sql.sh`: Yedek alma/yükleme.
+  - `maintenance` alt betikleri (`backup_db.sh`, `restore_db.sh`) ile entegre çalışır.
 
 ### 4. `/etc/sudoers.d/serverbond-redis`
-
-**Redis cache sunucusu yönetimi**
-
-- ✓ Redis servisi yönetimi
-- ✓ redis-cli komutları
-- ✓ Redis log dosyalarını okuma
-- ✓ Config dosyalarını okuma
-
-**Kullanım Örnekleri:**
-```bash
-sudo systemctl restart redis-server
-sudo redis-cli PING
-sudo cat /etc/redis/redis.conf
-```
-
----
+- **Yetkili dizin:** `/opt/serverbond-agent/scripts/redis/*.sh`
+- **Önemli betikler:**
+  - `start.sh`, `stop.sh`, `restart.sh`: Redis servisi kontrolü.
+  - `flush_all.sh`, `info.sh`: Redis yönetim komutları.
+  - `config_edit.sh`: `redis.conf` düzenleme yardımcıları.
 
 ### 5. `/etc/sudoers.d/serverbond-supervisor`
-
-**Supervisor process yönetimi**
-
-- ✓ Supervisor servisi yönetimi
-- ✓ supervisorctl komutları
-- ✓ Supervisor config dosyaları yönetimi
-- ✓ Program başlatma/durdurma
-- ✓ Log dosyalarını okuma
-
-**Kullanım Örnekleri:**
-```bash
-sudo systemctl restart supervisor
-sudo supervisorctl status
-sudo supervisorctl restart laravel-worker:*
-```
-
----
+- **Yetkili dizin:** `/opt/serverbond-agent/scripts/supervisor/*.sh`
+- **Önemli betikler:**
+  - `start.sh`, `stop.sh`, `restart.sh`: Supervisor servis yönetimi.
+  - `add_program.sh`, `remove_program.sh`, `list_programs.sh`: Laravel queue/process yönetimi.
+  - `reload.sh`, `status.sh`: Supervisor durum ve konfigürasyon kontrolü.
 
 ### 6. `/etc/sudoers.d/serverbond-certbot`
-
-**SSL sertifika yönetimi**
-
-- ✓ Certbot komutları (sertifika alma, yenileme)
-- ✓ SSL sertifika dosyalarını okuma
-- ✓ Certbot log dosyalarını okuma
-
-**Kullanım Örnekleri:**
-```bash
-sudo certbot --nginx -d example.com
-sudo certbot renew
-sudo certbot certificates
-```
-
----
+- **Yetkili dizin:** `/opt/serverbond-agent/scripts/ssl/*.sh`
+- **Önemli betikler:**
+  - `create_ssl.sh`, `renew_ssl.sh`, `remove_ssl.sh`: Let's Encrypt sertifika yaşam döngüsü.
+  - `list_certs.sh`: Kurulu sertifikaları listeler.
 
 ### 7. `/etc/sudoers.d/serverbond-cloudflare`
-
-**Cloudflare Tunnel yönetimi**
-
-- ✓ Cloudflared servisi yönetimi
-- ✓ cloudflared tunnel komutları
-- ✓ Tunnel config dosyaları yönetimi (`/etc/cloudflared/`)
-- ✓ Systemd servisi düzenleme
-
-**Kullanım Örnekleri:**
-```bash
-sudo systemctl restart cloudflared
-sudo cloudflared tunnel list
-sudo cloudflared tunnel create my-tunnel
-```
-
----
+- **Yetkili dizin:** `/opt/serverbond-agent/scripts/cloudflared/*.sh`
+- **Önemli betikler:**
+  - `service.sh`: Cloudflared systemd servisini (start/stop/logs) yönetir.
+  - `command.sh`: Güvenli şekilde `cloudflared tunnel/service/update` çağrılarını çalıştırır.
+  - `config_manage.sh`: `/etc/cloudflared` dizini için list/show/deploy/remove/mkdir işlemleri.
 
 ### 8. `/etc/sudoers.d/serverbond-docker`
-
-**Docker container yönetimi**
-
-- ✓ Docker servisi yönetimi
-- ✓ Docker ve docker-compose komutları
-- ✓ Docker log dosyalarını okuma
-- ✓ Docker config dosyalarını okuma
-
-**Not:** `www-data` kullanıcısı ayrıca `docker` grubuna eklenmiştir.
-
-**Kullanım Örnekleri:**
-```bash
-sudo systemctl restart docker
-sudo docker ps
-sudo docker-compose up -d
-```
-
----
+- **Yetkili dizin:** `/opt/serverbond-agent/scripts/docker/*.sh`
+- **Önemli betikler:**
+  - `compose_up.sh`, `compose_down.sh`, `restart_container.sh`: Docker Compose ve container işlemleri.
+  - `build_image.sh`: Güvenli image inşa betiği.
+  - `list_containers.sh`, `start_container.sh`, `stop_container.sh`, `remove_container.sh`.
 
 ### 9. `/etc/sudoers.d/serverbond-nodejs`
-
-**Node.js ve PM2 yönetimi**
-
-- ✓ NPM komutları
-- ✓ PM2 process manager komutları
-- ✓ Node.js çalıştırma
-- ✓ PM2 log dosyalarını okuma
-
-**Kullanım Örnekleri:**
-```bash
-sudo npm install
-sudo pm2 start app.js
-sudo pm2 restart all
-```
-
----
+- **Yetkili dizin:** `/opt/serverbond-agent/scripts/node/*.sh`
+- **Yeni betikler:**
+  - `npm.sh`, `yarn.sh`: Varsayılan olarak `www-data` kullanıcısı ile paket yönetimi.
+  - `node.sh`: Node.js betiklerinin çalıştırılması.
+  - `pm2.sh`: PM2 süreç yönetimi (isteğe bağlı farklı kullanıcı desteği).
 
 ### 10. `/etc/sudoers.d/serverbond-python`
-
-**Python ve pip yönetimi**
-
-- ✓ Python3 komutları
-- ✓ pip3 komutları
-- ✓ Virtual environment oluşturma
-
-**Kullanım Örnekleri:**
-```bash
-sudo python3 script.py
-sudo pip3 install package
-sudo python3 -m venv /path/to/venv
-```
-
----
+- **Yetkili dizin:** `/opt/serverbond-agent/scripts/python/*.sh`
+- **Yeni betikler:**
+  - `python.sh`: Python komutlarını (`--python` seçeneği ile sürüm seçimi) yürütür.
+  - `pip.sh`: Paket yönetimi (`--pip` seçeneği ile sürüm seçimi).
+  - `venv_create.sh`: Güvenli sanal ortam oluşturma (`--force`, `--user`).
 
 ### 11. `/etc/sudoers.d/serverbond-system`
+- **Yetkili dizinler:**
+  - `/opt/serverbond-agent/scripts/system/*.sh`
+  - `/opt/serverbond-agent/scripts/meta/*.sh`
+  - `/opt/serverbond-agent/scripts/maintenance/*.sh`
+  - `/opt/serverbond-agent/scripts/deploy/*.sh`
+  - `/opt/serverbond-agent/scripts/user/*.sh`
+- **Önemli betikler:**
+  - `system/status.sh`, `system/restart_all.sh`, `system/logs.sh`: Sunucu genel yönetimi.
+  - `meta/diagnostics.sh`, `meta/validate_shell.sh`: Teşhis ve script doğrulama.
+  - `maintenance/backup_*`, `maintenance/restore_db.sh`: Yedekleme yönetimi.
+  - `deploy/*`: Git, composer, npm, artisan işlemleri tek noktadan.
+  - `user/add_user.sh`, `user/delete_user.sh`, `user/ssh_key_*`: Sistem kullanıcı yönetimi.
 
-**Genel sistem yönetimi**
+## 🧪 Script Doğrulama
 
-#### Sistem Bilgisi ve Durumu
-- ✓ systemctl daemon-reload
-- ✓ systemctl list-units
-- ✓ journalctl (log görüntüleme)
-- ✓ uptime, hostnamectl, timedatectl
-
-#### Site Dizinleri Yönetimi (`/srv/serverbond/`)
-- ✓ Dizin oluşturma
-- ✓ İzin yönetimi (chown, chmod)
-- ✓ Dosya kopyalama/taşıma/silme
-
-#### Git İşlemleri
-- ✓ git clone, pull, fetch
-- ✓ git reset, checkout
-
-#### Dosya Sistem İşlemleri
-- ✓ Arşiv işlemleri (tar, zip, gzip)
-- ✓ Disk kullanımı (df, du)
-- ✓ Dosya arama (find, ls)
-
-#### Process Yönetimi
-- ✓ ps, top, htop, free
-
-#### Firewall Yönetimi (UFW)
-- ✓ UFW status, allow, deny
-- ✓ UFW enable/disable
-- ✓ Kural ekleme/silme
-
-#### Cron Job Yönetimi
-- ✓ crontab görüntüleme ve düzenleme
-
-#### Log Dosyaları
-- ✓ Tüm sistem log dosyalarını okuma
-- ✓ tail, head, grep ile log analizi
-
-**Kullanım Örnekleri:**
-```bash
-sudo systemctl daemon-reload
-sudo git clone https://github.com/user/repo /srv/serverbond/sites/example
-sudo ufw allow 8080
-sudo crontab -l
-sudo journalctl -u nginx
-```
-
----
-
-## 🛡️ Güvenlik Notları
-
-### İzin Verilen İşlemler
-- ✅ Servis yönetimi (start/stop/restart)
-- ✅ Konfigürasyon dosyaları düzenleme (belirlenen dizinlerde)
-- ✅ Log dosyalarını okuma
-- ✅ Site ve uygulama yönetimi
-
-### İzin Verilmeyen İşlemler
-- ❌ Sistem paket kurulumu (apt install)
-- ❌ Kullanıcı yönetimi (useradd, passwd)
-- ❌ Sistem çapında değişiklikler
-- ❌ Kernel parametreleri değiştirme
-- ❌ Root dosya sistemi düzenleme
-
-## 📝 Manuel Yönetim
-
-### Sudoers Dosyasını Düzenlemek
+- Kurulum sırasında `install.sh` tüm betikleri otomatik olarak `bash -n` ile doğrular.
+- `meta/validate_shell.sh` betiği el ile çağrılarak syntax ve isteğe bağlı `shellcheck`
+  kontrolleri yapılabilir:
 
 ```bash
-# Dosyayı düzenle
-sudo visudo -f /etc/sudoers.d/serverbond-nginx
-
-# Dosyayı doğrula
-sudo visudo -c -f /etc/sudoers.d/serverbond-nginx
-
-# İzinleri kontrol et
-ls -la /etc/sudoers.d/
+sudo /opt/serverbond-agent/scripts/meta/validate_shell.sh
 ```
 
-### Sudoers Dosyasını Silmek
+## ℹ️ Notlar
 
-```bash
-sudo rm /etc/sudoers.d/serverbond-nginx
-```
-
-### Test Etme
-
-```bash
-# www-data kullanıcısı olarak test
-sudo -u www-data sudo systemctl status nginx
-sudo -u www-data sudo nginx -t
-```
-
-## 🔄 Kurulum
-
-Bu izinler ServerBond Agent kurulumu sırasında otomatik olarak oluşturulur:
-
-```bash
-sudo bash install.sh
-```
-
-Her servis kurulumu kendi sudoers dosyasını otomatik oluşturur ve doğrular.
-
-## 📚 İlgili Scriptler
-
-- `scripts/install-nginx.sh` → serverbond-nginx
-- `scripts/install-php.sh` → serverbond-php
-- `scripts/install-mysql.sh` → serverbond-mysql
-- `scripts/install-redis.sh` → serverbond-redis
-- `scripts/install-supervisor.sh` → serverbond-supervisor
-- `scripts/install-certbot.sh` → serverbond-certbot
-- `scripts/install-cloudflared.sh` → serverbond-cloudflare
-- `scripts/install-docker.sh` → serverbond-docker
-- `scripts/install-nodejs.sh` → serverbond-nodejs
-- `scripts/install-python.sh` → serverbond-python
-- `scripts/install-serverbond-panel.sh` → serverbond-system
-
-## ⚠️ Önemli Uyarılar
-
-1. **Sudoers dosyalarını doğrudan düzenlemeyin!** Her zaman `visudo` kullanın.
-2. **İzinleri test edin** - Production'a geçmeden önce test edin.
-3. **Yedekleme** - Değişiklik yapmadan önce sudoers dosyalarını yedekleyin.
-4. **Minimal izinler** - Sadece gerekli olan izinleri verin.
-5. **Audit** - Düzenli olarak izinleri gözden geçirin.
-
-## 🆘 Sorun Giderme
-
-### Sudo çalışmıyor
-
-```bash
-# Sudoers dosyasını kontrol et
-sudo visudo -c
-
-# www-data kullanıcı bilgilerini kontrol et
-id www-data
-
-# Log'ları kontrol et
-sudo cat /var/log/auth.log | grep sudo
-```
-
-### İzin hatası alıyorum
-
-```bash
-# Spesifik sudoers dosyasını kontrol et
-sudo visudo -c -f /etc/sudoers.d/serverbond-nginx
-
-# Dosya izinlerini kontrol et
-ls -la /etc/sudoers.d/serverbond-*
-
-# Doğru izinleri ayarla
-sudo chmod 440 /etc/sudoers.d/serverbond-*
-```
-
-## 📞 Destek
-
-Sorun yaşıyorsanız:
-1. Bu dökümantasyonu inceleyin
-2. Log dosyalarını kontrol edin
-3. GitHub Issues'da sorun açın
-
----
-
-**Son Güncelleme:** 2024-01-21  
-**Versiyon:** 1.0.0  
-**Repo:** [beyazitkolemen/serverbond-agent](https://github.com/beyazitkolemen/serverbond-agent)
+- Scriptler `root:www-data` sahipliğinde ve `750/640` izinleriyle dağıtılır.
+- Betikler root yetkisi gerektirir; uygunsuz çağrılar `require_root` kontrolünden geçemez.
+- `run_as_user` yardımcı fonksiyonu, gerektiğinde komutları farklı kullanıcılarla çalıştırmaya
+  imkan verir (örn. `npm.sh --user deploy`).
+- Doğrudan binary çağrıları kaldırıldığı için, yeni işlemler için ilgili scriptler eklenmeli ve
+daha sonra `create_script_sudoers` yardımıyla yetkilendirilmelidir.
 

@@ -60,13 +60,16 @@ if [[ -z "${DB_NAME}" ]]; then
     exit 1
 fi
 
-SQL="SHOW DATABASES LIKE '${DB_NAME//"/\"}';"
+ESCAPED_PATTERN="${DB_NAME//\'/\'\'}"
+ESCAPED_IDENTIFIER="${DB_NAME//\`/\`\`}"
+
+SQL="SHOW DATABASES LIKE '${ESCAPED_PATTERN}';"
 if mysql_exec "${SQL}" | grep -q "${DB_NAME}"; then
     log_warning "${DB_NAME} veritabanı zaten mevcut."
     exit 0
 fi
 
-CREATE_SQL="CREATE DATABASE \`${DB_NAME}\` CHARACTER SET ${CHARSET} COLLATE ${COLLATION};"
+CREATE_SQL="CREATE DATABASE \`${ESCAPED_IDENTIFIER}\` CHARACTER SET ${CHARSET} COLLATE ${COLLATION};"
 log_info "${DB_NAME} veritabanı oluşturuluyor..."
 mysql_exec "${CREATE_SQL}"
 log_success "${DB_NAME} veritabanı oluşturuldu."

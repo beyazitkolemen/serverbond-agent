@@ -67,7 +67,7 @@ log_info "Dosyalar yedekleniyor -> ${OUTPUT_FILE}"
 EXCLUDE_ARGS=()
 for item in ${EXCLUDE}; do
     EXCLUDE_ARGS+=(--exclude "${item}")
-fi
+done
 
 tar czf "${OUTPUT_FILE}" "${EXCLUDE_ARGS[@]}" -C "${SOURCE_DIR}" .
 log_success "Dosya yedeği oluşturuldu: ${OUTPUT_FILE}"

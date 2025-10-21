@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
+SSL_SCRIPT_DIR="${SCRIPT_DIR}/ssl"
 
 CERTBOT_RENEWAL_CRON="${CERTBOT_RENEWAL_CRON:-0 0,12 * * * root certbot renew --quiet}"
 
@@ -26,37 +27,9 @@ fi
 # --- Sudoers yapılandırması ---
 log_info "Sudoers yapılandırması oluşturuluyor..."
 
-# www-data kullanıcısı için Certbot yetkileri
-cat > /etc/sudoers.d/serverbond-certbot <<'EOF'
-# ServerBond Panel - Certbot/SSL Yönetimi
-# www-data kullanıcısının Certbot işlemlerini yapabilmesi için gerekli izinler
-
-# Certbot komutları
-www-data ALL=(ALL) NOPASSWD: /usr/bin/certbot *
-www-data ALL=(ALL) NOPASSWD: /usr/bin/certbot-auto *
-
-# SSL sertifika dosyaları okuma
-www-data ALL=(ALL) NOPASSWD: /bin/cat /etc/letsencrypt/live/*
-www-data ALL=(ALL) NOPASSWD: /bin/ls /etc/letsencrypt/live/*
-www-data ALL=(ALL) NOPASSWD: /bin/ls /etc/letsencrypt/archive/*
-
-# Certbot log dosyaları okuma
-www-data ALL=(ALL) NOPASSWD: /bin/cat /var/log/letsencrypt/*
-www-data ALL=(ALL) NOPASSWD: /usr/bin/tail /var/log/letsencrypt/*
-www-data ALL=(ALL) NOPASSWD: /usr/bin/head /var/log/letsencrypt/*
-EOF
-
-# Dosya izinlerini ayarla
-chmod 440 /etc/sudoers.d/serverbond-certbot
-
-# Sudoers dosyasını doğrula
-if ! visudo -c -f /etc/sudoers.d/serverbond-certbot >/dev/null 2>&1; then
-    log_error "Sudoers dosyası geçersiz! Siliniyor..."
-    rm -f /etc/sudoers.d/serverbond-certbot
+if ! create_script_sudoers "certbot" "${SSL_SCRIPT_DIR}"; then
     exit 1
 fi
-
-log_success "Sudoers yapılandırması başarıyla oluşturuldu!"
 
 # --- Doğrulama ---
 if command -v certbot >/dev/null 2>&1; then

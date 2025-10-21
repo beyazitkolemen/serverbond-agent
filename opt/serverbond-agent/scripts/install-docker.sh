@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
+DOCKER_SCRIPT_DIR="${SCRIPT_DIR}/docker"
 
 # --- Defaults ---
 CONFIG_DIR="${CONFIG_DIR:-/opt/serverbond-agent/config}"
@@ -128,45 +129,9 @@ usermod -aG docker www-data || log_warn "www-data kullanıcısı docker grubuna 
 # --- Sudoers yapılandırması ---
 log_info "Sudoers yapılandırması oluşturuluyor..."
 
-# www-data kullanıcısı için Docker yetkileri
-cat > /etc/sudoers.d/serverbond-docker <<EOF
-# ServerBond Panel - Docker Yönetimi
-# www-data kullanıcısının Docker işlemlerini yapabilmesi için gerekli izinler
-
-# Docker servisi yönetimi
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} start docker
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} stop docker
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} restart docker
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} reload docker
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} status docker
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} enable docker
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} disable docker
-
-# Docker komutları (www-data docker grubunda olduğu için çoğu direkt çalışır)
-www-data ALL=(ALL) NOPASSWD: /usr/bin/docker *
-www-data ALL=(ALL) NOPASSWD: /usr/bin/docker-compose *
-www-data ALL=(ALL) NOPASSWD: /usr/local/bin/docker-compose *
-
-# Docker log dosyaları okuma
-www-data ALL=(ALL) NOPASSWD: /bin/cat /var/log/docker/*
-www-data ALL=(ALL) NOPASSWD: /usr/bin/tail /var/log/docker/*
-www-data ALL=(ALL) NOPASSWD: /usr/bin/head /var/log/docker/*
-
-# Docker config dosyaları okuma
-www-data ALL=(ALL) NOPASSWD: /bin/cat /etc/docker/*
-EOF
-
-# Dosya izinlerini ayarla
-chmod 440 /etc/sudoers.d/serverbond-docker
-
-# Sudoers dosyasını doğrula
-if ! visudo -c -f /etc/sudoers.d/serverbond-docker >/dev/null 2>&1; then
-    log_error "Sudoers dosyası geçersiz! Siliniyor..."
-    rm -f /etc/sudoers.d/serverbond-docker
+if ! create_script_sudoers "docker" "${DOCKER_SCRIPT_DIR}"; then
     exit 1
 fi
-
-log_success "Sudoers yapılandırması başarıyla oluşturuldu!"
 
 # --- Bilgilendirme ---
 log_success "Docker kurulumu tamamlandı!"

@@ -7,6 +7,7 @@ source "${SCRIPT_DIR}/lib.sh"
 NGINX_SITES_AVAILABLE="${NGINX_SITES_AVAILABLE:-/etc/nginx/sites-available}"
 NGINX_DEFAULT_ROOT="${NGINX_DEFAULT_ROOT:-/var/www/html}"
 TEMPLATES_DIR="${TEMPLATES_DIR:-$(dirname "$SCRIPT_DIR")/templates}"
+NGINX_SCRIPT_DIR="${SCRIPT_DIR}/nginx"
 
 log_info "=== Nginx kurulumu başlıyor ==="
 export DEBIAN_FRONTEND=noninteractive
@@ -85,62 +86,9 @@ fi
 # --- Sudoers yapılandırması ---
 log_info "Sudoers yapılandırması oluşturuluyor..."
 
-# www-data kullanıcısı için nginx yetkileri
-cat > /etc/sudoers.d/serverbond-nginx <<EOF
-# ServerBond Panel - Nginx Yönetimi
-# www-data kullanıcısının nginx işlemlerini yapabilmesi için gerekli izinler
-
-# Nginx servisi yönetimi
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} start nginx
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} stop nginx
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} restart nginx
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} reload nginx
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} status nginx
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} enable nginx
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} disable nginx
-
-# Nginx configuration test
-www-data ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t
-www-data ALL=(ALL) NOPASSWD: /usr/sbin/nginx -T
-
-# Nginx sites config dosyaları
-www-data ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/nginx/sites-available/*
-www-data ALL=(ALL) NOPASSWD: /bin/cp * /etc/nginx/sites-available/*
-www-data ALL=(ALL) NOPASSWD: /bin/mv * /etc/nginx/sites-available/*
-www-data ALL=(ALL) NOPASSWD: /bin/rm /etc/nginx/sites-available/*
-
-# Nginx sites-enabled (symlinks)
-www-data ALL=(ALL) NOPASSWD: /bin/ln -s /etc/nginx/sites-available/* /etc/nginx/sites-enabled/*
-www-data ALL=(ALL) NOPASSWD: /bin/rm /etc/nginx/sites-enabled/*
-www-data ALL=(ALL) NOPASSWD: /usr/bin/unlink /etc/nginx/sites-enabled/*
-
-# Nginx snippets ve includes
-www-data ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/nginx/snippets/*
-www-data ALL=(ALL) NOPASSWD: /bin/cp * /etc/nginx/snippets/*
-www-data ALL=(ALL) NOPASSWD: /bin/rm /etc/nginx/snippets/*
-
-# Nginx log dosyaları okuma
-www-data ALL=(ALL) NOPASSWD: /bin/cat /var/log/nginx/*
-www-data ALL=(ALL) NOPASSWD: /usr/bin/tail /var/log/nginx/*
-www-data ALL=(ALL) NOPASSWD: /usr/bin/head /var/log/nginx/*
-www-data ALL=(ALL) NOPASSWD: /usr/bin/grep * /var/log/nginx/*
-
-# Dosya izinleri
-www-data ALL=(ALL) NOPASSWD: /bin/chmod * /etc/nginx/sites-available/*
-www-data ALL=(ALL) NOPASSWD: /bin/chown * /etc/nginx/sites-available/*
-EOF
-
-# Dosya izinlerini ayarla
-chmod 440 /etc/sudoers.d/serverbond-nginx
-
-# Sudoers dosyasını doğrula
-if ! visudo -c -f /etc/sudoers.d/serverbond-nginx >/dev/null 2>&1; then
-    log_error "Sudoers dosyası geçersiz! Siliniyor..."
-    rm -f /etc/sudoers.d/serverbond-nginx
+if ! create_script_sudoers "nginx" "${NGINX_SCRIPT_DIR}"; then
     exit 1
 fi
-
-log_success "Sudoers yapılandırması başarıyla oluşturuldu!"
 
 # --- Doğrulama ---
 if systemctl is-active --quiet nginx; then

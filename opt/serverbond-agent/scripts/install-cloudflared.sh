@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
+CLOUDFLARED_SCRIPT_DIR="${SCRIPT_DIR}/cloudflared"
 
 # --- Konfigürasyon ---
 CLOUDFLARED_VERSION="${CLOUDFLARED_VERSION:-latest}"
@@ -134,50 +135,10 @@ fi
 # --- Sudoers yapılandırması ---
 log_info "Sudoers yapılandırması oluşturuluyor..."
 
-# www-data kullanıcısı için cloudflared yetkileri
-cat > /etc/sudoers.d/serverbond-cloudflare <<EOF
-# ServerBond Panel - Cloudflare Tunnel Yönetimi
-# www-data kullanıcısının cloudflared işlemlerini yapabilmesi için gerekli izinler
-
-# Cloudflared servisi yönetimi
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} start cloudflared
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} stop cloudflared
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} restart cloudflared
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} reload cloudflared
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} status cloudflared
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} enable cloudflared
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} disable cloudflared
-
-# Cloudflared komutları
-www-data ALL=(ALL) NOPASSWD: /usr/bin/cloudflared tunnel *
-www-data ALL=(ALL) NOPASSWD: /usr/bin/cloudflared service *
-www-data ALL=(ALL) NOPASSWD: /usr/bin/cloudflared update
-
-# Cloudflared config dosyaları düzenleme
-www-data ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/cloudflared/*
-www-data ALL=(ALL) NOPASSWD: /bin/cp * /etc/cloudflared/*
-www-data ALL=(ALL) NOPASSWD: /bin/mv * /etc/cloudflared/*
-www-data ALL=(ALL) NOPASSWD: /bin/rm /etc/cloudflared/*
-www-data ALL=(ALL) NOPASSWD: /bin/mkdir -p /etc/cloudflared/*
-www-data ALL=(ALL) NOPASSWD: /bin/chmod * /etc/cloudflared/*
-www-data ALL=(ALL) NOPASSWD: /bin/chown * /etc/cloudflared/*
-
-# Systemd servisi düzenleme
-www-data ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/systemd/system/cloudflared.service
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} daemon-reload
-EOF
-
-# Dosya izinlerini ayarla
-chmod 440 /etc/sudoers.d/serverbond-cloudflare
-
-# Sudoers dosyasını doğrula
-if ! visudo -c -f /etc/sudoers.d/serverbond-cloudflare >/dev/null 2>&1; then
-    log_error "Sudoers dosyası geçersiz! Siliniyor..."
-    rm -f /etc/sudoers.d/serverbond-cloudflare
+if ! create_script_sudoers "cloudflare" "${CLOUDFLARED_SCRIPT_DIR}"; then
     exit 1
 fi
 
-log_success "Sudoers yapılandırması başarıyla oluşturuldu!"
-log_info "www-data kullanıcısı artık cloudflared işlemlerini yapabilir"
+log_info "www-data kullanıcısı artık cloudflared işlemlerini scriptler üzerinden yönetebilir"
 
 log_success "Cloudflared kurulumu tamamlandı!"

@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
+PHP_SCRIPT_DIR="${SCRIPT_DIR}/php"
 
 # --- Varsayılanlar ---
 PHP_VERSION="${PHP_VERSION:-8.3}"
@@ -94,51 +95,9 @@ fi
 # --- Sudoers yapılandırması ---
 log_info "Sudoers yapılandırması oluşturuluyor..."
 
-# www-data kullanıcısı için PHP-FPM yetkileri
-cat > /etc/sudoers.d/serverbond-php <<EOF
-# ServerBond Panel - PHP-FPM Yönetimi
-# www-data kullanıcısının PHP-FPM işlemlerini yapabilmesi için gerekli izinler
-
-# PHP-FPM servisi yönetimi (dinamik versiyon desteği)
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} start php*-fpm
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} stop php*-fpm
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} restart php*-fpm
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} reload php*-fpm
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} status php*-fpm
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} enable php*-fpm
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} disable php*-fpm
-
-# PHP ini dosyaları okuma
-www-data ALL=(ALL) NOPASSWD: /bin/cat /etc/php/*/fpm/php.ini
-www-data ALL=(ALL) NOPASSWD: /bin/cat /etc/php/*/cli/php.ini
-www-data ALL=(ALL) NOPASSWD: /bin/cat /etc/php/*/fpm/pool.d/*
-
-# PHP-FPM pool yapılandırma dosyaları
-www-data ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/php/*/fpm/pool.d/*
-www-data ALL=(ALL) NOPASSWD: /bin/cp * /etc/php/*/fpm/pool.d/*
-www-data ALL=(ALL) NOPASSWD: /bin/mv * /etc/php/*/fpm/pool.d/*
-www-data ALL=(ALL) NOPASSWD: /bin/rm /etc/php/*/fpm/pool.d/*.conf
-
-# PHP log dosyaları okuma
-www-data ALL=(ALL) NOPASSWD: /bin/cat /var/log/php*-fpm.log
-www-data ALL=(ALL) NOPASSWD: /usr/bin/tail /var/log/php*-fpm.log
-www-data ALL=(ALL) NOPASSWD: /usr/bin/head /var/log/php*-fpm.log
-
-# Composer global olarak çalıştırma
-www-data ALL=(ALL) NOPASSWD: /usr/local/bin/composer *
-EOF
-
-# Dosya izinlerini ayarla
-chmod 440 /etc/sudoers.d/serverbond-php
-
-# Sudoers dosyasını doğrula
-if ! visudo -c -f /etc/sudoers.d/serverbond-php >/dev/null 2>&1; then
-    log_error "Sudoers dosyası geçersiz! Siliniyor..."
-    rm -f /etc/sudoers.d/serverbond-php
+if ! create_script_sudoers "php" "${PHP_SCRIPT_DIR}"; then
     exit 1
 fi
-
-log_success "Sudoers yapılandırması başarıyla oluşturuldu!"
 
 # --- Son durum ---
 log_success "PHP ${PHP_VERSION} kurulumu tamamlandı!"

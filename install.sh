@@ -683,10 +683,46 @@ download_scripts() {
     # Clean up
     rm -rf /tmp/sb-tmp
     
-    # Make scripts executable
-    chmod +x "${SCRIPTS_DIR}"/*.sh 2>/dev/null || true
-    
     log_success "Latest scripts and templates ready"
+}
+
+set_script_permissions() {
+    log_step "Hardening script permissions..."
+
+    if ! getent group www-data >/dev/null 2>&1; then
+        log_warn "www-data grubu bulunamadı, oluşturuluyor..."
+        groupadd --system www-data
+    fi
+
+    chown -R root:www-data "${SCRIPTS_DIR}" 2>/dev/null || true
+
+    find "${SCRIPTS_DIR}" -type d -exec chmod 750 {} +
+    find "${SCRIPTS_DIR}" -type f -name '*.sh' -exec chmod 750 {} +
+    find "${SCRIPTS_DIR}" -type f ! -name '*.sh' -exec chmod 640 {} +
+
+    log_success "Script permissions tightened"
+}
+
+lint_shell_scripts() {
+    log_step "Running shell syntax checks..."
+
+    local script
+    local failure=0
+
+    while IFS= read -r -d '' script; do
+        if ! bash -n "$script" 2>>"$LOG_FILE"; then
+            log_error "Syntax error detected in $script"
+            failure=1
+        fi
+    done < <(find "${SCRIPTS_DIR}" -type f -name '*.sh' -print0)
+
+    if ((failure)); then
+        show_log_tail
+        log_error "Shell syntax validation failed"
+        exit 1
+    fi
+
+    log_success "All shell scripts passed syntax validation"
 }
 
 verify_downloaded_scripts() {
@@ -785,6 +821,8 @@ main() {
     # Prepare system and fetch latest scripts
     prepare_system
     download_scripts
+    set_script_permissions
+    lint_shell_scripts
     log_step "Validating installer scripts..."
     verify_downloaded_scripts
     log_success "Installer scripts verified"

@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
+MYSQL_SCRIPT_DIR="${SCRIPT_DIR}/mysql"
 
 CONFIG_DIR="${CONFIG_DIR:-/opt/serverbond-agent/config}"
 MYSQL_ROOT_PASSWORD_FILE="${MYSQL_ROOT_PASSWORD_FILE:-${CONFIG_DIR}/.mysql_root_password}"
@@ -79,48 +80,9 @@ EOSQL
 # --- Sudoers yapılandırması ---
 log_info "Sudoers yapılandırması oluşturuluyor..."
 
-# www-data kullanıcısı için MySQL yetkileri
-cat > /etc/sudoers.d/serverbond-mysql <<EOF
-# ServerBond Panel - MySQL Yönetimi
-# www-data kullanıcısının MySQL işlemlerini yapabilmesi için gerekli izinler
-
-# MySQL servisi yönetimi
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} start mysql
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} stop mysql
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} restart mysql
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} reload mysql
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} status mysql
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} enable mysql
-www-data ALL=(ALL) NOPASSWD: ${SYSTEMCTL_BIN} disable mysql
-
-# MySQL komutları
-www-data ALL=(ALL) NOPASSWD: /usr/bin/mysql *
-www-data ALL=(ALL) NOPASSWD: /usr/bin/mysqldump *
-www-data ALL=(ALL) NOPASSWD: /usr/bin/mysqladmin *
-www-data ALL=(ALL) NOPASSWD: /usr/bin/mysqlcheck *
-
-# MySQL log dosyaları okuma
-www-data ALL=(ALL) NOPASSWD: /bin/cat /var/log/mysql/*
-www-data ALL=(ALL) NOPASSWD: /usr/bin/tail /var/log/mysql/*
-www-data ALL=(ALL) NOPASSWD: /usr/bin/head /var/log/mysql/*
-
-# MySQL config dosyaları okuma
-www-data ALL=(ALL) NOPASSWD: /bin/cat /etc/mysql/*
-www-data ALL=(ALL) NOPASSWD: /bin/cat /etc/mysql/mysql.conf.d/*
-www-data ALL=(ALL) NOPASSWD: /bin/cat /etc/mysql/conf.d/*
-EOF
-
-# Dosya izinlerini ayarla
-chmod 440 /etc/sudoers.d/serverbond-mysql
-
-# Sudoers dosyasını doğrula
-if ! visudo -c -f /etc/sudoers.d/serverbond-mysql >/dev/null 2>&1; then
-    log_error "Sudoers dosyası geçersiz! Siliniyor..."
-    rm -f /etc/sudoers.d/serverbond-mysql
+if ! create_script_sudoers "mysql" "${MYSQL_SCRIPT_DIR}"; then
     exit 1
 fi
-
-log_success "Sudoers yapılandırması başarıyla oluşturuldu!"
 
 log_success "=== MySQL Installation Completed Successfully ==="
 log_info "Root password stored at: ${MYSQL_ROOT_PASSWORD_FILE}"
