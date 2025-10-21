@@ -11,8 +11,32 @@ MYSQL_ROOT_PASSWORD_FILE="${MYSQL_ROOT_PASSWORD_FILE:-${CONFIG_DIR}/.mysql_root_
 
 log_info "MySQL kuruluyor..."
 
-# Generate random password
-MYSQL_ROOT_PASSWORD=$(openssl rand -base64 32)
+# Check if password already exists
+mkdir -p "${CONFIG_DIR}"
+
+if [[ -f "${MYSQL_ROOT_PASSWORD_FILE}" ]]; then
+    MYSQL_ROOT_PASSWORD=$(cat "${MYSQL_ROOT_PASSWORD_FILE}" | tr -d '\n\r')
+    
+    if [[ -n "$MYSQL_ROOT_PASSWORD" ]]; then
+        log_info "Mevcut MySQL şifresi kullanılıyor"
+        PASSWORD_EXISTS=true
+    else
+        log_warn "Şifre dosyası boş, yeni şifre oluşturuluyor"
+        MYSQL_ROOT_PASSWORD=$(openssl rand -base64 32)
+        PASSWORD_EXISTS=false
+    fi
+else
+    log_info "Yeni MySQL şifresi oluşturuluyor..."
+    MYSQL_ROOT_PASSWORD=$(openssl rand -base64 32)
+    PASSWORD_EXISTS=false
+fi
+
+# Save password if new
+if [[ "$PASSWORD_EXISTS" != "true" ]]; then
+    echo "$MYSQL_ROOT_PASSWORD" > "${MYSQL_ROOT_PASSWORD_FILE}"
+    chmod 600 "${MYSQL_ROOT_PASSWORD_FILE}"
+    log_success "MySQL şifresi kaydedildi: ${MYSQL_ROOT_PASSWORD_FILE}"
+fi
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -22,13 +46,6 @@ apt-get install -y -qq mysql-server 2>&1 | grep -v "^$" || true
 mkdir -p /var/run/mysqld /var/log/mysql
 chown mysql:mysql /var/run/mysqld /var/log/mysql
 chmod 755 /var/run/mysqld
-
-# Save password first (before starting MySQL)
-mkdir -p "${CONFIG_DIR}"
-echo "$MYSQL_ROOT_PASSWORD" > "${MYSQL_ROOT_PASSWORD_FILE}"
-chmod 600 "${MYSQL_ROOT_PASSWORD_FILE}"
-
-log_info "MySQL şifresi kaydedildi: ${MYSQL_ROOT_PASSWORD_FILE}"
 
 systemctl_safe enable mysql
 systemctl_safe start mysql
@@ -47,8 +64,23 @@ for i in {1..30}; do
     sleep 1
 done
 
-# Secure installation
-if mysql -u root -e "SELECT 1;" &> /dev/null; then
+# Check if MySQL is already secured
+MYSQL_SECURED=false
+
+# Try with password first
+if mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SELECT 1;" &> /dev/null 2>&1; then
+    log_success "MySQL zaten güvenli (şifreli)"
+    MYSQL_SECURED=true
+elif mysql -u root -e "SELECT 1;" &> /dev/null 2>&1; then
+    log_info "MySQL şifresiz çalışıyor, güvenlik ayarları yapılıyor..."
+    MYSQL_SECURED=false
+else
+    log_error "MySQL root erişimi başarısız!"
+    exit 1
+fi
+
+# Secure installation only if not already secured
+if [[ "$MYSQL_SECURED" != "true" ]]; then
     log_info "MySQL güvenlik ayarları yapılıyor..."
     mysql -u root <<EOSQL 2>&1 | grep -v "^$" || true
 ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASSWORD}';
@@ -59,8 +91,7 @@ FLUSH PRIVILEGES;
 EOSQL
     log_success "MySQL güvenlik ayarları tamamlandı"
 else
-    log_error "MySQL root erişimi başarısız!"
-    exit 1
+    log_info "MySQL güvenlik ayarları zaten yapılmış, atlanıyor"
 fi
 
 log_success "MySQL kuruldu"

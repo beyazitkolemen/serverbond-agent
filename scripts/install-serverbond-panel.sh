@@ -167,21 +167,39 @@ if [[ -f "$MYSQL_ROOT_PASSWORD_FILE" ]]; then
     fi
     
     log_info "MySQL şifresi okundu: ${#MYSQL_ROOT_PASSWORD} karakter"
-    log_info "Veritabanı oluşturuluyor..."
     
     # Test MySQL connection first
-    if ! mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SELECT 1;" &> /dev/null; then
+    if ! mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SELECT 1;" &> /dev/null 2>&1; then
         log_error "MySQL bağlantı hatası! Şifre doğru değil."
         log_info "Şifre dosyası: ${MYSQL_ROOT_PASSWORD_FILE}"
         exit 1
     fi
     
-    # Create database
-    mysql -u root -p"${MYSQL_ROOT_PASSWORD}" <<EOSQL 2>&1 | grep -v "Warning" || true
+    log_success "MySQL bağlantısı başarılı"
+    
+    # Check if database already exists
+    if mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "USE ${LARAVEL_DB_NAME}; SELECT 1;" &> /dev/null 2>&1; then
+        log_info "Veritabanı zaten mevcut: ${LARAVEL_DB_NAME}"
+        
+        # Count existing tables
+        TABLE_COUNT=$(mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -D "${LARAVEL_DB_NAME}" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${LARAVEL_DB_NAME}';" -N -B 2>/dev/null)
+        log_info "Mevcut tablo sayısı: ${TABLE_COUNT}"
+        
+        if [[ "$TABLE_COUNT" -gt 0 ]]; then
+            log_warn "Veritabanında tablolar var, migration atlanabilir"
+        fi
+    else
+        log_info "Veritabanı oluşturuluyor: ${LARAVEL_DB_NAME}"
+        
+        # Create database
+        mysql -u root -p"${MYSQL_ROOT_PASSWORD}" <<EOSQL 2>&1 | grep -v "Warning" || true
 CREATE DATABASE IF NOT EXISTS ${LARAVEL_DB_NAME} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 GRANT ALL PRIVILEGES ON ${LARAVEL_DB_NAME}.* TO 'root'@'localhost';
 FLUSH PRIVILEGES;
 EOSQL
+        
+        log_success "Veritabanı oluşturuldu: ${LARAVEL_DB_NAME}"
+    fi
     
     # Update .env with database credentials (escape special characters)
     log_info ".env dosyası güncelleniyor..."
@@ -196,7 +214,7 @@ EOSQL
     # Update database password
     sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=${ESCAPED_PASSWORD}|" .env
     
-    log_success "Veritabanı hazır: ${LARAVEL_DB_NAME}"
+    log_success ".env dosyası güncellendi"
 else
     log_error "MySQL şifre dosyası bulunamadı: ${MYSQL_ROOT_PASSWORD_FILE}"
     exit 1
