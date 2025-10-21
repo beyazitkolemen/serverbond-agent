@@ -131,4 +131,53 @@ EOF
     log_info "Kurulum bilgisi kaydedildi: ${CONFIG_DIR}/.cloudflared_setup_info"
 fi
 
+# --- Sudoers yapılandırması ---
+log_info "Sudoers yapılandırması oluşturuluyor..."
+
+# www-data kullanıcısı için cloudflared yetkileri
+cat > /etc/sudoers.d/serverbond-cloudflare <<'EOF'
+# ServerBond Panel - Cloudflare Tunnel Yönetimi
+# www-data kullanıcısının cloudflared işlemlerini yapabilmesi için gerekli izinler
+
+# Cloudflared servisi yönetimi
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl start cloudflared
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl stop cloudflared
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl restart cloudflared
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl reload cloudflared
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl status cloudflared
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl enable cloudflared
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl disable cloudflared
+
+# Cloudflared komutları
+www-data ALL=(ALL) NOPASSWD: /usr/bin/cloudflared tunnel *
+www-data ALL=(ALL) NOPASSWD: /usr/bin/cloudflared service *
+www-data ALL=(ALL) NOPASSWD: /usr/bin/cloudflared update
+
+# Cloudflared config dosyaları düzenleme
+www-data ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/cloudflared/*
+www-data ALL=(ALL) NOPASSWD: /bin/cp * /etc/cloudflared/*
+www-data ALL=(ALL) NOPASSWD: /bin/mv * /etc/cloudflared/*
+www-data ALL=(ALL) NOPASSWD: /bin/rm /etc/cloudflared/*
+www-data ALL=(ALL) NOPASSWD: /bin/mkdir -p /etc/cloudflared/*
+www-data ALL=(ALL) NOPASSWD: /bin/chmod * /etc/cloudflared/*
+www-data ALL=(ALL) NOPASSWD: /bin/chown * /etc/cloudflared/*
+
+# Systemd servisi düzenleme
+www-data ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/systemd/system/cloudflared.service
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl daemon-reload
+EOF
+
+# Dosya izinlerini ayarla
+chmod 440 /etc/sudoers.d/serverbond-cloudflare
+
+# Sudoers dosyasını doğrula
+if ! visudo -c -f /etc/sudoers.d/serverbond-cloudflare >/dev/null 2>&1; then
+    log_error "Sudoers dosyası geçersiz! Siliniyor..."
+    rm -f /etc/sudoers.d/serverbond-cloudflare
+    exit 1
+fi
+
+log_success "Sudoers yapılandırması başarıyla oluşturuldu!"
+log_info "www-data kullanıcısı artık cloudflared işlemlerini yapabilir"
+
 log_success "Cloudflared kurulumu tamamlandı!"
