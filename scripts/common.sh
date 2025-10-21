@@ -84,3 +84,28 @@ check_package() {
 check_command() {
     command -v "$1" >/dev/null 2>&1
 }
+
+# --- Require root privileges ---
+require_root() {
+    if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+        log_error "Bu script root yetkisi ile çalıştırılmalıdır."
+        exit 1
+    fi
+}
+
+# --- Resolve first matching systemd unit ---
+find_systemd_unit() {
+    local pattern="${1:-}"
+    if [[ -z "$pattern" ]]; then
+        log_warning "find_systemd_unit: arama deseni eksik"
+        return 1
+    fi
+
+    if ! command -v systemctl >/dev/null 2>&1; then
+        return 1
+    fi
+
+    systemctl list-unit-files "$pattern" 2>/dev/null \
+        | awk 'NR>1 && $1 != "" {print $1}' \
+        | head -n 1
+}

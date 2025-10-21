@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+COMMON_SH="${ROOT_DIR}/scripts/common.sh"
+
+if [[ ! -f "${COMMON_SH}" ]]; then
+    echo "common.sh bulunamadı: ${COMMON_SH}" >&2
+    exit 1
+fi
+
+# shellcheck source=../scripts/common.sh
+source "${COMMON_SH}"
+
+require_root
+
+PROJECT_DIR="."
+COMPOSE_FILE=""
+REMOVE_VOLUMES=false
+
+usage() {
+    cat <<'USAGE'
+Kullanım: docker/compose_down.sh [--path /proje] [--file docker-compose.yml] [--volumes]
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --path)
+            PROJECT_DIR="${2:-.}"
+            shift 2
+            ;;
+        --file)
+            COMPOSE_FILE="${2:-}"
+            shift 2
+            ;;
+        --volumes)
+            REMOVE_VOLUMES=true
+            shift
+            ;;
+        --help)
+            usage
+            exit 0
+            ;;
+        *)
+            log_error "Bilinmeyen seçenek: $1"
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+if [[ ! -d "${PROJECT_DIR}" ]]; then
+    log_error "Proje dizini bulunamadı: ${PROJECT_DIR}"
+    exit 1
+fi
+
+COMPOSE_BIN=""
+if command -v docker-compose >/dev/null 2>&1; then
+    COMPOSE_BIN="docker-compose"
+elif docker compose version >/dev/null 2>&1; then
+    COMPOSE_BIN="docker compose"
+else
+    log_error "docker-compose veya docker compose komutu bulunamadı."
+    exit 1
+fi
+
+ARGS=(down)
+[[ -n "${COMPOSE_FILE}" ]] && ARGS+=(-f "${COMPOSE_FILE}")
+[[ "${REMOVE_VOLUMES}" == true ]] && ARGS+=(--volumes)
+
+log_info "Docker Compose servisleri durduruluyor..."
+(
+    cd "${PROJECT_DIR}"
+    ${COMPOSE_BIN} "${ARGS[@]}"
+)
+log_success "Docker Compose servisleri durduruldu."
+
