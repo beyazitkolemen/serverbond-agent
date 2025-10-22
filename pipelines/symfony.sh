@@ -14,6 +14,10 @@ RUN_TESTS=false
 TEST_COMMAND=""
 NPM_SCRIPT="build"
 NPM_SKIP_INSTALL=false
+AUTO_SETUP_NGINX=false
+NGINX_DOMAIN=""
+NGINX_TEMPLATE_TYPE="php"
+NGINX_SSL_EMAIL=""
 
 # Symfony özel kullanım bilgisi
 print_symfony_usage() {
@@ -30,6 +34,10 @@ Symfony Özel Seçenekleri:
   --npm-skip-install        npm install adımını atla
   --run-tests               php bin/phpunit komutunu çalıştır
   --tests "COMMAND"         Belirtilen test komutunu çalıştır
+  --setup-nginx             Nginx site otomatik kurulumu yap
+  --nginx-domain DOMAIN     Nginx site domain adı
+  --nginx-template TYPE     Nginx template türü (varsayılan: php)
+  --nginx-ssl-email EMAIL   SSL sertifikası için email adresi
 
 Ortak seçenekler için --help ortak seçenekleri gösterir.
 USAGE
@@ -71,6 +79,22 @@ parse_symfony_args() {
             --tests)
                 RUN_TESTS=true
                 TEST_COMMAND="${2:-}"
+                shift 2
+                ;;
+            --setup-nginx)
+                AUTO_SETUP_NGINX=true
+                shift
+                ;;
+            --nginx-domain)
+                NGINX_DOMAIN="${2:-}"
+                shift 2
+                ;;
+            --nginx-template)
+                NGINX_TEMPLATE_TYPE="${2:-php}"
+                shift 2
+                ;;
+            --nginx-ssl-email)
+                NGINX_SSL_EMAIL="${2:-}"
                 shift 2
                 ;;
             --help|-h)
@@ -115,6 +139,11 @@ run_symfony_steps() {
     
     # Paylaşılan kaynakları kur
     setup_shared_resources "${release_dir}" "${SHARED_DIR}" "${default_shared[@]}" "${CUSTOM_SHARED[@]}"
+    
+    # Nginx otomatik kurulumu
+    if [[ "${AUTO_SETUP_NGINX}" == true ]]; then
+        setup_nginx_for_symfony "${release_dir}"
+    fi
     
     # Composer install
     if [[ "${run_composer}" == true ]]; then
@@ -164,6 +193,60 @@ run_symfony_steps() {
     fi
     
     return 0
+}
+
+# Symfony için Nginx kurulumu
+setup_nginx_for_symfony() {
+    local release_dir="$1"
+    
+    if [[ -z "${NGINX_DOMAIN}" ]]; then
+        log_warning "Nginx domain belirtilmedi, Nginx kurulumu atlanıyor"
+        return 0
+    fi
+    
+    log_info "Symfony için Nginx site kurulumu yapılıyor..."
+    
+    # Nginx kurulu mu kontrol et
+    if ! command -v nginx >/dev/null 2>&1; then
+        log_info "Nginx kuruluyor..."
+        local install_script="${SCRIPTS_DIR}/install/install-nginx.sh"
+        if [[ -x "${install_script}" ]]; then
+            if ! "${install_script}" --template "${NGINX_TEMPLATE_TYPE}"; then
+                log_error "Nginx kurulumu başarısız"
+                return 1
+            fi
+        else
+            log_error "Nginx kurulum scripti bulunamadı"
+            return 1
+        fi
+    fi
+    
+    # Symfony public dizinini bul
+    local public_dir="${release_dir}/public"
+    if [[ ! -d "${public_dir}" ]]; then
+        public_dir="${release_dir}/web"
+        if [[ ! -d "${public_dir}" ]]; then
+            public_dir="${release_dir}"
+            log_warning "Symfony public dizini bulunamadı, proje kök dizini kullanılıyor"
+        fi
+    fi
+    
+    # Symfony site oluştur
+    local add_site_script="${SCRIPTS_DIR}/nginx/add_site.sh"
+    if [[ -x "${add_site_script}" ]]; then
+        local site_args=("--domain" "${NGINX_DOMAIN}" "--template-type" "php" "--root" "${public_dir}")
+        if [[ -n "${NGINX_SSL_EMAIL}" ]]; then
+            site_args+=("--enable-ssl" "--ssl-email" "${NGINX_SSL_EMAIL}")
+        fi
+        if ! "${add_site_script}" "${site_args[@]}"; then
+            log_error "Symfony Nginx site oluşturma başarısız"
+            return 1
+        fi
+        log_success "Symfony Nginx site oluşturuldu: ${NGINX_DOMAIN}"
+    else
+        log_error "Nginx site ekleme scripti bulunamadı"
+        return 1
+    fi
 }
 
 # Symfony callback fonksiyonu
