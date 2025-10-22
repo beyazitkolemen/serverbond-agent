@@ -19,18 +19,29 @@ apt-get install -y -qq curl git ca-certificates build-essential > /dev/null
 if [[ ! -d "$NVM_DIR" ]]; then
   log "NVM kuruluyor..."
   curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+  
+  # NVM kurulumundan sonra ortamı yükle
+  export NVM_DIR="$NVM_DIR"
+  # shellcheck disable=SC1091
+  source "$NVM_DIR/nvm.sh"
+else
+  # Mevcut NVM'i yükle
+  export NVM_DIR="$NVM_DIR"
+  # shellcheck disable=SC1091
+  source "$NVM_DIR/nvm.sh"
 fi
-
-# NVM ortamını yükle
-export NVM_DIR="$NVM_DIR"
-# shellcheck disable=SC1091
-source "$NVM_DIR/nvm.sh"
 
 # --- Node.js Kurulumu ---
 log "Node.js kurulumu yapılıyor..."
 nvm install "$NODE_VERSION"
 nvm alias default "$NODE_VERSION"
-nvm use default >/dev/null 2>&1
+nvm use default
+
+# NVM'in doğru çalıştığını kontrol et
+if ! command -v node >/dev/null 2>&1; then
+  error "Node.js kurulumu başarısız!"
+  exit 1
+fi
 
 # PATH kalıcı hale getir
 {
@@ -40,8 +51,27 @@ nvm use default >/dev/null 2>&1
 } >> /root/.bashrc
 
 # --- Global NPM Paketleri ---
-log "Global NPM paketleri kuruluyor: ${NPM_GLOBAL_PACKAGES}"
-npm install -g ${NPM_GLOBAL_PACKAGES} --quiet || true
+if [[ -n "${NPM_GLOBAL_PACKAGES}" ]]; then
+  log "Global NPM paketleri kuruluyor: ${NPM_GLOBAL_PACKAGES}"
+  
+  # NPM'in çalıştığını kontrol et
+  if ! command -v npm >/dev/null 2>&1; then
+    error "NPM bulunamadı! Node.js kurulumu kontrol ediliyor..."
+    exit 1
+  fi
+  
+  # Her paketi ayrı ayrı kur
+  for package in ${NPM_GLOBAL_PACKAGES}; do
+    log "Kuruluyor: ${package}"
+    if npm install -g "${package}" --quiet; then
+      log "✓ ${package} başarıyla kuruldu"
+    else
+      error "✗ ${package} kurulumu başarısız"
+    fi
+  done
+else
+  log "Global NPM paketi belirtilmedi, atlanıyor"
+fi
 
 # --- PM2 systemd setup ---
 if command -v pm2 >/dev/null 2>&1; then
@@ -50,9 +80,15 @@ if command -v pm2 >/dev/null 2>&1; then
 fi
 
 # --- NPM yapılandırması ---
+log "NPM yapılandırması yapılıyor..."
 npm config set fund false >/dev/null 2>&1 || true
 npm config set audit false >/dev/null 2>&1 || true
+npm config set progress false >/dev/null 2>&1 || true
 npm cache clean --force >/dev/null 2>&1 || true
+
+# NPM versiyonunu kontrol et
+NPM_VERSION=$(npm -v 2>/dev/null || echo "unknown")
+log "NPM versiyonu: ${NPM_VERSION}"
 
 success "Node.js ortamı başarıyla kuruldu!"
 log "Node  : $(node -v)"
