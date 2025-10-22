@@ -176,6 +176,28 @@ sudo ./opt/serverbond-agent/scripts/install-redis.sh
 
 # Cloudflared only
 sudo ./opt/serverbond-agent/scripts/install-cloudflared.sh
+
+# WordPress install helper
+sudo ./opt/serverbond-agent/scripts/wordpress/install.sh \
+  --path /var/www/example \
+  --db-name example_db \
+  --db-user example_user \
+  --db-password secret \
+  --url https://example.com \
+  --title "Example" \
+  --admin-user admin \
+  --admin-password pass123 \
+  --admin-email admin@example.com
+
+# Update wp-config values
+sudo ./opt/serverbond-agent/scripts/wordpress/update_config.sh \
+  --path /var/www/example \
+  --enable-debug \
+  --set-raw WP_CACHE=true
+
+# Reset WordPress permissions
+sudo ./opt/serverbond-agent/scripts/wordpress/set_permissions.sh \
+  --path /var/www/example
 ```
 
 ## 🔧 Troubleshooting
