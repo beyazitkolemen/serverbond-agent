@@ -61,31 +61,6 @@ clone_repository() {
     fi
 }
 
-# Env dosyalarını kopyalama
-copy_env_files() {
-    local release_dir="$1"
-    local env_mappings=("${@:2}")
-    local spec src dest target_dir
-    for spec in "${env_mappings[@]}"; do
-        [[ -z "${spec}" ]] && continue
-        if [[ "${spec}" == *":"* ]]; then
-            src="${spec%%:*}"
-            dest="${spec#*:}"
-        else
-            src="${spec}"
-            dest="$(basename "${spec}")"
-        fi
-        if [[ ! -f "${src}" ]]; then
-            log_error "Env dosyası bulunamadı: ${src}"
-            exit 1
-        fi
-        target_dir="${release_dir}/${dest}"
-        mkdir -p "$(dirname "${target_dir}")"
-        cp "${src}" "${target_dir}"
-        chmod 600 "${target_dir}"
-        log_info "Env dosyası kopyalandı: ${dest}"
-    done
-}
 
 # Paylaşılan kaynak kurulumu
 setup_shared_resource() {
