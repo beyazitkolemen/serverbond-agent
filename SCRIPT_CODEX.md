@@ -26,6 +26,7 @@ Bu dokümantasyon, ServerBond Agent scriptlerinin PHP tarafından uzaktan çalı
 14. [Cloudflare Scripts](#14-cloudflare-scripts)
 15. [Python Scripts](#15-python-scripts)
 16. [Meta Scripts](#16-meta-scripts)
+17. [WordPress Scripts](#17-wordpress-scripts)
 
 ## 1. NGINX Scripts
 
@@ -1166,6 +1167,97 @@ exec($command, $output, $return_code);
 **PHP Örneği:**
 ```php
 $command = '/opt/serverbond-agent/scripts/meta/version.sh';
+exec($command, $output, $return_code);
+```
+
+## 17. WordPress Scripts
+
+### 17.1. WordPress Kurulumu (install.sh)
+**Amaç:** Sunucuya yeni bir WordPress kurulumu gerçekleştirir.
+
+**Zorunlu Parametreler:**
+- `--path`: Kurulum yapılacak dizin
+- `--db-name`: Veritabanı adı
+- `--db-user`: Veritabanı kullanıcısı
+- `--db-password`: Veritabanı şifresi
+
+**Opsiyonel Parametreler:**
+- `--url`: Site URL bilgisi
+- `--title`: Site başlığı
+- `--admin-user`: Yönetici kullanıcı adı
+- `--admin-password`: Yönetici şifresi
+- `--admin-email`: Yönetici e-postası
+- `--db-host`: Veritabanı host adresi (varsayılan: localhost)
+- `--db-prefix`: Tablo ön eki (varsayılan: wp_)
+- `--version`: Kurulacak WordPress sürümü (varsayılan: latest)
+- `--locale`: WP-CLI kurulumu için dil seçimi
+- `--skip-core-install`: WP-CLI ile kurulum adımını atla
+- `--skip-permissions`: Dosya izinlerini değiştirmeyi atla
+- `--skip-salts`: Gizli anahtar üretimini atla
+- `--force`: Hedef dizin boş değilse temizleyerek devam et
+- `--owner`: Dosya sahipliği (varsayılan: www-data)
+- `--group`: Dosya grup bilgisi (varsayılan: www-data)
+
+**PHP Örneği:**
+```php
+$command = '/opt/serverbond-agent/scripts/wordpress/install.sh '
+    . '--path /var/www/example '
+    . '--db-name example_db '
+    . '--db-user example_user '
+    . '--db-password secret '
+    . '--url https://example.com '
+    . '--title "Example" '
+    . '--admin-user admin '
+    . '--admin-password pass123 '
+    . '--admin-email admin@example.com';
+exec($command, $output, $return_code);
+```
+
+### 17.2. wp-config Güncelleme (update_config.sh)
+**Amaç:** WordPress `wp-config.php` dosyasında yapılandırma değişiklikleri yapar.
+
+**Zorunlu Parametreler:**
+- `--path`: WordPress dizini
+
+**Opsiyonel Parametreler:**
+- `--db-name`, `--db-user`, `--db-password`, `--db-host`
+- `--db-prefix`: Tablo ön eki
+- `--set KEY=VALUE`: Belirtilen sabiti string değerle güncelle
+- `--set-raw KEY=EXPR`: Sabiti ham ifade ile güncelle (örn: true)
+- `--remove KEY`: İlgili sabiti kaldır
+- `--enable-debug` veya `--disable-debug`
+- `--regenerate-salts`: Gizli anahtarları yenile
+- `--apply-permissions`: İşlem sonunda dosya izinlerini uygula
+- `--owner`, `--group`: İzin güncellemesi için sahiplik bilgileri
+
+**PHP Örneği:**
+```php
+$command = '/opt/serverbond-agent/scripts/wordpress/update_config.sh '
+    . '--path /var/www/example '
+    . '--db-name example_db '
+    . '--db-password newpass '
+    . '--enable-debug '
+    . '--set AUTH_KEY=my-secret-key '
+    . '--regenerate-salts';
+exec($command, $output, $return_code);
+```
+
+### 17.3. İzinleri Güncelleme (set_permissions.sh)
+**Amaç:** WordPress dizini için dosya ve klasör izinlerini günceller.
+
+**Zorunlu Parametreler:**
+- `--path`: WordPress dizini
+
+**Opsiyonel Parametreler:**
+- `--owner`: Dosya sahibini belirtir (varsayılan: www-data)
+- `--group`: Dosya grubunu belirtir (varsayılan: www-data)
+
+**PHP Örneği:**
+```php
+$command = '/opt/serverbond-agent/scripts/wordpress/set_permissions.sh '
+    . '--path /var/www/example '
+    . '--owner www-data '
+    . '--group www-data';
 exec($command, $output, $return_code);
 ```
 
