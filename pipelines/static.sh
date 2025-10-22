@@ -10,6 +10,10 @@ PIPELINE_SCRIPT="${SCRIPT_DIR}/pipeline.sh"
 # Static özel değişkenler
 STATIC_BUILD_SCRIPT=""
 STATIC_OUTPUT_DIR=""
+AUTO_SETUP_NGINX=false
+NGINX_DOMAIN=""
+NGINX_TEMPLATE_TYPE="static"
+NGINX_SSL_EMAIL=""
 
 # Static özel kullanım bilgisi
 print_static_usage() {
@@ -20,6 +24,10 @@ Static Pipeline Kullanımı:
 Static Özel Seçenekleri:
   --static-build NAME       Static proje için npm run NAME çalıştır
   --static-output PATH      build çıktısını paylaşılan dizine senkronla (relative path)
+  --setup-nginx             Nginx site otomatik kurulumu yap
+  --nginx-domain DOMAIN     Nginx site domain adı
+  --nginx-template TYPE     Nginx template türü (varsayılan: static)
+  --nginx-ssl-email EMAIL   SSL sertifikası için email adresi
 
 Ortak seçenekler için --help ortak seçenekleri gösterir.
 USAGE
@@ -35,6 +43,22 @@ parse_static_args() {
                 ;;
             --static-output)
                 STATIC_OUTPUT_DIR="${2:-}"
+                shift 2
+                ;;
+            --setup-nginx)
+                AUTO_SETUP_NGINX=true
+                shift
+                ;;
+            --nginx-domain)
+                NGINX_DOMAIN="${2:-}"
+                shift 2
+                ;;
+            --nginx-template)
+                NGINX_TEMPLATE_TYPE="${2:-static}"
+                shift 2
+                ;;
+            --nginx-ssl-email)
+                NGINX_SSL_EMAIL="${2:-}"
                 shift 2
                 ;;
             --help|-h)
@@ -59,6 +83,11 @@ run_static_steps() {
     
     # Paylaşılan kaynakları kur
     setup_shared_resources "${release_dir}" "${SHARED_DIR}" "${default_shared[@]}" "${CUSTOM_SHARED[@]}"
+    
+    # Nginx otomatik kurulumu
+    if [[ "${AUTO_SETUP_NGINX}" == true ]]; then
+        setup_nginx_for_static "${release_dir}"
+    fi
     
     # Static build
     if [[ -n "${STATIC_BUILD_SCRIPT}" ]]; then
@@ -94,6 +123,56 @@ run_static_steps() {
     fi
     
     return 0
+}
+
+# Static için Nginx kurulumu
+setup_nginx_for_static() {
+    local release_dir="$1"
+    
+    if [[ -z "${NGINX_DOMAIN}" ]]; then
+        log_warning "Nginx domain belirtilmedi, Nginx kurulumu atlanıyor"
+        return 0
+    fi
+    
+    log_info "Static için Nginx site kurulumu yapılıyor..."
+    
+    # Nginx kurulu mu kontrol et
+    if ! command -v nginx >/dev/null 2>&1; then
+        log_info "Nginx kuruluyor..."
+        local install_script="${SCRIPTS_DIR}/install/install-nginx.sh"
+        if [[ -x "${install_script}" ]]; then
+            if ! "${install_script}" --template "${NGINX_TEMPLATE_TYPE}"; then
+                log_error "Nginx kurulumu başarısız"
+                return 1
+            fi
+        else
+            log_error "Nginx kurulum scripti bulunamadı"
+            return 1
+        fi
+    fi
+    
+    # Static build dizinini bul
+    local build_dir="${release_dir}"
+    if [[ -n "${STATIC_OUTPUT_DIR}" ]]; then
+        build_dir="${release_dir}/${STATIC_OUTPUT_DIR}"
+    fi
+    
+    # Static site oluştur
+    local add_site_script="${SCRIPTS_DIR}/nginx/add_site.sh"
+    if [[ -x "${add_site_script}" ]]; then
+        local site_args=("--domain" "${NGINX_DOMAIN}" "--template-type" "static" "--root" "${build_dir}")
+        if [[ -n "${NGINX_SSL_EMAIL}" ]]; then
+            site_args+=("--enable-ssl" "--ssl-email" "${NGINX_SSL_EMAIL}")
+        fi
+        if ! "${add_site_script}" "${site_args[@]}"; then
+            log_error "Static Nginx site oluşturma başarısız"
+            return 1
+        fi
+        log_success "Static Nginx site oluşturuldu: ${NGINX_DOMAIN}"
+    else
+        log_error "Nginx site ekleme scripti bulunamadı"
+        return 1
+    fi
 }
 
 # Static callback fonksiyonu
