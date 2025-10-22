@@ -25,17 +25,39 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
 export NVM_DIR="/root/.nvm"
 source "$NVM_DIR/nvm.sh"
 
+# NVM kurulumunu doğrula
+if ! command -v nvm >/dev/null 2>&1; then
+    error "NVM kurulumu başarısız!"
+    exit 1
+fi
+
 # Node.js kurulumu
 log "Node.js kurulumu yapılıyor..."
 nvm install 25
 nvm use 25
 nvm alias default 25
 
+# Node.js kurulumunu doğrula
+if ! command -v node >/dev/null 2>&1; then
+    error "Node.js kurulumu başarısız!"
+    exit 1
+fi
+
+# Node.js versiyonunu kontrol et
+NODE_VERSION_INSTALLED=$(node -v)
+log "Kurulan Node.js versiyonu: ${NODE_VERSION_INSTALLED}"
+
 # PATH'i kalıcı hale getir
 if ! grep -q 'nvm.sh' /root/.bashrc; then
     echo 'export NVM_DIR="/root/.nvm"' >> /root/.bashrc
     echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> /root/.bashrc
     echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"' >> /root/.bashrc
+fi
+
+# NPM kurulumunu doğrula
+if ! command -v npm >/dev/null 2>&1; then
+    error "NPM bulunamadı! Node.js kurulumu kontrol ediliyor..."
+    exit 1
 fi
 
 # Global NPM paketleri
@@ -62,8 +84,29 @@ npm config set fund false >/dev/null 2>&1 || true
 npm config set audit false >/dev/null 2>&1 || true
 npm cache clean --force >/dev/null 2>&1 || true
 
-# Son durum
-success "Node.js ortamı başarıyla kuruldu!"
-log "Node  : $(node -v)"
-log "NPM   : $(npm -v)"
-log "Global: $(npm list -g --depth=0 2>/dev/null | grep '──' | awk '{print $2}' || echo 'Yok')"
+# Son durum ve doğrulama
+log "=== Kurulum Doğrulaması ==="
+
+# Node.js doğrulama
+if command -v node >/dev/null 2>&1; then
+    NODE_VER=$(node -v)
+    log "✓ Node.js: ${NODE_VER}"
+else
+    error "✗ Node.js bulunamadı!"
+    exit 1
+fi
+
+# NPM doğrulama
+if command -v npm >/dev/null 2>&1; then
+    NPM_VER=$(npm -v)
+    log "✓ NPM: ${NPM_VER}"
+else
+    error "✗ NPM bulunamadı!"
+    exit 1
+fi
+
+# Global paketler doğrulama
+GLOBAL_PACKAGES=$(npm list -g --depth=0 2>/dev/null | grep '──' | awk '{print $2}' || echo 'Yok')
+log "✓ Global paketler: ${GLOBAL_PACKAGES}"
+
+success "Node.js ortamı başarıyla kuruldu ve doğrulandı!"
