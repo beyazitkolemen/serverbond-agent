@@ -1,112 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Ubuntu 24.04 için Node.js kurulum scripti
-NODE_VERSION="${NODE_VERSION:-25}"
+export DEBIAN_FRONTEND=noninteractive
+NODE_VERSION="${NODE_VERSION:-lts}"
 NPM_GLOBAL_PACKAGES="${NPM_GLOBAL_PACKAGES:-yarn pm2}"
 
-# Log fonksiyonları
 log() { echo -e "\033[1;36m[INFO]\033[0m $*"; }
 success() { echo -e "\033[1;32m[SUCCESS]\033[0m $*"; }
-error() { echo -e "\033[1;31m[ERROR]\033[0m $*" >&2; }
 
-log "=== Ubuntu 24.04 için Node.js kurulumu başlatılıyor (versiyon: ${NODE_VERSION}) ==="
+log "Node.js kurulumu (${NODE_VERSION}) başlatılıyor..."
 
-# Sistem güncellemesi ve bağımlılıklar
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
-apt-get install -y -qq curl git ca-certificates build-essential > /dev/null
+apt-get update -qq && apt-get install -y -qq curl git ca-certificates build-essential > /dev/null
 
-# NVM kurulumu
-log "NVM kuruluyor..."
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+export NVM_DIR="$HOME/.nvm"
+if [ ! -d "$NVM_DIR" ]; then
+  curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+fi
 
-# NVM'i yükle
-export NVM_DIR="/root/.nvm"
 source "$NVM_DIR/nvm.sh"
+nvm install "$NODE_VERSION"
+nvm use "$NODE_VERSION"
+nvm alias default "$NODE_VERSION"
 
-# NVM kurulumunu doğrula
-if ! command -v nvm >/dev/null 2>&1; then
-    error "NVM kurulumu başarısız!"
-    exit 1
-fi
+log "Node sürümü: $(node -v)"
+log "NPM sürümü: $(npm -v)"
 
-# Node.js kurulumu
-log "Node.js kurulumu yapılıyor..."
-nvm install 25
-nvm use 25
-nvm alias default 25
+for pkg in ${NPM_GLOBAL_PACKAGES}; do
+  npm install -g --location=global "$pkg" >/dev/null 2>&1 || true
+done
 
-# Node.js kurulumunu doğrula
-if ! command -v node >/dev/null 2>&1; then
-    error "Node.js kurulumu başarısız!"
-    exit 1
-fi
+pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true
+pm2 save >/dev/null 2>&1 || true
 
-# Node.js versiyonunu kontrol et
-NODE_VERSION_INSTALLED=$(node -v)
-log "Kurulan Node.js versiyonu: ${NODE_VERSION_INSTALLED}"
-
-# PATH'i kalıcı hale getir
-if ! grep -q 'nvm.sh' /root/.bashrc; then
-    echo 'export NVM_DIR="/root/.nvm"' >> /root/.bashrc
-    echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> /root/.bashrc
-    echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"' >> /root/.bashrc
-fi
-
-# NPM kurulumunu doğrula
-if ! command -v npm >/dev/null 2>&1; then
-    error "NPM bulunamadı! Node.js kurulumu kontrol ediliyor..."
-    exit 1
-fi
-
-# Global NPM paketleri
-if [[ -n "${NPM_GLOBAL_PACKAGES}" ]]; then
-    log "Global NPM paketleri kuruluyor: ${NPM_GLOBAL_PACKAGES}"
-    for package in ${NPM_GLOBAL_PACKAGES}; do
-        log "Kuruluyor: ${package}"
-        if npm install -g "${package}" --quiet; then
-            log "✓ ${package} başarıyla kuruldu"
-        else
-            error "✗ ${package} kurulumu başarısız"
-        fi
-    done
-fi
-
-# PM2 systemd entegrasyonu
-if command -v pm2 >/dev/null 2>&1; then
-    log "PM2 systemd entegrasyonu yapılıyor..."
-    pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true
-fi
-
-# NPM optimizasyonu
-npm config set fund false >/dev/null 2>&1 || true
-npm config set audit false >/dev/null 2>&1 || true
-npm cache clean --force >/dev/null 2>&1 || true
-
-# Son durum ve doğrulama
-log "=== Kurulum Doğrulaması ==="
-
-# Node.js doğrulama
-if command -v node >/dev/null 2>&1; then
-    NODE_VER=$(node -v)
-    log "✓ Node.js: ${NODE_VER}"
-else
-    error "✗ Node.js bulunamadı!"
-    exit 1
-fi
-
-# NPM doğrulama
-if command -v npm >/dev/null 2>&1; then
-    NPM_VER=$(npm -v)
-    log "✓ NPM: ${NPM_VER}"
-else
-    error "✗ NPM bulunamadı!"
-    exit 1
-fi
-
-# Global paketler doğrulama
-GLOBAL_PACKAGES=$(npm list -g --depth=0 2>/dev/null | grep '──' | awk '{print $2}' || echo 'Yok')
-log "✓ Global paketler: ${GLOBAL_PACKAGES}"
-
-success "Node.js ortamı başarıyla kuruldu ve doğrulandı!"
+success "Node.js ortamı başarıyla kuruldu!"
