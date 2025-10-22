@@ -17,6 +17,8 @@ TEST_COMMAND=""
 NPM_SCRIPT="build"
 NPM_SKIP_INSTALL=false
 LARAVEL_SEED=false
+ENV_PARAMETERS=()
+ENV_CONTENT=""
 
 # Laravel özel kullanım bilgisi
 print_laravel_usage() {
@@ -38,6 +40,8 @@ Laravel Özel Seçenekleri:
   --npm-skip-install        npm install adımını atla
   --run-tests               php artisan test komutunu çalıştır
   --tests "COMMAND"         Belirtilen test komutunu çalıştır
+  --env-param KEY=VALUE     .env dosyasına parametre ekle (birden fazla kullanılabilir)
+  --env-content "CONTENT"   .env dosyasının tam içeriğini belirle
 
 Ortak seçenekler için --help ortak seçenekleri gösterir.
 USAGE
@@ -101,6 +105,14 @@ parse_laravel_args() {
                 TEST_COMMAND="${2:-}"
                 shift 2
                 ;;
+            --env-param)
+                ENV_PARAMETERS+=("${2:-}")
+                shift 2
+                ;;
+            --env-content)
+                ENV_CONTENT="${2:-}"
+                shift 2
+                ;;
             --help|-h)
                 print_laravel_usage
                 exit 0
@@ -114,6 +126,85 @@ parse_laravel_args() {
     return 0
 }
 
+# .env dosyası yönetimi
+manage_env_file() {
+    local release_dir="$1"
+    local env_file="${release_dir}/.env"
+    local env_example="${release_dir}/.env.example"
+    
+    # .env.example dosyası varsa kopyala
+    if [[ -f "${env_example}" ]]; then
+        if [[ ! -f "${env_file}" ]]; then
+            cp "${env_example}" "${env_file}"
+            chmod 600 "${env_file}"
+            log_info ".env dosyası .env.example'dan oluşturuldu"
+        else
+            log_info ".env dosyası zaten mevcut"
+        fi
+    else
+        log_warning ".env.example dosyası bulunamadı"
+    fi
+    
+    # .env parametrelerini uygula
+    apply_env_parameters "${env_file}"
+    
+    # .env içeriğini uygula
+    apply_env_content "${env_file}"
+}
+
+# .env parametrelerini uygulama
+apply_env_parameters() {
+    local env_file="$1"
+    
+    if [[ ${#ENV_PARAMETERS[@]} -eq 0 ]]; then
+        return 0
+    fi
+    
+    log_info ".env parametreleri uygulanıyor..."
+    
+    for param in "${ENV_PARAMETERS[@]}"; do
+        if [[ "${param}" == *"="* ]]; then
+            local key="${param%%=*}"
+            local value="${param#*=}"
+            
+            # Mevcut satırı güncelle veya yeni satır ekle
+            if grep -q "^${key}=" "${env_file}"; then
+                sed -i "s/^${key}=.*/${key}=${value}/" "${env_file}"
+                log_info "Güncellendi: ${key}=${value}"
+            else
+                echo "${key}=${value}" >> "${env_file}"
+                log_info "Eklendi: ${key}=${value}"
+            fi
+        else
+            log_warning "Geçersiz .env parametresi: ${param}"
+        fi
+    done
+}
+
+# .env içeriğini uygulama
+apply_env_content() {
+    local env_file="$1"
+    
+    if [[ -z "${ENV_CONTENT:-}" ]]; then
+        return 0
+    fi
+    
+    log_info ".env içeriği uygulanıyor..."
+    
+    # Geçici dosya oluştur
+    local temp_file=$(mktemp)
+    echo "${ENV_CONTENT}" > "${temp_file}"
+    
+    # .env dosyasını yedekle
+    cp "${env_file}" "${env_file}.backup"
+    
+    # Yeni içeriği uygula
+    mv "${temp_file}" "${env_file}"
+    chmod 600 "${env_file}"
+    
+    log_success ".env içeriği başarıyla uygulandı"
+}
+
 # Laravel özel adımları
 run_laravel_steps() {
     local release_dir="$1"
@@ -124,7 +215,7 @@ run_laravel_steps() {
     local default_run_migrations=true
     local default_run_cache=true
     local default_test_command="php artisan test"
-    local default_shared=("file:.env" "dir:storage" "dir:bootstrap/cache" "dir:public/storage")
+    local default_shared=("dir:storage" "dir:bootstrap/cache" "dir:public/storage")
     
     # Test komutunu ayarla
     if [[ -z "${TEST_COMMAND}" || "${TEST_COMMAND}" == "__DEFAULT__" ]]; then
@@ -155,8 +246,11 @@ run_laravel_steps() {
         run_cache="${FORCE_RUN_CACHE}"
     fi
     
-    # Paylaşılan kaynakları kur
+    # Paylaşılan kaynakları kur (sadece storage ve cache dizinleri)
     setup_shared_resources "${release_dir}" "${SHARED_DIR}" "${default_shared[@]}" "${CUSTOM_SHARED[@]}"
+    
+    # .env dosyasını yönet
+    manage_env_file "${release_dir}"
     
     # Composer install
     if [[ "${run_composer}" == true ]]; then

@@ -136,13 +136,13 @@ graph TD
 sudo ./pipelines/laravel.sh \
   --repo git@github.com:example/project.git \
   --branch main \
-  --env /secrets/project.env:.env
+  --env-param "APP_ENV=production" \
+  --env-param "DB_HOST=localhost"
 
 # Next.js deployment
 sudo ./pipelines/next.sh \
   --repo git@github.com:example/next-app.git \
-  --branch main \
-  --env /secrets/.env.local:.env.local
+  --branch main
 
 # Docker deployment
 sudo ./pipelines/docker.sh \
@@ -157,6 +157,7 @@ sudo ./pipelines/docker.sh \
 sudo ./pipelines/laravel.sh \
   --repo git@github.com:example/laravel-app.git \
   --branch main \
+  --env-param "APP_ENV=production" \
   --rollback-on-failure \
   --health-check https://app.example.com/health \
   --webhook https://hooks.slack.com/services/... \
@@ -196,8 +197,7 @@ All pipeline scripts support these common options:
 
 | Option | Description | Example |
 |--------|-------------|---------|
-| `--shared <PATHS>` | Comma-separated shared paths | `file:.env,dir:storage` |
-| `--env <SRC[:TARGET]>` | Environment file mapping | `/secrets/.env:.env` |
+| `--shared <PATHS>` | Comma-separated shared paths | `dir:storage,dir:uploads` |
 
 ### Security and Ownership
 
@@ -241,6 +241,8 @@ All pipeline scripts support these common options:
 --npm-skip-install       # Skip npm install step
 --run-tests              # Run php artisan test
 --tests "COMMAND"        # Custom test command
+--env-param KEY=VALUE    # Add .env parameter (multiple allowed)
+--env-content "CONTENT"  # Set complete .env content
 ```
 
 ### Next.js Options
@@ -300,14 +302,22 @@ The pipeline supports two types of shared resources:
 
 ### Environment File Management
 
-```bash
-# Single environment file
---env /secrets/production.env:.env
+Laravel projeleri için .env dosyası yönetimi:
 
-# Multiple environment files
---env /secrets/.env:.env
---env /secrets/.env.local:.env.local
---env /secrets/database.env:.env.database
+```bash
+# .env.example dosyası otomatik olarak .env'ye kopyalanır
+# Parametre ile .env değerlerini ayarla
+--env-param "APP_NAME=MyApp"
+--env-param "APP_ENV=production"
+--env-param "DB_HOST=localhost"
+
+# Toplu .env içeriği ile düzenleme
+--env-content "APP_NAME=MyApp
+APP_ENV=production
+DB_HOST=localhost
+DB_DATABASE=myapp
+DB_USERNAME=user
+DB_PASSWORD=password"
 ```
 
 ### Health Check System
@@ -382,8 +392,9 @@ docker:git@github.com:user/docker-app.git:main:--health-check https://app.exampl
 sudo ./pipelines/laravel.sh \
   --repo git@github.com:company/ecommerce.git \
   --branch production \
-  --env /secrets/production.env:.env \
-  --shared "file:.env,dir:storage,dir:bootstrap/cache,dir:public/storage" \
+  --env-param "APP_ENV=production" \
+  --env-param "DB_HOST=db.company.com" \
+  --shared "dir:storage,dir:bootstrap/cache,dir:public/storage" \
   --artisan-seed \
   --run-tests \
   --health-check https://shop.company.com/health \
@@ -402,8 +413,6 @@ sudo ./pipelines/laravel.sh \
 sudo ./pipelines/next.sh \
   --repo git@github.com:blog/nextjs-blog.git \
   --branch main \
-  --env /secrets/.env.local:.env.local \
-  --shared "file:.env.local" \
   --npm-script "build" \
   --run-tests \
   --health-check https://blog.example.com \
@@ -417,8 +426,7 @@ sudo ./pipelines/next.sh \
 sudo ./pipelines/wordpress.sh \
   --repo git@github.com:company/wordpress-multisite.git \
   --branch production \
-  --env /secrets/wp-config.php:wp-config.php \
-  --shared "file:wp-config.php,dir:wp-content/uploads,dir:wp-content/cache" \
+  --shared "dir:wp-content/uploads,dir:wp-content/cache" \
   --wp-permissions \
   --health-check https://network.company.com \
   --post-cmd "systemctl reload nginx"
@@ -430,8 +438,7 @@ sudo ./pipelines/wordpress.sh \
 sudo ./pipelines/docker.sh \
   --repo git@github.com:company/microservices.git \
   --branch main \
-  --env /secrets/.env:.env \
-  --shared "file:.env,file:docker-compose.yml" \
+  --shared "file:docker-compose.yml" \
   --health-check https://api.company.com/health \
   --rollback-on-failure \
   --post-cmd "docker system prune -f"
@@ -534,9 +541,10 @@ ln -sfn /var/www/releases/20231201120000 /var/www/current
 
 ### Security
 
-1. **Use environment files for secrets**:
+1. **Use .env parameters for configuration**:
    ```bash
-   --env /secrets/production.env:.env
+   --env-param "APP_ENV=production"
+   --env-param "DB_HOST=localhost"
    ```
 
 2. **Set proper ownership**:
@@ -613,7 +621,6 @@ After deployment, the following structure is created:
 │   ├── 20231201110000/
 │   └── ...
 └── shared/                               # Shared resources
-    ├── .env                              # Environment files
     ├── storage/                          # Persistent data
     └── uploads/                          # User uploads
 ```

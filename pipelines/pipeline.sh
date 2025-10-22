@@ -41,7 +41,6 @@ OWNER=""
 GROUP=""
 POST_COMMANDS=()
 CUSTOM_SHARED=()
-ENV_MAPPINGS=()
 ROLLBACK_ON_FAILURE=false
 HEALTH_CHECK_URL=""
 HEALTH_CHECK_TIMEOUT=30
@@ -60,7 +59,6 @@ Ortak Seçenekler:
   --shared-dir PATH         shared dizini için özel yol
   --current-link PATH       current sembolik link yolu
   --shared PATHS            Virgülle ayrılmış paylaşılan yollar (file: veya dir: öneki destekler)
-  --env SRC[:TARGET]        Dağıtıma kopyalanacak gizli dosya (birden fazla kullanılabilir)
   --owner USER              Dağıtım dizin sahibi
   --group GROUP             Dağıtım dizin grubu
   --post-cmd "komut"        Dağıtımdan sonra çalıştırılacak komut (birden fazla kullanılabilir)
@@ -115,10 +113,6 @@ parse_common_args() {
                 for item in "${_shared_items[@]}"; do
                     [[ -n "${item}" ]] && CUSTOM_SHARED+=("${item}")
                 done
-                shift 2
-                ;;
-            --env)
-                ENV_MAPPINGS+=("${2:-}")
                 shift 2
                 ;;
             --owner)
@@ -267,9 +261,6 @@ run_common_deployment() {
     
     # Git clone işlemi
     clone_repository "${release_dir}" "${REPO_URL}" "${BRANCH}" "${DEPTH_VALUE}" "${INIT_SUBMODULES}"
-    
-    # Env dosyalarını kopyala
-    copy_env_files "${release_dir}" "${ENV_MAPPINGS[@]}"
     
     # Proje türüne özel adımları çalıştır
     if [[ -n "${custom_steps_callback}" ]]; then
