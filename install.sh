@@ -687,7 +687,7 @@ download_scripts() {
 }
 
 set_script_permissions() {
-    log_step "Hardening script permissions..."
+    log_step "Configuring script permissions for panel access..."
 
     if ! getent group www-data >/dev/null 2>&1; then
         log_warn "www-data grubu bulunamadı, oluşturuluyor..."
@@ -696,11 +696,11 @@ set_script_permissions() {
 
     chown -R root:www-data "${SCRIPTS_DIR}" 2>/dev/null || true
 
-    find "${SCRIPTS_DIR}" -type d -exec chmod 750 {} +
-    find "${SCRIPTS_DIR}" -type f -name '*.sh' -exec chmod 750 {} +
-    find "${SCRIPTS_DIR}" -type f ! -name '*.sh' -exec chmod 640 {} +
+    find "${SCRIPTS_DIR}" -type d -exec chmod 755 {} +
+    find "${SCRIPTS_DIR}" -type f -name '*.sh' -exec chmod 755 {} +
+    find "${SCRIPTS_DIR}" -type f ! -name '*.sh' -exec chmod 644 {} +
 
-    log_success "Script permissions tightened"
+    log_success "Script permissions configured"
 }
 
 lint_shell_scripts() {
