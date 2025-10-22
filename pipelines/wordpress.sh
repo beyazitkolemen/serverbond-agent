@@ -9,6 +9,15 @@ PIPELINE_SCRIPT="${SCRIPT_DIR}/pipeline.sh"
 
 # WordPress özel değişkenler
 FORCE_WP_PERMISSIONS=""
+AUTO_SETUP_NGINX=false
+AUTO_SETUP_MYSQL=false
+NGINX_DOMAIN=""
+NGINX_TEMPLATE_TYPE="php"
+NGINX_SSL_EMAIL=""
+MYSQL_DATABASE=""
+MYSQL_USER=""
+MYSQL_PASSWORD=""
+MYSQL_HOST="localhost"
 
 # WordPress özel kullanım bilgisi
 print_wordpress_usage() {
@@ -19,6 +28,15 @@ WordPress Pipeline Kullanımı:
 WordPress Özel Seçenekleri:
   --skip-wp-permissions     WordPress izin scriptini çalıştırma
   --wp-permissions          WordPress izin scriptini zorla (varsayılan: aktif)
+  --setup-nginx             Nginx site otomatik kurulumu yap
+  --setup-mysql             MySQL veritabanı otomatik kurulumu yap
+  --nginx-domain DOMAIN     Nginx site domain adı
+  --nginx-template TYPE     Nginx template türü (varsayılan: php)
+  --nginx-ssl-email EMAIL   SSL sertifikası için email adresi
+  --mysql-database DB       MySQL veritabanı adı
+  --mysql-user USER         MySQL kullanıcı adı
+  --mysql-password PASS     MySQL kullanıcı şifresi
+  --mysql-host HOST         MySQL host adresi (varsayılan: localhost)
 
 Ortak seçenekler için --help ortak seçenekleri gösterir.
 USAGE
@@ -35,6 +53,42 @@ parse_wordpress_args() {
             --wp-permissions)
                 FORCE_WP_PERMISSIONS="true"
                 shift
+                ;;
+            --setup-nginx)
+                AUTO_SETUP_NGINX=true
+                shift
+                ;;
+            --setup-mysql)
+                AUTO_SETUP_MYSQL=true
+                shift
+                ;;
+            --nginx-domain)
+                NGINX_DOMAIN="${2:-}"
+                shift 2
+                ;;
+            --nginx-template)
+                NGINX_TEMPLATE_TYPE="${2:-php}"
+                shift 2
+                ;;
+            --nginx-ssl-email)
+                NGINX_SSL_EMAIL="${2:-}"
+                shift 2
+                ;;
+            --mysql-database)
+                MYSQL_DATABASE="${2:-}"
+                shift 2
+                ;;
+            --mysql-user)
+                MYSQL_USER="${2:-}"
+                shift 2
+                ;;
+            --mysql-password)
+                MYSQL_PASSWORD="${2:-}"
+                shift 2
+                ;;
+            --mysql-host)
+                MYSQL_HOST="${2:-localhost}"
+                shift 2
                 ;;
             --help|-h)
                 print_wordpress_usage
@@ -66,6 +120,15 @@ run_wordpress_steps() {
     # Paylaşılan kaynakları kur
     setup_shared_resources "${release_dir}" "${SHARED_DIR}" "${default_shared[@]}" "${CUSTOM_SHARED[@]}"
     
+    # Nginx ve MySQL otomatik kurulumu
+    if [[ "${AUTO_SETUP_NGINX}" == true ]]; then
+        setup_nginx_for_wordpress "${release_dir}"
+    fi
+    
+    if [[ "${AUTO_SETUP_MYSQL}" == true ]]; then
+        setup_mysql_for_wordpress "${release_dir}"
+    fi
+    
     # WordPress permissions
     if [[ "${run_wp_permissions}" == true ]]; then
         log_info "WordPress izinleri ayarlanıyor..."
@@ -85,6 +148,146 @@ run_wordpress_steps() {
     fi
     
     return 0
+}
+
+# WordPress için Nginx kurulumu
+setup_nginx_for_wordpress() {
+    local release_dir="$1"
+    
+    if [[ -z "${NGINX_DOMAIN}" ]]; then
+        log_warning "Nginx domain belirtilmedi, Nginx kurulumu atlanıyor"
+        return 0
+    fi
+    
+    log_info "WordPress için Nginx site kurulumu yapılıyor..."
+    
+    # Nginx kurulu mu kontrol et
+    if ! command -v nginx >/dev/null 2>&1; then
+        log_info "Nginx kuruluyor..."
+        local install_script="${SCRIPTS_DIR}/install/install-nginx.sh"
+        if [[ -x "${install_script}" ]]; then
+            if ! "${install_script}" --template "${NGINX_TEMPLATE_TYPE}"; then
+                log_error "Nginx kurulumu başarısız"
+                return 1
+            fi
+        else
+            log_error "Nginx kurulum scripti bulunamadı"
+            return 1
+        fi
+    fi
+    
+    # WordPress site oluştur
+    local add_site_script="${SCRIPTS_DIR}/nginx/add_site.sh"
+    if [[ -x "${add_site_script}" ]]; then
+        local site_args=("--domain" "${NGINX_DOMAIN}" "--template-type" "php" "--root" "${release_dir}")
+        if [[ -n "${NGINX_SSL_EMAIL}" ]]; then
+            site_args+=("--enable-ssl" "--ssl-email" "${NGINX_SSL_EMAIL}")
+        fi
+        if ! "${add_site_script}" "${site_args[@]}"; then
+            log_error "WordPress Nginx site oluşturma başarısız"
+            return 1
+        fi
+        log_success "WordPress Nginx site oluşturuldu: ${NGINX_DOMAIN}"
+    else
+        log_error "Nginx site ekleme scripti bulunamadı"
+        return 1
+    fi
+}
+
+# WordPress için MySQL kurulumu
+setup_mysql_for_wordpress() {
+    local release_dir="$1"
+    
+    if [[ -z "${MYSQL_DATABASE}" ]]; then
+        log_warning "MySQL veritabanı adı belirtilmedi, MySQL kurulumu atlanıyor"
+        return 0
+    fi
+    
+    log_info "WordPress için MySQL kurulumu yapılıyor..."
+    
+    # MySQL kurulu mu kontrol et
+    if ! command -v mysql >/dev/null 2>&1; then
+        log_info "MySQL kuruluyor..."
+        local install_script="${SCRIPTS_DIR}/install/install-mysql.sh"
+        if [[ -x "${install_script}" ]]; then
+            if ! "${install_script}"; then
+                log_error "MySQL kurulumu başarısız"
+                return 1
+            fi
+        else
+            log_error "MySQL kurulum scripti bulunamadı"
+            return 1
+        fi
+    fi
+    
+    # Veritabanı oluştur
+    local create_db_script="${SCRIPTS_DIR}/mysql/create_database.sh"
+    if [[ -x "${create_db_script}" ]]; then
+        if ! "${create_db_script}" --name "${MYSQL_DATABASE}"; then
+            log_error "MySQL veritabanı oluşturma başarısız"
+            return 1
+        fi
+        log_success "MySQL veritabanı oluşturuldu: ${MYSQL_DATABASE}"
+    else
+        log_error "MySQL veritabanı oluşturma scripti bulunamadı"
+        return 1
+    fi
+    
+    # Kullanıcı oluştur
+    if [[ -n "${MYSQL_USER}" && -n "${MYSQL_PASSWORD}" ]]; then
+        local create_user_script="${SCRIPTS_DIR}/mysql/create_user.sh"
+        if [[ -x "${create_user_script}" ]]; then
+            local user_args=("--user" "${MYSQL_USER}" "--password" "${MYSQL_PASSWORD}" "--host" "${MYSQL_HOST}" "--database" "${MYSQL_DATABASE}")
+            if ! "${create_user_script}" "${user_args[@]}"; then
+                log_error "MySQL kullanıcısı oluşturma başarısız"
+                return 1
+            fi
+            log_success "MySQL kullanıcısı oluşturuldu: ${MYSQL_USER}"
+        else
+            log_error "MySQL kullanıcısı oluşturma scripti bulunamadı"
+            return 1
+        fi
+    fi
+    
+    # wp-config.php dosyasına MySQL bilgilerini ekle
+    update_wp_config_with_mysql "${release_dir}"
+}
+
+# wp-config.php dosyasına MySQL bilgilerini ekle
+update_wp_config_with_mysql() {
+    local release_dir="$1"
+    local wp_config="${release_dir}/wp-config.php"
+    
+    if [[ ! -f "${wp_config}" ]]; then
+        log_warning "wp-config.php dosyası bulunamadı, MySQL bilgileri eklenemedi"
+        return 0
+    fi
+    
+    log_info "wp-config.php dosyasına MySQL bilgileri ekleniyor..."
+    
+    # MySQL bilgilerini güncelle
+    local mysql_vars=(
+        "DB_NAME" "${MYSQL_DATABASE}"
+        "DB_USER" "${MYSQL_USER:-root}"
+        "DB_PASSWORD" "${MYSQL_PASSWORD:-}"
+        "DB_HOST" "${MYSQL_HOST}:3306"
+    )
+    
+    for ((i=0; i<${#mysql_vars[@]}; i+=2)); do
+        local key="${mysql_vars[i]}"
+        local value="${mysql_vars[i+1]}"
+        
+        if grep -q "define.*${key}" "${wp_config}"; then
+            sed -i "s/define.*${key}.*/define('${key}', '${value}');/" "${wp_config}"
+            log_info "Güncellendi: ${key} = ${value}"
+        else
+            # define('DB_NAME', 'database_name'); formatında ekle
+            sed -i "/\/\* That's all, stop editing! \*\//i\\define('${key}', '${value}');" "${wp_config}"
+            log_info "Eklendi: ${key} = ${value}"
+        fi
+    done
+    
+    log_success "MySQL bilgileri wp-config.php dosyasına eklendi"
 }
 
 # WordPress callback fonksiyonu

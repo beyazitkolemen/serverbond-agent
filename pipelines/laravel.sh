@@ -19,6 +19,15 @@ NPM_SKIP_INSTALL=false
 LARAVEL_SEED=false
 ENV_PARAMETERS=()
 ENV_CONTENT=""
+AUTO_SETUP_NGINX=false
+AUTO_SETUP_MYSQL=false
+NGINX_DOMAIN=""
+NGINX_TEMPLATE_TYPE="laravel"
+NGINX_SSL_EMAIL=""
+MYSQL_DATABASE=""
+MYSQL_USER=""
+MYSQL_PASSWORD=""
+MYSQL_HOST="localhost"
 
 # Laravel özel kullanım bilgisi
 print_laravel_usage() {
@@ -42,6 +51,15 @@ Laravel Özel Seçenekleri:
   --tests "COMMAND"         Belirtilen test komutunu çalıştır
   --env-param KEY=VALUE     .env dosyasına parametre ekle (birden fazla kullanılabilir)
   --env-content "CONTENT"   .env dosyasının tam içeriğini belirle
+  --setup-nginx             Nginx site otomatik kurulumu yap
+  --setup-mysql             MySQL veritabanı otomatik kurulumu yap
+  --nginx-domain DOMAIN     Nginx site domain adı
+  --nginx-template TYPE     Nginx template türü (varsayılan: laravel)
+  --nginx-ssl-email EMAIL   SSL sertifikası için email adresi
+  --mysql-database DB       MySQL veritabanı adı
+  --mysql-user USER         MySQL kullanıcı adı
+  --mysql-password PASS     MySQL kullanıcı şifresi
+  --mysql-host HOST         MySQL host adresi (varsayılan: localhost)
 
 Ortak seçenekler için --help ortak seçenekleri gösterir.
 USAGE
@@ -111,6 +129,42 @@ parse_laravel_args() {
                 ;;
             --env-content)
                 ENV_CONTENT="${2:-}"
+                shift 2
+                ;;
+            --setup-nginx)
+                AUTO_SETUP_NGINX=true
+                shift
+                ;;
+            --setup-mysql)
+                AUTO_SETUP_MYSQL=true
+                shift
+                ;;
+            --nginx-domain)
+                NGINX_DOMAIN="${2:-}"
+                shift 2
+                ;;
+            --nginx-template)
+                NGINX_TEMPLATE_TYPE="${2:-laravel}"
+                shift 2
+                ;;
+            --nginx-ssl-email)
+                NGINX_SSL_EMAIL="${2:-}"
+                shift 2
+                ;;
+            --mysql-database)
+                MYSQL_DATABASE="${2:-}"
+                shift 2
+                ;;
+            --mysql-user)
+                MYSQL_USER="${2:-}"
+                shift 2
+                ;;
+            --mysql-password)
+                MYSQL_PASSWORD="${2:-}"
+                shift 2
+                ;;
+            --mysql-host)
+                MYSQL_HOST="${2:-localhost}"
                 shift 2
                 ;;
             --help|-h)
@@ -205,6 +259,147 @@ apply_env_content() {
     log_success ".env içeriği başarıyla uygulandı"
 }
 
+# Laravel için Nginx kurulumu
+setup_nginx_for_laravel() {
+    local release_dir="$1"
+    
+    if [[ -z "${NGINX_DOMAIN}" ]]; then
+        log_warning "Nginx domain belirtilmedi, Nginx kurulumu atlanıyor"
+        return 0
+    fi
+    
+    log_info "Laravel için Nginx site kurulumu yapılıyor..."
+    
+    # Nginx kurulu mu kontrol et
+    if ! command -v nginx >/dev/null 2>&1; then
+        log_info "Nginx kuruluyor..."
+        local install_script="${SCRIPTS_DIR}/install/install-nginx.sh"
+        if [[ -x "${install_script}" ]]; then
+            if ! "${install_script}" --template "${NGINX_TEMPLATE_TYPE}"; then
+                log_error "Nginx kurulumu başarısız"
+                return 1
+            fi
+        else
+            log_error "Nginx kurulum scripti bulunamadı"
+            return 1
+        fi
+    fi
+    
+    # Laravel site oluştur
+    local add_site_script="${SCRIPTS_DIR}/nginx/add_site.sh"
+    if [[ -x "${add_site_script}" ]]; then
+        local site_args=("--domain" "${NGINX_DOMAIN}" "--template-type" "laravel" "--root" "${release_dir}/public")
+        if [[ -n "${NGINX_SSL_EMAIL}" ]]; then
+            site_args+=("--enable-ssl" "--ssl-email" "${NGINX_SSL_EMAIL}")
+        fi
+        if ! "${add_site_script}" "${site_args[@]}"; then
+            log_error "Laravel Nginx site oluşturma başarısız"
+            return 1
+        fi
+        log_success "Laravel Nginx site oluşturuldu: ${NGINX_DOMAIN}"
+    else
+        log_error "Nginx site ekleme scripti bulunamadı"
+        return 1
+    fi
+}
+
+# Laravel için MySQL kurulumu
+setup_mysql_for_laravel() {
+    local release_dir="$1"
+    
+    if [[ -z "${MYSQL_DATABASE}" ]]; then
+        log_warning "MySQL veritabanı adı belirtilmedi, MySQL kurulumu atlanıyor"
+        return 0
+    fi
+    
+    log_info "Laravel için MySQL kurulumu yapılıyor..."
+    
+    # MySQL kurulu mu kontrol et
+    if ! command -v mysql >/dev/null 2>&1; then
+        log_info "MySQL kuruluyor..."
+        local install_script="${SCRIPTS_DIR}/install/install-mysql.sh"
+        if [[ -x "${install_script}" ]]; then
+            if ! "${install_script}"; then
+                log_error "MySQL kurulumu başarısız"
+                return 1
+            fi
+        else
+            log_error "MySQL kurulum scripti bulunamadı"
+            return 1
+        fi
+    fi
+    
+    # Veritabanı oluştur
+    local create_db_script="${SCRIPTS_DIR}/mysql/create_database.sh"
+    if [[ -x "${create_db_script}" ]]; then
+        if ! "${create_db_script}" --name "${MYSQL_DATABASE}"; then
+            log_error "MySQL veritabanı oluşturma başarısız"
+            return 1
+        fi
+        log_success "MySQL veritabanı oluşturuldu: ${MYSQL_DATABASE}"
+    else
+        log_error "MySQL veritabanı oluşturma scripti bulunamadı"
+        return 1
+    fi
+    
+    # Kullanıcı oluştur
+    if [[ -n "${MYSQL_USER}" && -n "${MYSQL_PASSWORD}" ]]; then
+        local create_user_script="${SCRIPTS_DIR}/mysql/create_user.sh"
+        if [[ -x "${create_user_script}" ]]; then
+            local user_args=("--user" "${MYSQL_USER}" "--password" "${MYSQL_PASSWORD}" "--host" "${MYSQL_HOST}" "--database" "${MYSQL_DATABASE}")
+            if ! "${create_user_script}" "${user_args[@]}"; then
+                log_error "MySQL kullanıcısı oluşturma başarısız"
+                return 1
+            fi
+            log_success "MySQL kullanıcısı oluşturuldu: ${MYSQL_USER}"
+        else
+            log_error "MySQL kullanıcısı oluşturma scripti bulunamadı"
+            return 1
+        fi
+    fi
+    
+    # .env dosyasına MySQL bilgilerini ekle
+    update_env_with_mysql "${release_dir}"
+}
+
+# .env dosyasına MySQL bilgilerini ekle
+update_env_with_mysql() {
+    local release_dir="$1"
+    local env_file="${release_dir}/.env"
+    
+    if [[ ! -f "${env_file}" ]]; then
+        log_warning ".env dosyası bulunamadı, MySQL bilgileri eklenemedi"
+        return 0
+    fi
+    
+    log_info ".env dosyasına MySQL bilgileri ekleniyor..."
+    
+    # MySQL bilgilerini güncelle
+    local mysql_vars=(
+        "DB_CONNECTION=mysql"
+        "DB_HOST=${MYSQL_HOST}"
+        "DB_PORT=3306"
+        "DB_DATABASE=${MYSQL_DATABASE}"
+        "DB_USERNAME=${MYSQL_USER:-root}"
+        "DB_PASSWORD=${MYSQL_PASSWORD:-}"
+    )
+    
+    for var in "${mysql_vars[@]}"; do
+        local key="${var%%=*}"
+        local value="${var#*=}"
+        
+        if grep -q "^${key}=" "${env_file}"; then
+            sed -i "s/^${key}=.*/${key}=${value}/" "${env_file}"
+            log_info "Güncellendi: ${key}=${value}"
+        else
+            echo "${key}=${value}" >> "${env_file}"
+            log_info "Eklendi: ${key}=${value}"
+        fi
+    done
+    
+    log_success "MySQL bilgileri .env dosyasına eklendi"
+}
+
 # Laravel özel adımları
 run_laravel_steps() {
     local release_dir="$1"
@@ -251,6 +446,15 @@ run_laravel_steps() {
     
     # .env dosyasını yönet
     manage_env_file "${release_dir}"
+    
+    # Nginx ve MySQL otomatik kurulumu
+    if [[ "${AUTO_SETUP_NGINX}" == true ]]; then
+        setup_nginx_for_laravel "${release_dir}"
+    fi
+    
+    if [[ "${AUTO_SETUP_MYSQL}" == true ]]; then
+        setup_mysql_for_laravel "${release_dir}"
+    fi
     
     # Composer install
     if [[ "${run_composer}" == true ]]; then
