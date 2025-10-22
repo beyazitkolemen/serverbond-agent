@@ -119,8 +119,21 @@ sudo -u www-data php artisan optimize
 
 # --- NPM & Frontend Build ---
 log_info "NPM bağımlılıkları yükleniyor ve frontend build ediliyor..."
-sudo -u www-data npm install --prefix "${LARAVEL_DIR}" --quiet
-sudo -u www-data npm run build --prefix "${LARAVEL_DIR}" >/dev/null 2>&1 || true
+if npm install --prefix "${LARAVEL_DIR}" --quiet; then
+    log_success "NPM bağımlılıkları başarıyla yüklendi"
+    if npm run build --prefix "${LARAVEL_DIR}" >/dev/null 2>&1; then
+        log_success "Frontend build başarıyla tamamlandı"
+    else
+        log_warn "Frontend build başarısız oldu, devam ediliyor..."
+    fi
+else
+    log_warn "NPM bağımlılıkları yüklenemedi, devam ediliyor..."
+fi
+
+# NPM dosyalarının sahipliğini www-data'ya ver
+log_info "NPM dosyalarının sahipliği ayarlanıyor..."
+chown -R www-data:www-data "${LARAVEL_DIR}/node_modules" 2>/dev/null || true
+chown -R www-data:www-data "${LARAVEL_DIR}/package-lock.json" 2>/dev/null || true
 
 # --- Filament & cache optimizasyonları ---
 sudo -u www-data php artisan filament:optimize >/dev/null 2>&1 || true
