@@ -47,6 +47,17 @@ HEALTH_CHECK_TIMEOUT=30
 NOTIFICATION_WEBHOOK=""
 NOTIFICATION_TYPE=""
 
+# Nginx ve MySQL otomatik kurulum değişkenleri
+AUTO_INSTALL_NGINX=false
+AUTO_INSTALL_MYSQL=false
+NGINX_DOMAIN=""
+NGINX_TEMPLATE_TYPE="default"
+NGINX_SSL_EMAIL=""
+MYSQL_DATABASE=""
+MYSQL_USER=""
+MYSQL_PASSWORD=""
+MYSQL_HOST="localhost"
+
 # Ortak kullanım bilgisi - proje türüne özel seçenekler ilgili dosyalarda tanımlanır
 print_common_usage() {
     cat <<'USAGE'
@@ -69,6 +80,15 @@ Ortak Seçenekler:
   --health-timeout SECONDS  Health check timeout süresi (varsayılan: 30)
   --webhook URL             Deployment bildirim webhook URL'i
   --notification TYPE       Bildirim türü (slack|discord|email)
+  --auto-install-nginx      Nginx'i otomatik olarak kur ve yapılandır
+  --auto-install-mysql      MySQL'i otomatik olarak kur ve yapılandır
+  --nginx-domain DOMAIN     Nginx site domain adı
+  --nginx-template TYPE     Nginx template türü (default|laravel|php|static)
+  --nginx-ssl-email EMAIL   SSL sertifikası için email adresi
+  --mysql-database DB       MySQL veritabanı adı
+  --mysql-user USER         MySQL kullanıcı adı
+  --mysql-password PASS     MySQL kullanıcı şifresi
+  --mysql-host HOST         MySQL host adresi (varsayılan: localhost)
 USAGE
 }
 
@@ -155,6 +175,42 @@ parse_common_args() {
                 NOTIFICATION_TYPE="${2:-}"
                 shift 2
                 ;;
+            --auto-install-nginx)
+                AUTO_INSTALL_NGINX=true
+                shift
+                ;;
+            --auto-install-mysql)
+                AUTO_INSTALL_MYSQL=true
+                shift
+                ;;
+            --nginx-domain)
+                NGINX_DOMAIN="${2:-}"
+                shift 2
+                ;;
+            --nginx-template)
+                NGINX_TEMPLATE_TYPE="${2:-default}"
+                shift 2
+                ;;
+            --nginx-ssl-email)
+                NGINX_SSL_EMAIL="${2:-}"
+                shift 2
+                ;;
+            --mysql-database)
+                MYSQL_DATABASE="${2:-}"
+                shift 2
+                ;;
+            --mysql-user)
+                MYSQL_USER="${2:-}"
+                shift 2
+                ;;
+            --mysql-password)
+                MYSQL_PASSWORD="${2:-}"
+                shift 2
+                ;;
+            --mysql-host)
+                MYSQL_HOST="${2:-localhost}"
+                shift 2
+                ;;
             --help|-h)
                 print_common_usage
                 exit 0
@@ -194,6 +250,113 @@ validate_common_args() {
             ;;
     esac
 
+    return 0
+}
+
+# Nginx otomatik kurulum fonksiyonu
+install_nginx_if_needed() {
+    if [[ "${AUTO_INSTALL_NGINX}" == true ]]; then
+        log_info "Nginx otomatik kurulumu başlatılıyor..."
+        
+        # Nginx kurulu mu kontrol et
+        if ! command -v nginx >/dev/null 2>&1; then
+            log_info "Nginx kuruluyor..."
+            local install_script="${SCRIPTS_DIR}/install/install-nginx.sh"
+            if [[ -x "${install_script}" ]]; then
+                if ! "${install_script}" --template "${NGINX_TEMPLATE_TYPE}"; then
+                    log_error "Nginx kurulumu başarısız"
+                    return 1
+                fi
+                log_success "Nginx başarıyla kuruldu"
+            else
+                log_error "Nginx kurulum scripti bulunamadı: ${install_script}"
+                return 1
+            fi
+        else
+            log_info "Nginx zaten kurulu"
+        fi
+        
+        # Domain belirtilmişse site oluştur
+        if [[ -n "${NGINX_DOMAIN}" ]]; then
+            log_info "Nginx site oluşturuluyor: ${NGINX_DOMAIN}"
+            local add_site_script="${SCRIPTS_DIR}/nginx/add_site.sh"
+            if [[ -x "${add_site_script}" ]]; then
+                local site_args=("--domain" "${NGINX_DOMAIN}" "--template-type" "${NGINX_TEMPLATE_TYPE}")
+                if [[ -n "${NGINX_SSL_EMAIL}" ]]; then
+                    site_args+=("--enable-ssl" "--ssl-email" "${NGINX_SSL_EMAIL}")
+                fi
+                if ! "${add_site_script}" "${site_args[@]}"; then
+                    log_error "Nginx site oluşturma başarısız"
+                    return 1
+                fi
+                log_success "Nginx site oluşturuldu: ${NGINX_DOMAIN}"
+            else
+                log_error "Nginx site ekleme scripti bulunamadı: ${add_site_script}"
+                return 1
+            fi
+        fi
+    fi
+    return 0
+}
+
+# MySQL otomatik kurulum fonksiyonu
+install_mysql_if_needed() {
+    if [[ "${AUTO_INSTALL_MYSQL}" == true ]]; then
+        log_info "MySQL otomatik kurulumu başlatılıyor..."
+        
+        # MySQL kurulu mu kontrol et
+        if ! command -v mysql >/dev/null 2>&1; then
+            log_info "MySQL kuruluyor..."
+            local install_script="${SCRIPTS_DIR}/install/install-mysql.sh"
+            if [[ -x "${install_script}" ]]; then
+                if ! "${install_script}"; then
+                    log_error "MySQL kurulumu başarısız"
+                    return 1
+                fi
+                log_success "MySQL başarıyla kuruldu"
+            else
+                log_error "MySQL kurulum scripti bulunamadı: ${install_script}"
+                return 1
+            fi
+        else
+            log_info "MySQL zaten kurulu"
+        fi
+        
+        # Veritabanı ve kullanıcı oluştur
+        if [[ -n "${MYSQL_DATABASE}" ]]; then
+            log_info "MySQL veritabanı oluşturuluyor: ${MYSQL_DATABASE}"
+            local create_db_script="${SCRIPTS_DIR}/mysql/create_database.sh"
+            if [[ -x "${create_db_script}" ]]; then
+                if ! "${create_db_script}" --name "${MYSQL_DATABASE}"; then
+                    log_error "MySQL veritabanı oluşturma başarısız"
+                    return 1
+                fi
+                log_success "MySQL veritabanı oluşturuldu: ${MYSQL_DATABASE}"
+            else
+                log_error "MySQL veritabanı oluşturma scripti bulunamadı: ${create_db_script}"
+                return 1
+            fi
+        fi
+        
+        if [[ -n "${MYSQL_USER}" && -n "${MYSQL_PASSWORD}" ]]; then
+            log_info "MySQL kullanıcısı oluşturuluyor: ${MYSQL_USER}"
+            local create_user_script="${SCRIPTS_DIR}/mysql/create_user.sh"
+            if [[ -x "${create_user_script}" ]]; then
+                local user_args=("--user" "${MYSQL_USER}" "--password" "${MYSQL_PASSWORD}" "--host" "${MYSQL_HOST}")
+                if [[ -n "${MYSQL_DATABASE}" ]]; then
+                    user_args+=("--database" "${MYSQL_DATABASE}")
+                fi
+                if ! "${create_user_script}" "${user_args[@]}"; then
+                    log_error "MySQL kullanıcısı oluşturma başarısız"
+                    return 1
+                fi
+                log_success "MySQL kullanıcısı oluşturuldu: ${MYSQL_USER}"
+            else
+                log_error "MySQL kullanıcısı oluşturma scripti bulunamadı: ${create_user_script}"
+                return 1
+            fi
+        fi
+    fi
     return 0
 }
 
@@ -254,6 +417,17 @@ run_common_deployment() {
     
     # Ortak dizinleri kur
     setup_common_directories
+    
+    # Nginx ve MySQL otomatik kurulumu
+    if ! install_nginx_if_needed; then
+        log_error "Nginx otomatik kurulumu başarısız"
+        exit 1
+    fi
+    
+    if ! install_mysql_if_needed; then
+        log_error "MySQL otomatik kurulumu başarısız"
+        exit 1
+    fi
     
     # Timestamp ile release dizini oluştur
     local timestamp="$(date +%Y%m%d%H%M%S)"
