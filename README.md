@@ -331,6 +331,16 @@ sudo -u www-data sudo systemctl status nginx
 
 After panel installation, you can perform all site management operations from the web interface.
 
+## 🧪 Deployment Pipelines
+
+`pipelines/laravel.sh`, `pipelines/next.sh`, `pipelines/nuxt.sh`,
+`pipelines/wordpress.sh` ve `pipelines/static.sh` scriptleri ilgili proje türü
+için gelişmiş dağıtım akışını başlatır. Her script arka planda ortak
+`pipelines/pipeline.sh` dosyasını çağırır, mevcut shell yardımcılarını
+(composer, npm, artisan, WordPress izinleri vb.) yeniden kullanır ve release
+yönetimini `/var/www` altında otomatikleştirir. Ayrıntılı kullanım ve örnekler
+için [`pipelines/README.md`](pipelines/README.md) dosyasına göz atabilirsiniz.
+
 ## 🤝 Support
 
 - **GitHub**: [beyazitkolemen/serverbond-agent](https://github.com/beyazitkolemen/serverbond-agent)
