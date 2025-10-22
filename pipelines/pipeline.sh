@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Ortak pipeline fonksiyonları
+# Bu dosya sadece tüm proje türleri için ortak olan fonksiyonları içerir
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SCRIPTS_DIR="${REPO_ROOT}/opt/serverbond-agent/scripts"
@@ -23,7 +26,7 @@ require_root
 
 trap 'log_error "Pipeline beklenmedik şekilde sonlandı (satır ${LINENO})."' ERR
 
-PROJECT_TYPE=""
+# Ortak değişkenler
 REPO_URL=""
 BRANCH="main"
 DEPTH="1"
@@ -33,40 +36,22 @@ CUSTOM_RELEASES_DIR=""
 CUSTOM_SHARED_DIR=""
 CUSTOM_CURRENT_LINK=""
 ACTIVATE_RELEASE=true
-FORCE_RUN_COMPOSER=""
-FORCE_RUN_NPM=""
-FORCE_RUN_MIGRATIONS=""
-FORCE_RUN_CACHE=""
-RUN_TESTS=false
-TEST_COMMAND=""
-NPM_SCRIPT="build"
-NPM_SKIP_INSTALL=false
-LARAVEL_SEED=false
 INIT_SUBMODULES=false
 OWNER=""
 GROUP=""
 POST_COMMANDS=()
 CUSTOM_SHARED=()
 ENV_MAPPINGS=()
-STATIC_BUILD_SCRIPT=""
-STATIC_OUTPUT_DIR=""
-FORCE_WP_PERMISSIONS=""
 ROLLBACK_ON_FAILURE=false
 HEALTH_CHECK_URL=""
 HEALTH_CHECK_TIMEOUT=30
 NOTIFICATION_WEBHOOK=""
 NOTIFICATION_TYPE=""
 
-print_usage() {
+# Ortak kullanım bilgisi - proje türüne özel seçenekler ilgili dosyalarda tanımlanır
+print_common_usage() {
     cat <<'USAGE'
-Kullanım: pipelines/pipeline.sh --type <laravel|next|nuxt|wordpress|static|react|vue|symfony|docker> --repo <GIT_URL> [seçenekler]
-
-Not: `pipelines/laravel.sh`, `pipelines/next.sh`, `pipelines/nuxt.sh`,
-`pipelines/wordpress.sh`, `pipelines/static.sh`, `pipelines/react.sh`,
-`pipelines/vue.sh`, `pipelines/symfony.sh` ve `pipelines/docker.sh` scriptleri 
-ilgili tür için bu dosyayı otomatik olarak çağırır.
-
-Genel Seçenekler:
+Ortak Seçenekler:
   --branch BRANCH           Dağıtılacak Git dalı (varsayılan: main)
   --depth N                 Shallow clone derinliği (1 = en son commit, 0 = tam klon)
   --keep N                  Saklanacak sürüm sayısı (varsayılan: 5)
@@ -81,33 +66,6 @@ Genel Seçenekler:
   --post-cmd "komut"        Dağıtımdan sonra çalıştırılacak komut (birden fazla kullanılabilir)
   --no-activate             current sembolik linkini yeni sürüme almadan çık
   --submodules              Klonlama sonrası git submodule güncellemesi yap
-
-Laravel Seçenekleri:
-  --skip-composer           composer install adımını atla
-  --force-composer          composer install adımını zorla
-  --skip-migrate            artisan migrate adımını atla
-  --force-migrate           artisan migrate adımını zorla
-  --skip-cache              artisan cache temizliği adımını atla
-  --force-cache             artisan cache temizliği adımını zorla
-  --artisan-seed            migrate komutunu --seed ile çalıştır
-
-Node.js (Next/Nuxt/Static) Seçenekleri:
-  --skip-npm                npm install + npm run adımlarını atla
-  --force-npm               npm adımlarını zorla
-  --npm-script NAME         npm run NAME (varsayılan: build)
-  --npm-skip-install        npm install adımını atla
-  --static-build NAME       Static proje için npm run NAME çalıştır
-  --static-output PATH      build çıktısını paylaşılan dizine senkronla (relative path)
-
-Test Seçenekleri:
-  --run-tests               Proje türüne göre varsayılan test komutunu çalıştır
-  --tests "COMMAND"         Belirtilen test komutunu çalıştır
-
-WordPress Seçenekleri:
-  --skip-wp-permissions     WordPress izin scriptini çalıştırma
-  --wp-permissions          WordPress izin scriptini zorla (varsayılan: aktif)
-
-Gelişmiş Seçenekler:
   --rollback-on-failure     Hata durumunda otomatik rollback yap
   --health-check URL        Deployment sonrası health check URL'i
   --health-timeout SECONDS  Health check timeout süresi (varsayılan: 30)
@@ -116,352 +74,189 @@ Gelişmiş Seçenekler:
 USAGE
 }
 
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --type)
-            PROJECT_TYPE="${2:-}"
-            shift 2
-            ;;
-        --repo)
-            REPO_URL="${2:-}"
-            shift 2
-            ;;
-        --branch)
-            BRANCH="${2:-}"
-            shift 2
-            ;;
-        --depth)
-            DEPTH="${2:-1}"
-            shift 2
-            ;;
-        --keep)
-            KEEP_RELEASES="${2:-5}"
-            shift 2
-            ;;
-        --base-dir)
-            BASE_DIR="${2:-/var/www}"
-            shift 2
-            ;;
-        --releases-dir)
-            CUSTOM_RELEASES_DIR="${2:-}"
-            shift 2
-            ;;
-        --shared-dir)
-            CUSTOM_SHARED_DIR="${2:-}"
-            shift 2
-            ;;
-        --current-link)
-            CUSTOM_CURRENT_LINK="${2:-}"
-            shift 2
-            ;;
-        --shared)
-            IFS=',' read -ra _shared_items <<< "${2:-}"
-            for item in "${_shared_items[@]}"; do
-                [[ -n "${item}" ]] && CUSTOM_SHARED+=("${item}")
-            done
-            shift 2
-            ;;
-        --env)
-            ENV_MAPPINGS+=("${2:-}")
-            shift 2
-            ;;
-        --owner)
-            OWNER="${2:-}"
-            shift 2
-            ;;
-        --group)
-            GROUP="${2:-}"
-            shift 2
-            ;;
-        --post-cmd)
-            POST_COMMANDS+=("${2:-}")
-            shift 2
-            ;;
-        --no-activate)
-            ACTIVATE_RELEASE=false
-            shift
-            ;;
-        --skip-composer)
-            FORCE_RUN_COMPOSER="false"
-            shift
-            ;;
-        --force-composer)
-            FORCE_RUN_COMPOSER="true"
-            shift
-            ;;
-        --skip-npm)
-            FORCE_RUN_NPM="false"
-            shift
-            ;;
-        --force-npm)
-            FORCE_RUN_NPM="true"
-            shift
-            ;;
-        --npm-script)
-            NPM_SCRIPT="${2:-build}"
-            shift 2
-            ;;
-        --npm-skip-install)
-            NPM_SKIP_INSTALL=true
-            shift
-            ;;
-        --skip-migrate)
-            FORCE_RUN_MIGRATIONS="false"
-            shift
-            ;;
-        --force-migrate)
-            FORCE_RUN_MIGRATIONS="true"
-            shift
-            ;;
-        --skip-cache)
-            FORCE_RUN_CACHE="false"
-            shift
-            ;;
-        --force-cache)
-            FORCE_RUN_CACHE="true"
-            shift
-            ;;
-        --artisan-seed)
-            LARAVEL_SEED=true
-            shift
-            ;;
-        --run-tests)
-            RUN_TESTS=true
-            TEST_COMMAND="__DEFAULT__"
-            shift
-            ;;
-        --tests)
-            RUN_TESTS=true
-            TEST_COMMAND="${2:-}"
-            shift 2
-            ;;
-        --static-build)
-            STATIC_BUILD_SCRIPT="${2:-}"
-            shift 2
-            ;;
-        --static-output)
-            STATIC_OUTPUT_DIR="${2:-}"
-            shift 2
-            ;;
-        --skip-wp-permissions)
-            FORCE_WP_PERMISSIONS="false"
-            shift
-            ;;
-        --wp-permissions)
-            FORCE_WP_PERMISSIONS="true"
-            shift
-            ;;
-        --submodules)
-            INIT_SUBMODULES=true
-            shift
-            ;;
-        --rollback-on-failure)
-            ROLLBACK_ON_FAILURE=true
-            shift
-            ;;
-        --health-check)
-            HEALTH_CHECK_URL="${2:-}"
-            shift 2
-            ;;
-        --health-timeout)
-            HEALTH_CHECK_TIMEOUT="${2:-30}"
-            shift 2
-            ;;
-        --webhook)
-            NOTIFICATION_WEBHOOK="${2:-}"
-            shift 2
-            ;;
-        --notification)
-            NOTIFICATION_TYPE="${2:-}"
-            shift 2
-            ;;
-        --help|-h)
-            print_usage
-            exit 0
-            ;;
-        *)
-            log_error "Bilinmeyen seçenek: $1"
-            print_usage
-            exit 1
+# Ortak argüman parsing fonksiyonu
+parse_common_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --repo)
+                REPO_URL="${2:-}"
+                shift 2
+                ;;
+            --branch)
+                BRANCH="${2:-}"
+                shift 2
+                ;;
+            --depth)
+                DEPTH="${2:-1}"
+                shift 2
+                ;;
+            --keep)
+                KEEP_RELEASES="${2:-5}"
+                shift 2
+                ;;
+            --base-dir)
+                BASE_DIR="${2:-/var/www}"
+                shift 2
+                ;;
+            --releases-dir)
+                CUSTOM_RELEASES_DIR="${2:-}"
+                shift 2
+                ;;
+            --shared-dir)
+                CUSTOM_SHARED_DIR="${2:-}"
+                shift 2
+                ;;
+            --current-link)
+                CUSTOM_CURRENT_LINK="${2:-}"
+                shift 2
+                ;;
+            --shared)
+                IFS=',' read -ra _shared_items <<< "${2:-}"
+                for item in "${_shared_items[@]}"; do
+                    [[ -n "${item}" ]] && CUSTOM_SHARED+=("${item}")
+                done
+                shift 2
+                ;;
+            --env)
+                ENV_MAPPINGS+=("${2:-}")
+                shift 2
+                ;;
+            --owner)
+                OWNER="${2:-}"
+                shift 2
+                ;;
+            --group)
+                GROUP="${2:-}"
+                shift 2
+                ;;
+            --post-cmd)
+                POST_COMMANDS+=("${2:-}")
+                shift 2
+                ;;
+            --no-activate)
+                ACTIVATE_RELEASE=false
+                shift
+                ;;
+            --submodules)
+                INIT_SUBMODULES=true
+                shift
+                ;;
+            --rollback-on-failure)
+                ROLLBACK_ON_FAILURE=true
+                shift
+                ;;
+            --health-check)
+                HEALTH_CHECK_URL="${2:-}"
+                shift 2
+                ;;
+            --health-timeout)
+                HEALTH_CHECK_TIMEOUT="${2:-30}"
+                shift 2
+                ;;
+            --webhook)
+                NOTIFICATION_WEBHOOK="${2:-}"
+                shift 2
+                ;;
+            --notification)
+                NOTIFICATION_TYPE="${2:-}"
+                shift 2
+                ;;
+            --help|-h)
+                print_common_usage
+                exit 0
+                ;;
+            *)
+                # Bilinmeyen seçenek - proje türüne özel olabilir
+                return 1
+                ;;
+        esac
+    done
+    return 0
+}
+
+# Ortak validasyon fonksiyonları
+validate_common_args() {
+    if [[ -z "${REPO_URL}" ]]; then
+        log_error "--repo parametresi zorunludur."
+        return 1
+    fi
+
+    if ! check_command git; then
+        log_error "git komutu bulunamadı."
+        return 1
+    fi
+
+    if [[ "${DEPTH}" =~ ^[0-9]+$ ]]; then
+        DEPTH_VALUE="${DEPTH}"
+    else
+        log_error "--depth için numerik değer bekleniyor."
+        return 1
+    fi
+
+    case "${KEEP_RELEASES}" in
+        ''|*[!0-9]*)
+            log_error "--keep parametresi numerik olmalıdır."
+            return 1
             ;;
     esac
-done
 
-if [[ -z "${PROJECT_TYPE}" || -z "${REPO_URL}" ]]; then
-    log_error "--type ve --repo parametreleri zorunludur."
-    print_usage
-    exit 1
-fi
+    return 0
+}
 
-case "${PROJECT_TYPE}" in
-    laravel|next|nuxt|wordpress|static|react|vue|symfony|docker)
-        ;;
-    *)
-        log_error "Geçersiz proje türü: ${PROJECT_TYPE}"
-        exit 1
-        ;;
-esac
+# Ortak dizin kurulumu
+setup_common_directories() {
+    if [[ -z "${CUSTOM_RELEASES_DIR}" ]]; then
+        RELEASES_DIR="${BASE_DIR%/}/releases"
+    else
+        RELEASES_DIR="${CUSTOM_RELEASES_DIR}"
+    fi
 
-if ! check_command git; then
-    log_error "git komutu bulunamadı."
-    exit 1
-fi
+    if [[ -z "${CUSTOM_SHARED_DIR}" ]]; then
+        SHARED_DIR="${BASE_DIR%/}/shared"
+    else
+        SHARED_DIR="${CUSTOM_SHARED_DIR}"
+    fi
 
-if [[ "${DEPTH}" =~ ^[0-9]+$ ]]; then
-    DEPTH_VALUE="${DEPTH}"
-else
-    log_error "--depth için numerik değer bekleniyor."
-    exit 1
-fi
+    if [[ -z "${CUSTOM_CURRENT_LINK}" ]]; then
+        CURRENT_LINK="${BASE_DIR%/}/current"
+    else
+        CURRENT_LINK="${CUSTOM_CURRENT_LINK}"
+    fi
 
-case "${KEEP_RELEASES}" in
-    ''|*[!0-9]*)
-        log_error "--keep parametresi numerik olmalıdır."
-        exit 1
-        ;;
-esac
+    export DEPLOY_BASE_DIR="${BASE_DIR}"
+    export DEPLOY_RELEASES_DIR="${RELEASES_DIR}"
+    export DEPLOY_SHARED_DIR="${SHARED_DIR}"
+    export DEPLOY_CURRENT_LINK="${CURRENT_LINK}"
 
-DEFAULT_RUN_COMPOSER=false
-DEFAULT_RUN_NPM=false
-DEFAULT_RUN_MIGRATIONS=false
-DEFAULT_RUN_CACHE=false
-DEFAULT_TEST_COMMAND=""
-DEFAULT_SHARED=( )
-DEFAULT_WP_PERMISSIONS=false
+    mkdir -p "${RELEASES_DIR}" "${SHARED_DIR}"
+}
 
-case "${PROJECT_TYPE}" in
-    laravel)
-        DEFAULT_RUN_COMPOSER=true
-        DEFAULT_RUN_NPM=true
-        DEFAULT_RUN_MIGRATIONS=true
-        DEFAULT_RUN_CACHE=true
-        DEFAULT_TEST_COMMAND="php artisan test"
-        DEFAULT_SHARED=("file:.env" "dir:storage" "dir:bootstrap/cache" "dir:public/storage")
-        ;;
-    next)
-        DEFAULT_RUN_NPM=true
-        DEFAULT_TEST_COMMAND="npm test"
-        DEFAULT_SHARED=("file:.env" "file:.env.local")
-        ;;
-    nuxt)
-        DEFAULT_RUN_NPM=true
-        DEFAULT_TEST_COMMAND="npm test"
-        DEFAULT_SHARED=("file:.env")
-        ;;
-    wordpress)
-        DEFAULT_SHARED=("file:.env" "dir:wp-content/uploads" "dir:wp-content/cache")
-        DEFAULT_WP_PERMISSIONS=true
-        ;;
-    static)
-        DEFAULT_SHARED=("file:.env")
-        ;;
-    react)
-        DEFAULT_RUN_NPM=true
-        DEFAULT_TEST_COMMAND="npm test"
-        DEFAULT_SHARED=("file:.env" "file:.env.local" "file:.env.production")
-        ;;
-    vue)
-        DEFAULT_RUN_NPM=true
-        DEFAULT_TEST_COMMAND="npm run test:unit"
-        DEFAULT_SHARED=("file:.env" "file:.env.local")
-        ;;
-    symfony)
-        DEFAULT_RUN_COMPOSER=true
-        DEFAULT_RUN_NPM=true
-        DEFAULT_TEST_COMMAND="php bin/phpunit"
-        DEFAULT_SHARED=("file:.env" "file:.env.local" "dir:var/cache" "dir:var/log" "dir:var/sessions")
-        ;;
-    docker)
-        DEFAULT_SHARED=("file:.env" "file:docker-compose.yml" "file:docker-compose.override.yml")
-        ;;
-esac
+# Git clone işlemi
+clone_repository() {
+    local release_dir="$1"
+    
+    log_info "Depo klonlanıyor -> ${release_dir}"
 
-if [[ -z "${TEST_COMMAND}" || "${TEST_COMMAND}" == "__DEFAULT__" ]]; then
-    TEST_COMMAND="${DEFAULT_TEST_COMMAND}"
-fi
+    local depth_args=()
+    if [[ "${DEPTH_VALUE}" -gt 0 ]]; then
+        depth_args=("--depth" "${DEPTH_VALUE}")
+    fi
 
-if [[ -n "${FORCE_RUN_COMPOSER}" ]]; then
-    RUN_COMPOSER="${FORCE_RUN_COMPOSER}"
-else
-    RUN_COMPOSER="${DEFAULT_RUN_COMPOSER}"
-fi
+    git clone --branch "${BRANCH}" "${depth_args[@]}" "${REPO_URL}" "${release_dir}"
+    log_success "Kod deposu indirildi."
 
-if [[ -n "${FORCE_RUN_NPM}" ]]; then
-    RUN_NPM="${FORCE_RUN_NPM}"
-else
-    RUN_NPM="${DEFAULT_RUN_NPM}"
-fi
+    if [[ "${INIT_SUBMODULES}" == true ]]; then
+        log_info "Git submodule güncelleniyor..."
+        (
+            cd "${release_dir}"
+            git submodule update --init --recursive
+        )
+    fi
+}
 
-if [[ -n "${FORCE_RUN_MIGRATIONS}" ]]; then
-    RUN_MIGRATIONS="${FORCE_RUN_MIGRATIONS}"
-else
-    RUN_MIGRATIONS="${DEFAULT_RUN_MIGRATIONS}"
-fi
-
-if [[ -n "${FORCE_RUN_CACHE}" ]]; then
-    RUN_CACHE="${FORCE_RUN_CACHE}"
-else
-    RUN_CACHE="${DEFAULT_RUN_CACHE}"
-fi
-
-if [[ -n "${FORCE_WP_PERMISSIONS}" ]]; then
-    RUN_WP_PERMISSIONS="${FORCE_WP_PERMISSIONS}"
-else
-    RUN_WP_PERMISSIONS="${DEFAULT_WP_PERMISSIONS}"
-fi
-
-if [[ "${RUN_TESTS}" == true && -z "${TEST_COMMAND}" ]]; then
-    log_warning "Bu proje türü için varsayılan test komutu tanımlı değil, test adımı atlandı."
-    RUN_TESTS=false
-fi
-
-if [[ -z "${CUSTOM_RELEASES_DIR}" ]]; then
-    RELEASES_DIR="${BASE_DIR%/}/releases"
-else
-    RELEASES_DIR="${CUSTOM_RELEASES_DIR}"
-fi
-
-if [[ -z "${CUSTOM_SHARED_DIR}" ]]; then
-    SHARED_DIR="${BASE_DIR%/}/shared"
-else
-    SHARED_DIR="${CUSTOM_SHARED_DIR}"
-fi
-
-if [[ -z "${CUSTOM_CURRENT_LINK}" ]]; then
-    CURRENT_LINK="${BASE_DIR%/}/current"
-else
-    CURRENT_LINK="${CUSTOM_CURRENT_LINK}"
-fi
-
-export DEPLOY_BASE_DIR="${BASE_DIR}"
-export DEPLOY_RELEASES_DIR="${RELEASES_DIR}"
-export DEPLOY_SHARED_DIR="${SHARED_DIR}"
-export DEPLOY_CURRENT_LINK="${CURRENT_LINK}"
-
-mkdir -p "${RELEASES_DIR}" "${SHARED_DIR}"
-
-TIMESTAMP="$(date +%Y%m%d%H%M%S)"
-RELEASE_DIR="${RELEASES_DIR}/${TIMESTAMP}"
-
-log_info "Depo klonlanıyor -> ${RELEASE_DIR}"
-
-DEPTH_ARGS=()
-if [[ "${DEPTH_VALUE}" -gt 0 ]]; then
-    DEPTH_ARGS=("--depth" "${DEPTH_VALUE}")
-fi
-
-git clone --branch "${BRANCH}" "${DEPTH_ARGS[@]}" "${REPO_URL}" "${RELEASE_DIR}"
-log_success "Kod deposu indirildi."
-
-if [[ "${INIT_SUBMODULES}" == true ]]; then
-    log_info "Git submodule güncelleniyor..."
-    (
-        cd "${RELEASE_DIR}"
-        git submodule update --init --recursive
-    )
-fi
-
+# Env dosyalarını kopyalama
 copy_env_files() {
+    local release_dir="$1"
     local spec src dest target_dir
     for spec in "${ENV_MAPPINGS[@]}"; do
         [[ -z "${spec}" ]] && continue
@@ -476,7 +271,7 @@ copy_env_files() {
             log_error "Env dosyası bulunamadı: ${src}"
             exit 1
         fi
-        target_dir="${RELEASE_DIR}/${dest}"
+        target_dir="${release_dir}/${dest}"
         mkdir -p "$(dirname "${target_dir}")"
         cp "${src}" "${target_dir}"
         chmod 600 "${target_dir}"
@@ -484,10 +279,11 @@ copy_env_files() {
     done
 }
 
-copy_env_files
-
+# Paylaşılan kaynak kurulumu
 setup_shared_resource() {
     local descriptor="$1"
+    local release_dir="$2"
+    local shared_dir="$3"
     local type="auto"
     local relative="$1"
     if [[ "${descriptor}" == dir:* ]]; then
@@ -500,8 +296,8 @@ setup_shared_resource() {
 
     [[ -z "${relative}" ]] && return
 
-    local release_path="${RELEASE_DIR}/${relative}"
-    local shared_path="${SHARED_DIR}/${relative}"
+    local release_path="${release_dir}/${relative}"
+    local shared_path="${shared_dir}/${relative}"
 
     mkdir -p "$(dirname "${shared_path}")"
 
@@ -545,138 +341,34 @@ setup_shared_resource() {
     log_info "Paylaşılan kaynak hazırlandı: ${relative}"
 }
 
-declare -A _seen_shared=()
-declare -a RESOLVED_SHARED=()
-for item in "${DEFAULT_SHARED[@]}" "${CUSTOM_SHARED[@]}"; do
-    [[ -z "${item}" ]] && continue
-    if [[ -z "${_seen_shared[${item}]:-}" ]]; then
-        _seen_shared["${item}"]=1
-        RESOLVED_SHARED+=("${item}")
-    fi
-done
+# Paylaşılan kaynakları kurma
+setup_shared_resources() {
+    local release_dir="$1"
+    local shared_dir="$2"
+    local shared_items=("$@")
+    
+    # İlk iki parametre release_dir ve shared_dir, geri kalanı shared items
+    shift 2
+    local items=("$@")
+    
+    declare -A _seen_shared=()
+    declare -a resolved_shared=()
+    for item in "${items[@]}"; do
+        [[ -z "${item}" ]] && continue
+        if [[ -z "${_seen_shared[${item}]:-}" ]]; then
+            _seen_shared["${item}"]=1
+            resolved_shared+=("${item}")
+        fi
+    done
 
-for descriptor in "${RESOLVED_SHARED[@]}"; do
-    setup_shared_resource "${descriptor}"
-done
-
-run_composer() {
-    if [[ "${RUN_COMPOSER}" != true ]]; then
-        return 0
-    fi
-    local composer_script="${DEPLOY_DIR}/composer_install.sh"
-    if [[ ! -x "${composer_script}" ]]; then
-        log_error "composer_install.sh bulunamadı."
-        return 1
-    fi
-    "${composer_script}" --path "${RELEASE_DIR}" --no-dev --optimize
+    for descriptor in "${resolved_shared[@]}"; do
+        setup_shared_resource "${descriptor}" "${release_dir}" "${shared_dir}"
+    done
 }
 
-run_npm_tasks() {
-    if [[ "${RUN_NPM}" != true ]]; then
-        return 0
-    fi
-    local npm_script="${DEPLOY_DIR}/npm_build.sh"
-    if [[ ! -x "${npm_script}" ]]; then
-        log_error "npm_build.sh bulunamadı."
-        return 1
-    fi
-    local args=("--path" "${RELEASE_DIR}" "--script" "${NPM_SCRIPT}")
-    if [[ "${NPM_SKIP_INSTALL}" == true ]]; then
-        args+=("--skip-install")
-    fi
-    "${npm_script}" "${args[@]}"
-}
-
-run_static_build() {
-    if [[ -z "${STATIC_BUILD_SCRIPT}" ]]; then
-        return 0
-    fi
-    local npm_script="${DEPLOY_DIR}/npm_build.sh"
-    if [[ ! -x "${npm_script}" ]]; then
-        log_error "npm_build.sh bulunamadı."
-        return 1
-    fi
-    local args=("--path" "${RELEASE_DIR}" "--script" "${STATIC_BUILD_SCRIPT}")
-    local skip_install="${NPM_SKIP_INSTALL}"
-    if [[ "${RUN_NPM}" == true ]]; then
-        skip_install=true
-    fi
-    if [[ "${skip_install}" == true ]]; then
-        args+=("--skip-install")
-    fi
-    "${npm_script}" "${args[@]}"
-}
-
-run_laravel_migrate() {
-    if [[ "${RUN_MIGRATIONS}" != true ]]; then
-        return 0
-    fi
-    local migrate_script="${DEPLOY_DIR}/artisan_migrate.sh"
-    if [[ ! -x "${migrate_script}" ]]; then
-        log_error "artisan_migrate.sh bulunamadı."
-        return 1
-    fi
-    local args=("--path" "${RELEASE_DIR}" "--force")
-    if [[ "${LARAVEL_SEED}" == true ]]; then
-        args+=("--seed")
-    fi
-    "${migrate_script}" "${args[@]}"
-}
-
-run_laravel_cache() {
-    if [[ "${RUN_CACHE}" != true ]]; then
-        return 0
-    fi
-    local cache_script="${DEPLOY_DIR}/cache_clear.sh"
-    if [[ ! -x "${cache_script}" ]]; then
-        log_error "cache_clear.sh bulunamadı."
-        return 1
-    fi
-    "${cache_script}" --path "${RELEASE_DIR}"
-}
-
-run_tests() {
-    if [[ "${RUN_TESTS}" != true ]]; then
-        return 0
-    fi
-    log_info "Test komutu çalıştırılıyor: ${TEST_COMMAND}"
-    (
-        cd "${RELEASE_DIR}"
-        bash -lc "${TEST_COMMAND}"
-    )
-}
-
-sync_static_output() {
-    if [[ -z "${STATIC_OUTPUT_DIR}" ]]; then
-        return 0
-    fi
-    local source_path="${RELEASE_DIR}/${STATIC_OUTPUT_DIR}"
-    local shared_target="${SHARED_DIR}/${STATIC_OUTPUT_DIR}"
-    if [[ ! -d "${source_path}" ]]; then
-        log_warning "Belirtilen static çıktı dizini bulunamadı: ${STATIC_OUTPUT_DIR}"
-        return 0
-    fi
-    mkdir -p "${shared_target}"
-    rsync -a --delete "${source_path}/" "${shared_target}/"
-    log_info "Static çıktı senkronlandı: ${STATIC_OUTPUT_DIR}"
-}
-
-apply_wp_permissions() {
-    if [[ "${RUN_WP_PERMISSIONS}" != true ]]; then
-        return 0
-    fi
-    local perm_script="${WORDPRESS_DIR}/set_permissions.sh"
-    if [[ ! -x "${perm_script}" ]]; then
-        log_error "WordPress izin scripti bulunamadı."
-        return 1
-    fi
-    local args=("--path" "${RELEASE_DIR}")
-    [[ -n "${OWNER}" ]] && args+=("--owner" "${OWNER}")
-    [[ -n "${GROUP}" ]] && args+=("--group" "${GROUP}")
-    "${perm_script}" "${args[@]}"
-}
-
+# Release sahipliğini ayarlama
 set_release_owner() {
+    local release_dir="$1"
     if [[ -z "${OWNER}" && -z "${GROUP}" ]]; then
         return 0
     fi
@@ -685,11 +377,12 @@ set_release_owner() {
         owner_spec+="${owner_spec:+:}${GROUP}"
     fi
     if [[ -n "${owner_spec}" ]]; then
-        chown -R "${owner_spec}" "${RELEASE_DIR}"
+        chown -R "${owner_spec}" "${release_dir}"
         log_info "Dosya sahipliği güncellendi: ${owner_spec}"
     fi
 }
 
+# Post komutları çalıştırma
 run_post_commands() {
     local cmd
     for cmd in "${POST_COMMANDS[@]}"; do
@@ -699,6 +392,7 @@ run_post_commands() {
     done
 }
 
+# Rollback fonksiyonu
 rollback_to_previous() {
     local current_real=""
     if [[ -L "${CURRENT_LINK}" ]]; then
@@ -721,6 +415,7 @@ rollback_to_previous() {
     fi
 }
 
+# Health check fonksiyonu
 run_health_check() {
     if [[ -z "${HEALTH_CHECK_URL}" ]]; then
         return
@@ -754,6 +449,7 @@ run_health_check() {
     fi
 }
 
+# Bildirim gönderme
 send_notification() {
     local status="$1"
     local message="$2"
@@ -788,156 +484,7 @@ send_notification() {
     fi
 }
 
-run_docker_build() {
-    if [[ "${PROJECT_TYPE}" != "docker" ]]; then
-        return 0
-    fi
-    
-    local docker_script="${DEPLOY_DIR}/../docker/build_image.sh"
-    if [[ ! -x "${docker_script}" ]]; then
-        log_error "Docker build scripti bulunamadı."
-        return 1
-    fi
-    
-    # Docker Compose dosyası kontrolü
-    if [[ -f "${RELEASE_DIR}/docker-compose.yml" ]]; then
-        log_info "Docker Compose ile build yapılıyor..."
-        (
-            cd "${RELEASE_DIR}"
-            docker-compose build --no-cache
-        )
-    else
-        log_info "Dockerfile ile build yapılıyor..."
-        "${docker_script}" --path "${RELEASE_DIR}"
-    fi
-}
-
-run_docker_deploy() {
-    if [[ "${PROJECT_TYPE}" != "docker" ]]; then
-        return 0
-    fi
-    
-    if [[ -f "${RELEASE_DIR}/docker-compose.yml" ]]; then
-        log_info "Docker Compose ile deploy yapılıyor..."
-        (
-            cd "${RELEASE_DIR}"
-            docker-compose down
-            docker-compose up -d
-        )
-    else
-        log_warning "Docker Compose dosyası bulunamadı, manuel deploy gerekli."
-    fi
-}
-
-# Dağıtım adımları
-if ! run_composer; then
-    log_error "Composer adımı başarısız"
-    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
-        rollback_to_previous
-    fi
-    exit 1
-fi
-
-if ! run_npm_tasks; then
-    log_error "NPM adımı başarısız"
-    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
-        rollback_to_previous
-    fi
-    exit 1
-fi
-
-if ! run_static_build; then
-    log_error "Static build adımı başarısız"
-    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
-        rollback_to_previous
-    fi
-    exit 1
-fi
-
-if ! run_tests; then
-    log_error "Test adımı başarısız"
-    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
-        rollback_to_previous
-    fi
-    exit 1
-fi
-
-if ! run_laravel_migrate; then
-    log_error "Laravel migrate adımı başarısız"
-    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
-        rollback_to_previous
-    fi
-    exit 1
-fi
-
-if ! run_laravel_cache; then
-    log_error "Laravel cache adımı başarısız"
-    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
-        rollback_to_previous
-    fi
-    exit 1
-fi
-
-if ! run_docker_build; then
-    log_error "Docker build adımı başarısız"
-    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
-        rollback_to_previous
-    fi
-    exit 1
-fi
-
-if ! sync_static_output; then
-    log_error "Static output sync adımı başarısız"
-    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
-        rollback_to_previous
-    fi
-    exit 1
-fi
-
-if ! apply_wp_permissions; then
-    log_error "WordPress permissions adımı başarısız"
-    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
-        rollback_to_previous
-    fi
-    exit 1
-fi
-
-if ! set_release_owner; then
-    log_error "Set release owner adımı başarısız"
-    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
-        rollback_to_previous
-    fi
-    exit 1
-fi
-
-if [[ "${ACTIVATE_RELEASE}" == true ]]; then
-    log_info "Yeni sürüm aktif ediliyor..."
-    if ! switch_release "${RELEASE_DIR}"; then
-        log_error "Release activation başarısız"
-        if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
-            rollback_to_previous
-        fi
-        exit 1
-    fi
-else
-    log_info "Yeni sürüm hazırladı ancak current link güncellenmedi: ${RELEASE_DIR}"
-fi
-
-# Docker deploy
-if ! run_docker_deploy; then
-    log_error "Docker deploy adımı başarısız"
-    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
-        rollback_to_previous
-    fi
-    exit 1
-fi
-
-# Health check ve bildirimler
-run_health_check
-send_notification "success" "Deployment başarılı: ${RELEASE_DIR}"
-
-run_post_commands
-
+# Eski sürümleri temizleme
 cleanup_old_releases() {
     local keep="$1"
     local current_real=""
@@ -968,6 +515,81 @@ cleanup_old_releases() {
     done
 }
 
-cleanup_old_releases "${KEEP_RELEASES}"
-
-log_success "Pipeline tamamlandı: ${RELEASE_DIR}"
+# Ana ortak deployment fonksiyonu
+# Bu fonksiyon proje türüne özel adımlar için callback fonksiyonları alır
+run_common_deployment() {
+    local project_type="$1"
+    local custom_steps_callback="$2"
+    shift 2
+    local custom_args=("$@")
+    
+    # Ortak argümanları parse et
+    parse_common_args "${custom_args[@]}"
+    local parse_result=$?
+    
+    # Proje türüne özel argümanları parse et (eğer callback varsa)
+    if [[ -n "${custom_steps_callback}" ]]; then
+        if ! "${custom_steps_callback}" "parse_args" "${custom_args[@]}"; then
+            log_error "Proje türüne özel argüman parsing başarısız"
+            exit 1
+        fi
+    fi
+    
+    # Ortak validasyonları yap
+    if ! validate_common_args; then
+        exit 1
+    fi
+    
+    # Ortak dizinleri kur
+    setup_common_directories
+    
+    # Timestamp ile release dizini oluştur
+    local timestamp="$(date +%Y%m%d%H%M%S)"
+    local release_dir="${RELEASES_DIR}/${timestamp}"
+    
+    # Git clone işlemi
+    clone_repository "${release_dir}"
+    
+    # Env dosyalarını kopyala
+    copy_env_files "${release_dir}"
+    
+    # Proje türüne özel adımları çalıştır
+    if [[ -n "${custom_steps_callback}" ]]; then
+        if ! "${custom_steps_callback}" "run_steps" "${release_dir}"; then
+            log_error "Proje türüne özel adımlar başarısız"
+            if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
+                rollback_to_previous
+            fi
+            exit 1
+        fi
+    fi
+    
+    # Release sahipliğini ayarla
+    set_release_owner "${release_dir}"
+    
+    # Release'i aktif et
+    if [[ "${ACTIVATE_RELEASE}" == true ]]; then
+        log_info "Yeni sürüm aktif ediliyor..."
+        if ! switch_release "${release_dir}"; then
+            log_error "Release activation başarısız"
+            if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
+                rollback_to_previous
+            fi
+            exit 1
+        fi
+    else
+        log_info "Yeni sürüm hazırladı ancak current link güncellenmedi: ${release_dir}"
+    fi
+    
+    # Health check ve bildirimler
+    run_health_check
+    send_notification "success" "Deployment başarılı: ${release_dir}"
+    
+    # Post komutları
+    run_post_commands
+    
+    # Eski sürümleri temizle
+    cleanup_old_releases "${KEEP_RELEASES}"
+    
+    log_success "Pipeline tamamlandı: ${release_dir}"
+}
