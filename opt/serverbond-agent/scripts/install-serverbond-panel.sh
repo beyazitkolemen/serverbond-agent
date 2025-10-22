@@ -46,11 +46,9 @@ for dir in "${LARAVEL_DIR}/storage" "${LARAVEL_DIR}/bootstrap/cache" "${LARAVEL_
     chmod -R 775 "$dir"
 done
 
-# --- Composer & NPM ---
-log_info "Bağımlılıklar yükleniyor..."
+# --- Composer ---
+log_info "Composer bağımlılıkları yükleniyor..."
 sudo -u www-data composer install --no-dev --optimize-autoloader --no-interaction -d "${LARAVEL_DIR}"
-sudo -u www-data npm install --prefix "${LARAVEL_DIR}" --quiet
-sudo -u www-data npm run build --prefix "${LARAVEL_DIR}" >/dev/null 2>&1 || true
 
 # --- .env dosyası ---
 cd "${LARAVEL_DIR}"
@@ -118,6 +116,11 @@ sudo -u www-data php artisan optimize:clear
 sudo -u www-data php artisan migrate --force --seed || log_warn "Migrations hata verdi (normal olabilir)"
 sudo -u www-data php artisan storage:link >/dev/null 2>&1 || true
 sudo -u www-data php artisan optimize
+
+# --- NPM & Frontend Build ---
+log_info "NPM bağımlılıkları yükleniyor ve frontend build ediliyor..."
+sudo -u www-data npm install --prefix "${LARAVEL_DIR}" --quiet
+sudo -u www-data npm run build --prefix "${LARAVEL_DIR}" >/dev/null 2>&1 || true
 
 # --- Filament & cache optimizasyonları ---
 sudo -u www-data php artisan filament:optimize >/dev/null 2>&1 || true
