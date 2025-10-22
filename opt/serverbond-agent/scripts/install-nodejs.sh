@@ -1,80 +1,68 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NODE_VERSION="${NODE_VERSION:-lts}"   # "lts" veya "20" olarak belirtilebilir
-NVM_VERSION="v0.39.9"
-NVM_DIR="/root/.nvm"
+# Ubuntu 24.04 için Node.js kurulum scripti
+NODE_VERSION="${NODE_VERSION:-25}"
 NPM_GLOBAL_PACKAGES="${NPM_GLOBAL_PACKAGES:-yarn pm2}"
-DEBIAN_FRONTEND=noninteractive
 
+# Log fonksiyonları
 log() { echo -e "\033[1;36m[INFO]\033[0m $*"; }
 success() { echo -e "\033[1;32m[SUCCESS]\033[0m $*"; }
 error() { echo -e "\033[1;31m[ERROR]\033[0m $*" >&2; }
 
-log "=== Node.js kurulumu başlatılıyor (versiyon: ${NODE_VERSION}) ==="
+log "=== Ubuntu 24.04 için Node.js kurulumu başlatılıyor (versiyon: ${NODE_VERSION}) ==="
 
-# --- Sistem bağımlılıkları ---
+# Sistem güncellemesi ve bağımlılıklar
+export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq curl git ca-certificates build-essential bash-completion > /dev/null
+apt-get install -y -qq curl git ca-certificates build-essential > /dev/null
 
-# --- NVM Kurulumu ---
-if [[ ! -d "${NVM_DIR}" ]]; then
-  log "NVM ${NVM_VERSION} kuruluyor..."
-  curl -fsSL "https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh" | bash
-fi
+# NVM kurulumu
+log "NVM kuruluyor..."
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
 
-# Ortam değişkenlerini yükle
-export NVM_DIR="$NVM_DIR"
-# shellcheck disable=SC1091
-source "${NVM_DIR}/nvm.sh"
+# NVM'i yükle
+export NVM_DIR="/root/.nvm"
+source "$NVM_DIR/nvm.sh"
 
-# --- Node.js Kurulumu ---
+# Node.js kurulumu
 log "Node.js kurulumu yapılıyor..."
-nvm install "${NODE_VERSION}" --lts >/dev/null
-nvm alias default "${NODE_VERSION}"
-nvm use default >/dev/null
+nvm install 25
+nvm use 25
+nvm alias default 25
 
-if ! command -v node >/dev/null 2>&1; then
-  error "Node.js kurulumu başarısız! NVM düzgün yüklenmemiş olabilir."
-  exit 1
-fi
-
-# --- Kalıcı PATH ayarı ---
+# PATH'i kalıcı hale getir
 if ! grep -q 'nvm.sh' /root/.bashrc; then
-  cat >> /root/.bashrc <<'EOF'
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-EOF
+    echo 'export NVM_DIR="/root/.nvm"' >> /root/.bashrc
+    echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> /root/.bashrc
+    echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"' >> /root/.bashrc
 fi
 
-# --- Global NPM Paketleri ---
+# Global NPM paketleri
 if [[ -n "${NPM_GLOBAL_PACKAGES}" ]]; then
-  log "Global NPM paketleri yükleniyor: ${NPM_GLOBAL_PACKAGES}"
-  for package in ${NPM_GLOBAL_PACKAGES}; do
-    if npm install -g "${package}" --quiet; then
-      log "✓ ${package} başarıyla kuruldu"
-    else
-      error "✗ ${package} kurulumu başarısız"
-    fi
-  done
-else
-  log "Global NPM paketi belirtilmedi, atlanıyor"
+    log "Global NPM paketleri kuruluyor: ${NPM_GLOBAL_PACKAGES}"
+    for package in ${NPM_GLOBAL_PACKAGES}; do
+        log "Kuruluyor: ${package}"
+        if npm install -g "${package}" --quiet; then
+            log "✓ ${package} başarıyla kuruldu"
+        else
+            error "✗ ${package} kurulumu başarısız"
+        fi
+    done
 fi
 
-# --- PM2 Systemd Entegrasyonu ---
+# PM2 systemd entegrasyonu
 if command -v pm2 >/dev/null 2>&1; then
-  log "PM2 systemd entegrasyonu yapılandırılıyor..."
-  pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true
+    log "PM2 systemd entegrasyonu yapılıyor..."
+    pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true
 fi
 
-# --- NPM Optimizasyonu ---
+# NPM optimizasyonu
 npm config set fund false >/dev/null 2>&1 || true
 npm config set audit false >/dev/null 2>&1 || true
-npm config set progress false >/dev/null 2>&1 || true
 npm cache clean --force >/dev/null 2>&1 || true
 
-# --- Son Durum ---
+# Son durum
 success "Node.js ortamı başarıyla kuruldu!"
 log "Node  : $(node -v)"
 log "NPM   : $(npm -v)"
