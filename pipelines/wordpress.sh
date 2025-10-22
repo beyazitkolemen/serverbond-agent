@@ -19,6 +19,14 @@ MYSQL_USER=""
 MYSQL_PASSWORD=""
 MYSQL_HOST="localhost"
 
+# WordPress güncelleme sistemi değişkenleri
+WP_UPDATE_PLUGINS=true
+WP_UPDATE_THEMES=true
+WP_UPDATE_CORE=true
+WP_UPDATE_COMMANDS=()
+WP_PRE_UPDATE_COMMANDS=()
+WP_POST_UPDATE_COMMANDS=()
+
 # WordPress özel kullanım bilgisi
 print_wordpress_usage() {
     cat <<'USAGE'
@@ -37,6 +45,12 @@ WordPress Özel Seçenekleri:
   --mysql-user USER         MySQL kullanıcı adı
   --mysql-password PASS     MySQL kullanıcı şifresi
   --mysql-host HOST         MySQL host adresi (varsayılan: localhost)
+  --skip-update-plugins     Güncelleme sırasında plugin güncellemelerini atla
+  --skip-update-themes      Güncelleme sırasında tema güncellemelerini atla
+  --skip-update-core        Güncelleme sırasında WordPress core güncellemelerini atla
+  --wp-update-cmd "komut"   WordPress özel güncelleme komutu (birden fazla kullanılabilir)
+  --wp-pre-update-cmd "komut" WordPress güncelleme öncesi komut (birden fazla kullanılabilir)
+  --wp-post-update-cmd "komut" WordPress güncelleme sonrası komut (birden fazla kullanılabilir)
 
 Ortak seçenekler için --help ortak seçenekleri gösterir.
 USAGE
@@ -88,6 +102,30 @@ parse_wordpress_args() {
                 ;;
             --mysql-host)
                 MYSQL_HOST="${2:-localhost}"
+                shift 2
+                ;;
+            --skip-update-plugins)
+                WP_UPDATE_PLUGINS=false
+                shift
+                ;;
+            --skip-update-themes)
+                WP_UPDATE_THEMES=false
+                shift
+                ;;
+            --skip-update-core)
+                WP_UPDATE_CORE=false
+                shift
+                ;;
+            --wp-update-cmd)
+                WP_UPDATE_COMMANDS+=("${2:-}")
+                shift 2
+                ;;
+            --wp-pre-update-cmd)
+                WP_PRE_UPDATE_COMMANDS+=("${2:-}")
+                shift 2
+                ;;
+            --wp-post-update-cmd)
+                WP_POST_UPDATE_COMMANDS+=("${2:-}")
                 shift 2
                 ;;
             --help|-h)
@@ -290,6 +328,67 @@ update_wp_config_with_mysql() {
     log_success "MySQL bilgileri wp-config.php dosyasına eklendi"
 }
 
+# WordPress özel güncelleme sistemi
+run_wordpress_update() {
+    local release_dir="$1"
+    local update_type="$2"  # "before" veya "after"
+    
+    log_info "WordPress güncelleme sistemi başlatılıyor (${update_type})..."
+    
+    # WordPress pre-update komutları
+    if [[ ${#WP_PRE_UPDATE_COMMANDS[@]} -gt 0 ]]; then
+        log_info "WordPress pre-update komutları çalıştırılıyor..."
+        for cmd in "${WP_PRE_UPDATE_COMMANDS[@]}"; do
+            if [[ -n "${cmd}" ]]; then
+                log_info "WordPress pre-update komutu: ${cmd}"
+                (cd "${release_dir}" && bash -lc "${cmd}")
+            fi
+        done
+    fi
+    
+    # WordPress core güncelleme
+    if [[ "${WP_UPDATE_CORE}" == true ]]; then
+        log_info "WordPress core güncelleme çalıştırılıyor..."
+        (cd "${release_dir}" && wp core update --allow-root)
+    fi
+    
+    # Plugin güncelleme
+    if [[ "${WP_UPDATE_PLUGINS}" == true ]]; then
+        log_info "WordPress plugin güncelleme çalıştırılıyor..."
+        (cd "${release_dir}" && wp plugin update --all --allow-root)
+    fi
+    
+    # Tema güncelleme
+    if [[ "${WP_UPDATE_THEMES}" == true ]]; then
+        log_info "WordPress tema güncelleme çalıştırılıyor..."
+        (cd "${release_dir}" && wp theme update --all --allow-root)
+    fi
+    
+    # WordPress özel güncelleme komutları
+    if [[ ${#WP_UPDATE_COMMANDS[@]} -gt 0 ]]; then
+        log_info "WordPress özel güncelleme komutları çalıştırılıyor..."
+        for cmd in "${WP_UPDATE_COMMANDS[@]}"; do
+            if [[ -n "${cmd}" ]]; then
+                log_info "WordPress güncelleme komutu: ${cmd}"
+                (cd "${release_dir}" && bash -lc "${cmd}")
+            fi
+        done
+    fi
+    
+    # WordPress post-update komutları
+    if [[ ${#WP_POST_UPDATE_COMMANDS[@]} -gt 0 ]]; then
+        log_info "WordPress post-update komutları çalıştırılıyor..."
+        for cmd in "${WP_POST_UPDATE_COMMANDS[@]}"; do
+            if [[ -n "${cmd}" ]]; then
+                log_info "WordPress post-update komutu: ${cmd}"
+                (cd "${release_dir}" && bash -lc "${cmd}")
+            fi
+        done
+    fi
+    
+    log_success "WordPress güncelleme sistemi tamamlandı (${update_type})"
+}
+
 # WordPress callback fonksiyonu
 wordpress_callback() {
     local action="$1"
@@ -301,6 +400,9 @@ wordpress_callback() {
             ;;
         "run_steps")
             run_wordpress_steps "$@"
+            ;;
+        "run_update")
+            run_wordpress_update "$@"
             ;;
         *)
             log_error "Bilinmeyen WordPress callback action: ${action}"
