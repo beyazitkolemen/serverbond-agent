@@ -11,7 +11,7 @@ kontrollü betiklere tanımlıdır.
 - ✅ `www-data` yalnızca belirlenmiş Script API'lerini çalıştırabilir.
 - ✅ Betiklerin tamamı `bash -n` ile doğrulanır, `shellcheck` desteği mevcuttur.
 - ✅ `visudo -c` ile tüm sudoers dosyaları doğrulanır.
-- ✅ Script izinleri otomatik olarak sıkılaştırılır (`root:www-data`, `750/640`).
+- ✅ Script izinleri panel tarafından çalıştırılabilecek şekilde otomatik ayarlanır (`root:www-data`, `755/644`).
 
 ## 🧭 Betik Tabanlı Yetki Modeli
 
@@ -119,7 +119,7 @@ sudo /opt/serverbond-agent/scripts/meta/validate_shell.sh
 
 ## ℹ️ Notlar
 
-- Scriptler `root:www-data` sahipliğinde ve `750/640` izinleriyle dağıtılır.
+- Scriptler `root:www-data` sahipliğinde ve panel erişimine uygun `755/644` izinleriyle dağıtılır.
 - Betikler root yetkisi gerektirir; uygunsuz çağrılar `require_root` kontrolünden geçemez.
 - `run_as_user` yardımcı fonksiyonu, gerektiğinde komutları farklı kullanıcılarla çalıştırmaya
   imkan verir (örn. `npm.sh --user deploy`).
