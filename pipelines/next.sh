@@ -18,6 +18,12 @@ NGINX_DOMAIN=""
 NGINX_TEMPLATE_TYPE="static"
 NGINX_SSL_EMAIL=""
 
+# Next.js güncelleme sistemi değişkenleri
+NEXT_UPDATE_NPM=true
+NEXT_UPDATE_COMMANDS=()
+NEXT_PRE_UPDATE_COMMANDS=()
+NEXT_POST_UPDATE_COMMANDS=()
+
 # Next.js özel kullanım bilgisi
 print_next_usage() {
     cat <<'USAGE'
@@ -35,6 +41,10 @@ Next.js Özel Seçenekleri:
   --nginx-domain DOMAIN     Nginx site domain adı
   --nginx-template TYPE     Nginx template türü (varsayılan: static)
   --nginx-ssl-email EMAIL   SSL sertifikası için email adresi
+  --skip-update-npm         Güncelleme sırasında npm update'i atla
+  --next-update-cmd "komut" Next.js özel güncelleme komutu (birden fazla kullanılabilir)
+  --next-pre-update-cmd "komut" Next.js güncelleme öncesi komut (birden fazla kullanılabilir)
+  --next-post-update-cmd "komut" Next.js güncelleme sonrası komut (birden fazla kullanılabilir)
 
 Ortak seçenekler için --help ortak seçenekleri gösterir.
 USAGE
@@ -84,6 +94,22 @@ parse_next_args() {
                 ;;
             --nginx-ssl-email)
                 NGINX_SSL_EMAIL="${2:-}"
+                shift 2
+                ;;
+            --skip-update-npm)
+                NEXT_UPDATE_NPM=false
+                shift
+                ;;
+            --next-update-cmd)
+                NEXT_UPDATE_COMMANDS+=("${2:-}")
+                shift 2
+                ;;
+            --next-pre-update-cmd)
+                NEXT_PRE_UPDATE_COMMANDS+=("${2:-}")
+                shift 2
+                ;;
+            --next-post-update-cmd)
+                NEXT_POST_UPDATE_COMMANDS+=("${2:-}")
                 shift 2
                 ;;
             --help|-h)
@@ -219,6 +245,55 @@ setup_nginx_for_nextjs() {
     fi
 }
 
+# Next.js özel güncelleme sistemi
+run_nextjs_update() {
+    local release_dir="$1"
+    local update_type="$2"  # "before" veya "after"
+    
+    log_info "Next.js güncelleme sistemi başlatılıyor (${update_type})..."
+    
+    # Next.js pre-update komutları
+    if [[ ${#NEXT_PRE_UPDATE_COMMANDS[@]} -gt 0 ]]; then
+        log_info "Next.js pre-update komutları çalıştırılıyor..."
+        for cmd in "${NEXT_PRE_UPDATE_COMMANDS[@]}"; do
+            if [[ -n "${cmd}" ]]; then
+                log_info "Next.js pre-update komutu: ${cmd}"
+                (cd "${release_dir}" && bash -lc "${cmd}")
+            fi
+        done
+    fi
+    
+    # NPM güncelleme
+    if [[ "${NEXT_UPDATE_NPM}" == true ]]; then
+        log_info "Next.js NPM güncelleme çalıştırılıyor..."
+        (cd "${release_dir}" && npm update)
+    fi
+    
+    # Next.js özel güncelleme komutları
+    if [[ ${#NEXT_UPDATE_COMMANDS[@]} -gt 0 ]]; then
+        log_info "Next.js özel güncelleme komutları çalıştırılıyor..."
+        for cmd in "${NEXT_UPDATE_COMMANDS[@]}"; do
+            if [[ -n "${cmd}" ]]; then
+                log_info "Next.js güncelleme komutu: ${cmd}"
+                (cd "${release_dir}" && bash -lc "${cmd}")
+            fi
+        done
+    fi
+    
+    # Next.js post-update komutları
+    if [[ ${#NEXT_POST_UPDATE_COMMANDS[@]} -gt 0 ]]; then
+        log_info "Next.js post-update komutları çalıştırılıyor..."
+        for cmd in "${NEXT_POST_UPDATE_COMMANDS[@]}"; do
+            if [[ -n "${cmd}" ]]; then
+                log_info "Next.js post-update komutu: ${cmd}"
+                (cd "${release_dir}" && bash -lc "${cmd}")
+            fi
+        done
+    fi
+    
+    log_success "Next.js güncelleme sistemi tamamlandı (${update_type})"
+}
+
 # Next.js callback fonksiyonu
 next_callback() {
     local action="$1"
@@ -230,6 +305,9 @@ next_callback() {
             ;;
         "run_steps")
             run_next_steps "$@"
+            ;;
+        "run_update")
+            run_nextjs_update "$@"
             ;;
         *)
             log_error "Bilinmeyen Next.js callback action: ${action}"

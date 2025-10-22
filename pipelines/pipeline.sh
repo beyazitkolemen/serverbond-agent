@@ -58,6 +58,17 @@ MYSQL_USER=""
 MYSQL_PASSWORD=""
 MYSQL_HOST="localhost"
 
+# Güncelleme sistemi değişkenleri
+AUTO_UPDATE=false
+UPDATE_BEFORE_DEPLOY=false
+UPDATE_AFTER_DEPLOY=false
+UPDATE_COMMANDS=()
+PRE_UPDATE_COMMANDS=()
+POST_UPDATE_COMMANDS=()
+UPDATE_ROLLBACK_ON_FAILURE=false
+UPDATE_NOTIFICATION_WEBHOOK=""
+UPDATE_NOTIFICATION_TYPE=""
+
 # Ortak kullanım bilgisi - proje türüne özel seçenekler ilgili dosyalarda tanımlanır
 print_common_usage() {
     cat <<'USAGE'
@@ -89,6 +100,15 @@ Ortak Seçenekler:
   --mysql-user USER         MySQL kullanıcı adı
   --mysql-password PASS     MySQL kullanıcı şifresi
   --mysql-host HOST         MySQL host adresi (varsayılan: localhost)
+  --auto-update             Otomatik güncelleme sistemi aktif et
+  --update-before-deploy    Deployment öncesi güncelleme yap
+  --update-after-deploy     Deployment sonrası güncelleme yap
+  --update-cmd "komut"      Güncelleme komutu (birden fazla kullanılabilir)
+  --pre-update-cmd "komut"  Güncelleme öncesi komut (birden fazla kullanılabilir)
+  --post-update-cmd "komut" Güncelleme sonrası komut (birden fazla kullanılabilir)
+  --update-rollback         Güncelleme başarısız olursa rollback yap
+  --update-webhook URL      Güncelleme bildirim webhook URL'i
+  --update-notification TYPE Güncelleme bildirim türü (slack|discord|email)
 USAGE
 }
 
@@ -209,6 +229,42 @@ parse_common_args() {
                 ;;
             --mysql-host)
                 MYSQL_HOST="${2:-localhost}"
+                shift 2
+                ;;
+            --auto-update)
+                AUTO_UPDATE=true
+                shift
+                ;;
+            --update-before-deploy)
+                UPDATE_BEFORE_DEPLOY=true
+                shift
+                ;;
+            --update-after-deploy)
+                UPDATE_AFTER_DEPLOY=true
+                shift
+                ;;
+            --update-cmd)
+                UPDATE_COMMANDS+=("${2:-}")
+                shift 2
+                ;;
+            --pre-update-cmd)
+                PRE_UPDATE_COMMANDS+=("${2:-}")
+                shift 2
+                ;;
+            --post-update-cmd)
+                POST_UPDATE_COMMANDS+=("${2:-}")
+                shift 2
+                ;;
+            --update-rollback)
+                UPDATE_ROLLBACK_ON_FAILURE=true
+                shift
+                ;;
+            --update-webhook)
+                UPDATE_NOTIFICATION_WEBHOOK="${2:-}"
+                shift 2
+                ;;
+            --update-notification)
+                UPDATE_NOTIFICATION_TYPE="${2:-}"
                 shift 2
                 ;;
             --help|-h)
@@ -388,6 +444,127 @@ setup_common_directories() {
     mkdir -p "${RELEASES_DIR}" "${SHARED_DIR}"
 }
 
+# Güncelleme sistemi fonksiyonları
+run_update_system() {
+    local update_type="$1"  # "before" veya "after"
+    local release_dir="$2"
+    
+    if [[ "${AUTO_UPDATE}" != true ]]; then
+        return 0
+    fi
+    
+    if [[ "${update_type}" == "before" && "${UPDATE_BEFORE_DEPLOY}" != true ]]; then
+        return 0
+    fi
+    
+    if [[ "${update_type}" == "after" && "${UPDATE_AFTER_DEPLOY}" != true ]]; then
+        return 0
+    fi
+    
+    log_info "Güncelleme sistemi başlatılıyor (${update_type})..."
+    
+    # Pre-update komutları
+    if [[ ${#PRE_UPDATE_COMMANDS[@]} -gt 0 ]]; then
+        log_info "Pre-update komutları çalıştırılıyor..."
+        for cmd in "${PRE_UPDATE_COMMANDS[@]}"; do
+            if [[ -n "${cmd}" ]]; then
+                log_info "Pre-update komutu: ${cmd}"
+                if ! bash -lc "${cmd}"; then
+                    log_error "Pre-update komutu başarısız: ${cmd}"
+                    if [[ "${UPDATE_ROLLBACK_ON_FAILURE}" == true ]]; then
+                        log_error "Güncelleme rollback yapılıyor..."
+                        return 1
+                    fi
+                fi
+            fi
+        done
+    fi
+    
+    # Ana güncelleme komutları
+    if [[ ${#UPDATE_COMMANDS[@]} -gt 0 ]]; then
+        log_info "Güncelleme komutları çalıştırılıyor..."
+        for cmd in "${UPDATE_COMMANDS[@]}"; do
+            if [[ -n "${cmd}" ]]; then
+                log_info "Güncelleme komutu: ${cmd}"
+                if ! bash -lc "${cmd}"; then
+                    log_error "Güncelleme komutu başarısız: ${cmd}"
+                    if [[ "${UPDATE_ROLLBACK_ON_FAILURE}" == true ]]; then
+                        log_error "Güncelleme rollback yapılıyor..."
+                        return 1
+                    fi
+                fi
+            fi
+        done
+    else
+        # Varsayılan güncelleme komutu
+        log_info "Varsayılan güncelleme komutu çalıştırılıyor..."
+        local update_script="${SCRIPTS_DIR}/meta/update.sh"
+        if [[ -x "${update_script}" ]]; then
+            if ! "${update_script}"; then
+                log_error "Varsayılan güncelleme komutu başarısız"
+                if [[ "${UPDATE_ROLLBACK_ON_FAILURE}" == true ]]; then
+                    log_error "Güncelleme rollback yapılıyor..."
+                    return 1
+                fi
+            fi
+        else
+            log_warning "Güncelleme scripti bulunamadı: ${update_script}"
+        fi
+    fi
+    
+    # Post-update komutları
+    if [[ ${#POST_UPDATE_COMMANDS[@]} -gt 0 ]]; then
+        log_info "Post-update komutları çalıştırılıyor..."
+        for cmd in "${POST_UPDATE_COMMANDS[@]}"; do
+            if [[ -n "${cmd}" ]]; then
+                log_info "Post-update komutu: ${cmd}"
+                if ! bash -lc "${cmd}"; then
+                    log_error "Post-update komutu başarısız: ${cmd}"
+                    if [[ "${UPDATE_ROLLBACK_ON_FAILURE}" == true ]]; then
+                        log_error "Güncelleme rollback yapılıyor..."
+                        return 1
+                    fi
+                fi
+            fi
+        done
+    fi
+    
+    # Güncelleme bildirimi gönder
+    send_update_notification "success" "Güncelleme başarılı (${update_type})" "${UPDATE_NOTIFICATION_WEBHOOK}" "${UPDATE_NOTIFICATION_TYPE}"
+    
+    log_success "Güncelleme sistemi tamamlandı (${update_type})"
+    return 0
+}
+
+# Güncelleme bildirimi gönderme
+send_update_notification() {
+    local status="$1"
+    local message="$2"
+    local webhook="$3"
+    local notification_type="$4"
+    
+    if [[ -z "${webhook}" || -z "${notification_type}" ]]; then
+        return 0
+    fi
+    
+    log_info "Güncelleme bildirimi gönderiliyor: ${status}"
+    
+    case "${notification_type}" in
+        "slack")
+            send_slack_notification "${webhook}" "Güncelleme" "${message}" "${status}"
+            ;;
+        "discord")
+            send_discord_notification "${webhook}" "Güncelleme" "${message}" "${status}"
+            ;;
+        "email")
+            send_email_notification "${webhook}" "Güncelleme" "${message}" "${status}"
+            ;;
+        *)
+            log_warning "Bilinmeyen bildirim türü: ${notification_type}"
+            ;;
+    esac
+}
+
 # Ortak fonksiyonlar _common.sh'dan kullanılır
 
 # Ana ortak deployment fonksiyonu
@@ -417,6 +594,23 @@ run_common_deployment() {
     
     # Ortak dizinleri kur
     setup_common_directories
+    
+    # Deployment öncesi güncelleme
+    if ! run_update_system "before" ""; then
+        log_error "Deployment öncesi güncelleme başarısız"
+        exit 1
+    fi
+    
+    # Proje türüne özel güncelleme (deployment öncesi)
+    if [[ -n "${custom_steps_callback}" ]]; then
+        if ! "${custom_steps_callback}" "run_update" "" "before"; then
+            log_error "Proje türüne özel güncelleme başarısız (deployment öncesi)"
+            if [[ "${UPDATE_ROLLBACK_ON_FAILURE}" == true ]]; then
+                log_error "Güncelleme rollback yapılıyor..."
+                exit 1
+            fi
+        fi
+    fi
     
     # Nginx ve MySQL otomatik kurulumu
     if ! install_nginx_if_needed; then
@@ -470,6 +664,28 @@ run_common_deployment() {
     
     # Post komutları
     run_post_commands "${POST_COMMANDS[@]}"
+    
+    # Deployment sonrası güncelleme
+    if ! run_update_system "after" "${release_dir}"; then
+        log_error "Deployment sonrası güncelleme başarısız"
+        if [[ "${UPDATE_ROLLBACK_ON_FAILURE}" == true ]]; then
+            log_error "Güncelleme rollback yapılıyor..."
+            rollback_to_previous "${CURRENT_LINK}"
+            exit 1
+        fi
+    fi
+    
+    # Proje türüne özel güncelleme (deployment sonrası)
+    if [[ -n "${custom_steps_callback}" ]]; then
+        if ! "${custom_steps_callback}" "run_update" "${release_dir}" "after"; then
+            log_error "Proje türüne özel güncelleme başarısız (deployment sonrası)"
+            if [[ "${UPDATE_ROLLBACK_ON_FAILURE}" == true ]]; then
+                log_error "Güncelleme rollback yapılıyor..."
+                rollback_to_previous "${CURRENT_LINK}"
+                exit 1
+            fi
+        fi
+    fi
     
     # Eski sürümleri temizle
     cleanup_old_releases "${KEEP_RELEASES}" "${RELEASES_DIR}" "${CURRENT_LINK}"

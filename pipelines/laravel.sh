@@ -29,6 +29,15 @@ MYSQL_USER=""
 MYSQL_PASSWORD=""
 MYSQL_HOST="localhost"
 
+# Laravel güncelleme sistemi değişkenleri
+LARAVEL_UPDATE_COMPOSER=true
+LARAVEL_UPDATE_NPM=true
+LARAVEL_UPDATE_ARTISAN=true
+LARAVEL_UPDATE_CACHE=true
+LARAVEL_UPDATE_COMMANDS=()
+LARAVEL_PRE_UPDATE_COMMANDS=()
+LARAVEL_POST_UPDATE_COMMANDS=()
+
 # Laravel özel kullanım bilgisi
 print_laravel_usage() {
     cat <<'USAGE'
@@ -60,6 +69,13 @@ Laravel Özel Seçenekleri:
   --mysql-user USER         MySQL kullanıcı adı
   --mysql-password PASS     MySQL kullanıcı şifresi
   --mysql-host HOST         MySQL host adresi (varsayılan: localhost)
+  --skip-update-composer    Güncelleme sırasında composer update'i atla
+  --skip-update-npm         Güncelleme sırasında npm update'i atla
+  --skip-update-artisan     Güncelleme sırasında artisan komutlarını atla
+  --skip-update-cache       Güncelleme sırasında cache güncellemelerini atla
+  --laravel-update-cmd "komut" Laravel özel güncelleme komutu (birden fazla kullanılabilir)
+  --laravel-pre-update-cmd "komut" Laravel güncelleme öncesi komut (birden fazla kullanılabilir)
+  --laravel-post-update-cmd "komut" Laravel güncelleme sonrası komut (birden fazla kullanılabilir)
 
 Ortak seçenekler için --help ortak seçenekleri gösterir.
 USAGE
@@ -165,6 +181,34 @@ parse_laravel_args() {
                 ;;
             --mysql-host)
                 MYSQL_HOST="${2:-localhost}"
+                shift 2
+                ;;
+            --skip-update-composer)
+                LARAVEL_UPDATE_COMPOSER=false
+                shift
+                ;;
+            --skip-update-npm)
+                LARAVEL_UPDATE_NPM=false
+                shift
+                ;;
+            --skip-update-artisan)
+                LARAVEL_UPDATE_ARTISAN=false
+                shift
+                ;;
+            --skip-update-cache)
+                LARAVEL_UPDATE_CACHE=false
+                shift
+                ;;
+            --laravel-update-cmd)
+                LARAVEL_UPDATE_COMMANDS+=("${2:-}")
+                shift 2
+                ;;
+            --laravel-pre-update-cmd)
+                LARAVEL_PRE_UPDATE_COMMANDS+=("${2:-}")
+                shift 2
+                ;;
+            --laravel-post-update-cmd)
+                LARAVEL_POST_UPDATE_COMMANDS+=("${2:-}")
                 shift 2
                 ;;
             --help|-h)
@@ -400,6 +444,78 @@ update_env_with_mysql() {
     log_success "MySQL bilgileri .env dosyasına eklendi"
 }
 
+# Laravel özel güncelleme sistemi
+run_laravel_update() {
+    local release_dir="$1"
+    local update_type="$2"  # "before" veya "after"
+    
+    log_info "Laravel güncelleme sistemi başlatılıyor (${update_type})..."
+    
+    # Laravel pre-update komutları
+    if [[ ${#LARAVEL_PRE_UPDATE_COMMANDS[@]} -gt 0 ]]; then
+        log_info "Laravel pre-update komutları çalıştırılıyor..."
+        for cmd in "${LARAVEL_PRE_UPDATE_COMMANDS[@]}"; do
+            if [[ -n "${cmd}" ]]; then
+                log_info "Laravel pre-update komutu: ${cmd}"
+                (cd "${release_dir}" && bash -lc "${cmd}")
+            fi
+        done
+    fi
+    
+    # Composer güncelleme
+    if [[ "${LARAVEL_UPDATE_COMPOSER}" == true ]]; then
+        log_info "Composer güncelleme çalıştırılıyor..."
+        (cd "${release_dir}" && composer update --no-dev --optimize-autoloader)
+    fi
+    
+    # NPM güncelleme
+    if [[ "${LARAVEL_UPDATE_NPM}" == true ]]; then
+        log_info "NPM güncelleme çalıştırılıyor..."
+        (cd "${release_dir}" && npm update)
+    fi
+    
+    # Artisan güncelleme komutları
+    if [[ "${LARAVEL_UPDATE_ARTISAN}" == true ]]; then
+        log_info "Laravel Artisan güncelleme komutları çalıştırılıyor..."
+        (cd "${release_dir}" && php artisan config:cache)
+        (cd "${release_dir}" && php artisan route:cache)
+        (cd "${release_dir}" && php artisan view:cache)
+    fi
+    
+    # Cache güncelleme
+    if [[ "${LARAVEL_UPDATE_CACHE}" == true ]]; then
+        log_info "Laravel cache güncelleme çalıştırılıyor..."
+        (cd "${release_dir}" && php artisan cache:clear)
+        (cd "${release_dir}" && php artisan config:clear)
+        (cd "${release_dir}" && php artisan route:clear)
+        (cd "${release_dir}" && php artisan view:clear)
+    fi
+    
+    # Laravel özel güncelleme komutları
+    if [[ ${#LARAVEL_UPDATE_COMMANDS[@]} -gt 0 ]]; then
+        log_info "Laravel özel güncelleme komutları çalıştırılıyor..."
+        for cmd in "${LARAVEL_UPDATE_COMMANDS[@]}"; do
+            if [[ -n "${cmd}" ]]; then
+                log_info "Laravel güncelleme komutu: ${cmd}"
+                (cd "${release_dir}" && bash -lc "${cmd}")
+            fi
+        done
+    fi
+    
+    # Laravel post-update komutları
+    if [[ ${#LARAVEL_POST_UPDATE_COMMANDS[@]} -gt 0 ]]; then
+        log_info "Laravel post-update komutları çalıştırılıyor..."
+        for cmd in "${LARAVEL_POST_UPDATE_COMMANDS[@]}"; do
+            if [[ -n "${cmd}" ]]; then
+                log_info "Laravel post-update komutu: ${cmd}"
+                (cd "${release_dir}" && bash -lc "${cmd}")
+            fi
+        done
+    fi
+    
+    log_success "Laravel güncelleme sistemi tamamlandı (${update_type})"
+}
+
 # Laravel özel adımları
 run_laravel_steps() {
     local release_dir="$1"
@@ -551,6 +667,9 @@ laravel_callback() {
             ;;
         "run_steps")
             run_laravel_steps "$@"
+            ;;
+        "run_update")
+            run_laravel_update "$@"
             ;;
         *)
             log_error "Bilinmeyen Laravel callback action: ${action}"
