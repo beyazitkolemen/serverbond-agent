@@ -651,9 +651,6 @@ wait_services() {
 download_scripts() {
     log_step "Downloading latest scripts from GitHub..."
     
-    # Create directories
-    mkdir -p "${SCRIPTS_DIR}" "${TEMPLATES_DIR}"
-    
     # Always download latest scripts from GitHub
     log "Repository: ${GITHUB_REPO} (${GITHUB_BRANCH})"
     
@@ -664,12 +661,18 @@ download_scripts() {
     git clone -q --depth 1 --single-branch --branch "${GITHUB_BRANCH}" \
         "https://github.com/${GITHUB_REPO}.git" /tmp/sb-tmp >> "$LOG_FILE" 2>&1
     
-    # Backup existing scripts if they exist
-    if [[ -d "${SCRIPTS_DIR}" ]] && [[ "$(ls -A ${SCRIPTS_DIR} 2>/dev/null)" ]]; then
+    # Completely remove old scripts and templates
+    log_info "Eski script'ler ve template'ler temizleniyor..."
+    
+    # Remove old scripts directory completely
+    if [[ -d "${SCRIPTS_DIR}" ]]; then
+        log_info "Eski script'ler yedekleniyor: ${SCRIPTS_DIR}.backup.$(date +%Y%m%d%H%M%S)"
         mv "${SCRIPTS_DIR}" "${SCRIPTS_DIR}.backup.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
     fi
     
-    if [[ -d "${TEMPLATES_DIR}" ]] && [[ "$(ls -A ${TEMPLATES_DIR} 2>/dev/null)" ]]; then
+    # Remove old templates directory completely  
+    if [[ -d "${TEMPLATES_DIR}" ]]; then
+        log_info "Eski template'ler yedekleniyor: ${TEMPLATES_DIR}.backup.$(date +%Y%m%d%H%M%S)"
         mv "${TEMPLATES_DIR}" "${TEMPLATES_DIR}.backup.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
     fi
     
@@ -677,13 +680,77 @@ download_scripts() {
     mkdir -p "${SCRIPTS_DIR}" "${TEMPLATES_DIR}"
     
     # Copy latest scripts and templates
+    log_info "Yeni script'ler ve template'ler kopyalanıyor..."
     rsync -a --exclude='.git' /tmp/sb-tmp/opt/serverbond-agent/scripts/ "${SCRIPTS_DIR}/" >> "$LOG_FILE" 2>&1
     rsync -a --exclude='.git' /tmp/sb-tmp/templates/ "${TEMPLATES_DIR}/" >> "$LOG_FILE" 2>&1
+    
+    # Verify scripts were copied successfully
+    if [[ ! -d "${SCRIPTS_DIR}" ]] || [[ ! "$(ls -A ${SCRIPTS_DIR} 2>/dev/null)" ]]; then
+        log_error "Script'ler başarıyla kopyalanamadı!"
+        return 1
+    fi
+    
+    if [[ ! -d "${TEMPLATES_DIR}" ]] || [[ ! "$(ls -A ${TEMPLATES_DIR} 2>/dev/null)" ]]; then
+        log_warning "Template'ler kopyalanamadı, varsayılan template'ler kullanılacak"
+    fi
     
     # Clean up
     rm -rf /tmp/sb-tmp
     
-    log_success "Latest scripts and templates ready"
+    log_success "Yeni script'ler ve template'ler hazır"
+    log_info "Script sayısı: $(find "${SCRIPTS_DIR}" -name "*.sh" | wc -l)"
+    log_info "Template sayısı: $(find "${TEMPLATES_DIR}" -type f | wc -l)"
+    
+    # Clean old backups (keep only last 3)
+    cleanup_old_backups
+}
+
+cleanup_old_backups() {
+    log_info "Eski yedekler temizleniyor (son 3 yedek korunuyor)..."
+    
+    # Clean script backups
+    find "${INSTALL_DIR}" -maxdepth 1 -name "scripts.backup.*" -type d | sort -r | tail -n +4 | xargs rm -rf 2>/dev/null || true
+    
+    # Clean template backups  
+    find "${INSTALL_DIR}" -maxdepth 1 -name "templates.backup.*" -type d | sort -r | tail -n +4 | xargs rm -rf 2>/dev/null || true
+    
+    log_success "Eski yedekler temizlendi"
+}
+
+check_existing_installation() {
+    log_step "Mevcut kurulum kontrol ediliyor..."
+    
+    # Check if this is a reinstall/update
+    if [[ -d "${INSTALL_DIR}" ]]; then
+        log_info "Mevcut ServerBond Agent kurulumu bulundu: ${INSTALL_DIR}"
+        
+        # Check if scripts directory exists and has content
+        if [[ -d "${SCRIPTS_DIR}" ]] && [[ "$(ls -A ${SCRIPTS_DIR} 2>/dev/null)" ]]; then
+            log_info "Eski script'ler bulundu, güncelleme yapılacak"
+            
+            # Count existing scripts
+            local script_count=$(find "${SCRIPTS_DIR}" -name "*.sh" 2>/dev/null | wc -l)
+            log_info "Mevcut script sayısı: ${script_count}"
+            
+            # Check for old backup directories
+            local backup_count=$(find "${INSTALL_DIR}" -maxdepth 1 -name "*.backup.*" -type d 2>/dev/null | wc -l)
+            if [[ $backup_count -gt 0 ]]; then
+                log_info "Eski yedekler bulundu: ${backup_count} adet"
+            fi
+        else
+            log_info "Script dizini boş veya mevcut değil, temiz kurulum yapılacak"
+        fi
+        
+        # Check for old install.sh in the same directory
+        if [[ -f "${INSTALL_DIR}/install.sh" ]]; then
+            log_warning "Eski install.sh bulundu, yedekleniyor..."
+            mv "${INSTALL_DIR}/install.sh" "${INSTALL_DIR}/install.sh.backup.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
+        fi
+        
+        log_success "Mevcut kurulum analizi tamamlandı"
+    else
+        log_info "Yeni kurulum yapılacak"
+    fi
 }
 
 set_script_permissions() {
@@ -818,6 +885,9 @@ main() {
 
     INSTALLATION_STARTED=true
 
+    # Check for existing installation and clean if needed
+    check_existing_installation
+    
     # Prepare system and fetch latest scripts
     prepare_system
     download_scripts
