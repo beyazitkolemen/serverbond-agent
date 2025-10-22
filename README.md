@@ -1,70 +1,70 @@
 # ServerBond Agent
 
-Modern, hızlı ve kolay sunucu yönetim platformu. Ubuntu 24.04 sunucunuzu tek komutla Laravel hosting için hazır hale getirin.
+Modern, fast and easy server management platform. Get your Ubuntu 24.04 server ready for Laravel hosting with a single command.
 
-## 🚀 Kurulum
+## 🚀 Installation
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/beyazitkolemen/serverbond-agent/main/install.sh | sudo bash
 ```
 
-Kurulum tamamlandığında:
-- ✅ ServerBond Panel otomatik kurulur
-- ✅ Nginx, PHP 8.4, MySQL, Redis hazır olur
-- ✅ http://SUNUCU_IP adresinden panele erişebilirsiniz
+When installation is complete:
+- ✅ ServerBond Panel is automatically installed
+- ✅ Nginx, PHP 8.4, MySQL, Redis are ready
+- ✅ You can access the panel at http://SERVER_IP
 
-## 🔐 Panel Girişi
+## 🔐 Panel Login
 
 ```
-URL      : http://SUNUCU_IP/
-E-posta  : admin@serverbond.local
-Şifre    : password
+URL      : http://SERVER_IP/
+Email    : admin@serverbond.local
+Password : password
 ```
 
-> ⚠️ İlk girişte şifrenizi mutlaka değiştirin!
+> ⚠️ Change your password on first login!
 
-## 📦 Neler Kurulur?
+## 📦 What Gets Installed?
 
-- **ServerBond Panel** - Web tabanlı yönetim paneli (Filament 4)
+- **ServerBond Panel** - Web-based management panel (Filament 4)
 - **Nginx** - Web server
 - **PHP 8.4** - Modern PHP runtime
-- **MySQL 8.0** - Veritabanı
-- **Redis** - Cache sistemi
+- **MySQL 8.0** - Database
+- **Redis** - Cache system
 - **Node.js 20** - JavaScript runtime
 - **Python 3.12** - Python runtime
-- **Certbot** - SSL sertifika yöneticisi
+- **Certbot** - SSL certificate manager
 - **Supervisor** - Process manager
-- **Docker** (Opsiyonel) - Container yönetimi
-- **Cloudflared** (Opsiyonel) - Cloudflare Tunnel desteği
+- **Docker** (Optional) - Container management
+- **Cloudflared** (Optional) - Cloudflare Tunnel support
 
-## 📋 Gereksinimler
+## 📋 Requirements
 
 - Ubuntu 24.04 LTS
-- Root yetkisi
-- İnternet bağlantısı
-- En az 5GB disk alanı
+- Root privileges
+- Internet connection
+- At least 5GB disk space
 
-## 🎯 Özellikler
+## 🎯 Features
 
-- Multi-site yönetimi
-- Laravel, PHP, Static, Node.js, Python desteği
-- Otomatik Git deployment
-- SSL/TLS yönetimi
-- Database yönetimi
-- Gerçek zamanlı monitoring
+- Multi-site management
+- Laravel, PHP, Static, Node.js, Python support
+- Automatic Git deployment
+- SSL/TLS management
+- Database management
+- Real-time monitoring
 
-## 🐳 Docker Kurulumu (Opsiyonel)
+## 🐳 Docker Installation (Optional)
 
-Docker ile gelişmiş container yönetimi:
+Advanced container management with Docker:
 
 ```bash
-# Temel Docker kurulumu
+# Basic Docker installation
 sudo ./opt/serverbond-agent/scripts/install-docker.sh
 
-# Kullanıcı ile kurulum (önerilen)
+# Installation with user (recommended)
 sudo DOCKER_USER=$USER ./opt/serverbond-agent/scripts/install-docker.sh
 
-# Tüm özellikler (Swarm, Buildx, Trivy)
+# All features (Swarm, Buildx, Trivy)
 sudo DOCKER_USER=$USER \
   ENABLE_DOCKER_SWARM=true \
   ENABLE_DOCKER_BUILDX=true \
@@ -72,249 +72,249 @@ sudo DOCKER_USER=$USER \
   ./opt/serverbond-agent/scripts/install-docker.sh
 ```
 
-**Docker Özellikleri:**
+**Docker Features:**
 - ✅ Docker Engine + Compose (latest)
-- ✅ Production-ready daemon yapılandırması
-- ✅ Güvenlik optimizasyonları (seccomp, no-new-privileges)
-- ✅ Otomatik log rotation
+- ✅ Production-ready daemon configuration
+- ✅ Security optimizations (seccomp, no-new-privileges)
+- ✅ Automatic log rotation
 - ✅ Resource limits
-- ✅ Registry mirror desteği
+- ✅ Registry mirror support
 - ✅ Docker Buildx (multi-platform builds)
 - ✅ Docker Swarm (orchestration)
-- ✅ Trivy (güvenlik tarayıcı)
-- ✅ Haftalık otomatik temizlik
-- ✅ Monitoring scriptleri
+- ✅ Trivy (security scanner)
+- ✅ Weekly automatic cleanup
+- ✅ Monitoring scripts
 
-**Laravel için Docker:**
+**Docker for Laravel:**
 
 ```bash
 cd /var/www/myproject
 
-# Template'leri kopyala
+# Copy templates
 cp /opt/serverbond-agent/templates/docker/docker-compose-laravel-simple.yml docker-compose.yml
 cp /opt/serverbond-agent/templates/docker/docker-env-example .env
 cp /opt/serverbond-agent/templates/docker/Dockerfile-laravel-simple Dockerfile
 cp /opt/serverbond-agent/templates/docker/docker-makefile Makefile
 
-# Başlat
+# Start
 docker compose up -d
 ```
 
-Detaylı bilgi için: [`templates/docker/README.md`](templates/docker/README.md)
+For detailed information: [`templates/docker/README.md`](templates/docker/README.md)
 
-## ☁️ Cloudflared Kurulumu (Opsiyonel)
+## ☁️ Cloudflared Installation (Optional)
 
-Cloudflare Tunnel ile sunucunuzu güvenli bir şekilde internete açın:
+Securely expose your server to the internet with Cloudflare Tunnel:
 
 ```bash
-# Manuel kurulum
+# Manual installation
 sudo ./opt/serverbond-agent/scripts/install-cloudflared.sh
 
-# Otomatik kurulum ile birlikte
+# With automatic installation
 INSTALL_CLOUDFLARED=true sudo bash install.sh
 ```
 
-**Cloudflare Tunnel Özellikleri:**
-- ✅ Port forwarding gerekmez
-- ✅ Güvenli encrypted tunnel
-- ✅ DDoS koruması
-- ✅ SSL/TLS otomatik
-- ✅ Kolay DNS yönetimi
+**Cloudflare Tunnel Features:**
+- ✅ No port forwarding required
+- ✅ Secure encrypted tunnel
+- ✅ DDoS protection
+- ✅ Automatic SSL/TLS
+- ✅ Easy DNS management
 
-**Hızlı Başlangıç:**
+**Quick Start:**
 
 ```bash
-# 1. Cloudflare'e login
+# 1. Login to Cloudflare
 cloudflared-setup login
 
-# 2. Tunnel oluştur
+# 2. Create tunnel
 cloudflared-setup create my-tunnel
 
-# 3. DNS route ekle
+# 3. Add DNS route
 cloudflared-setup route my-tunnel example.com
 
-# 4. Config oluştur
+# 4. Create config
 cloudflared-setup config my-tunnel
 
-# 5. Servisi başlat
+# 5. Start service
 cloudflared-setup enable
 
-# 6. Durumu kontrol et
+# 6. Check status
 cloudflared-setup status
 ```
 
-**Komutlar:**
+**Commands:**
 ```bash
-cloudflared-setup help      # Yardım
-cloudflared-setup list      # Tunnel'ları listele
-cloudflared-setup logs      # Log'ları görüntüle
+cloudflared-setup help      # Help
+cloudflared-setup list      # List tunnels
+cloudflared-setup logs      # View logs
 ```
 
-## 🛠️ Manuel Script Kurulumu
+## 🛠️ Manual Script Installation
 
-İstediğiniz servisi ayrı ayrı kurabilirsiniz:
+You can install services individually:
 
 ```bash
-# Scriptleri klonla
+# Clone scripts
 git clone https://github.com/beyazitkolemen/serverbond-agent.git
 cd serverbond-agent
 
-# Sadece Docker
+# Docker only
 sudo ./opt/serverbond-agent/scripts/install-docker.sh
 
-# Sadece MySQL
+# MySQL only
 sudo ./opt/serverbond-agent/scripts/install-mysql.sh
 
-# Sadece Nginx
+# Nginx only
 sudo ./opt/serverbond-agent/scripts/install-nginx.sh
 
-# Sadece PHP
+# PHP only
 sudo ./opt/serverbond-agent/scripts/install-php.sh
 
-# Sadece Redis
+# Redis only
 sudo ./opt/serverbond-agent/scripts/install-redis.sh
 
-# Sadece Cloudflared
+# Cloudflared only
 sudo ./opt/serverbond-agent/scripts/install-cloudflared.sh
 ```
 
 ## 🔧 Troubleshooting
 
-### ❌ Hata: Access denied for user 'laravel'@'localhost'
+### ❌ Error: Access denied for user 'laravel'@'localhost'
 
-Laravel panel "Access denied" hatası veriyorsa:
+If Laravel panel gives "Access denied" error:
 
 ```bash
-# .env dosyasını otomatik düzelt
+# Automatically fix .env file
 sudo /opt/serverbond-agent/scripts/fix-mysql-credentials.sh
 ```
 
-Bu script:
-- ✅ MySQL şifresini okur
-- ✅ .env dosyasını yedekler
-- ✅ DB_USERNAME'i root olarak ayarlar
-- ✅ Doğru şifreyi ekler
-- ✅ Laravel cache'i temizler
-- ✅ Bağlantıyı test eder
+This script:
+- ✅ Reads MySQL password
+- ✅ Backs up .env file
+- ✅ Sets DB_USERNAME to root
+- ✅ Adds correct password
+- ✅ Clears Laravel cache
+- ✅ Tests connection
 
-### 🔍 MySQL Bağlantı Testi
+### 🔍 MySQL Connection Test
 
-MySQL bağlantı sorunlarında:
+For MySQL connection issues:
 
 ```bash
 sudo /opt/serverbond-agent/scripts/test-mysql-connection.sh
 ```
 
-### 🐳 Docker Sistem Durumu
+### 🐳 Docker System Status
 
 ```bash
-docker-monitor          # Sistem bilgileri
-docker-cleanup          # Temizlik
-docker system df        # Disk kullanımı
+docker-monitor          # System information
+docker-cleanup          # Cleanup
+docker system df        # Disk usage
 ```
 
-### 📋 Log Dosyaları
+### 📋 Log Files
 
-Kurulum logları:
+Installation logs:
 ```bash
 ls -lh /tmp/serverbond-install-*.log
 tail -100 /tmp/serverbond-install-*.log
 ```
 
-### 🔄 Yeniden Kurulum
+### 🔄 Reinstallation
 
-Kurulum başarısız olduysa:
+If installation failed:
 
 ```bash
-# 1. Temizlik
+# 1. Cleanup
 sudo rm -rf /opt/serverbond-agent
 
-# 2. MySQL şifresini kontrol et (varsa sakla)
+# 2. Check MySQL password (save if exists)
 sudo cat /opt/serverbond-agent/config/.mysql_root_password
 
-# 3. Yeniden kurulum
+# 3. Reinstall
 curl -fsSL https://raw.githubusercontent.com/beyazitkolemen/serverbond-agent/main/install.sh | sudo bash
 ```
 
-### 🩺 Panel Sağlık Kontrolü
+### 🩺 Panel Health Check
 
 ```bash
-# Servisleri kontrol et
+# Check services
 sudo systemctl status nginx
 sudo systemctl status php8.4-fpm
 sudo systemctl status mysql
 sudo systemctl status redis-server
 
-# Laravel logları
+# Laravel logs
 sudo tail -50 /var/www/html/storage/logs/laravel.log
 
-# Nginx logları
+# Nginx logs
 sudo tail -50 /var/log/nginx/error.log
 ```
 
-## 🔐 Sudoers İzinleri
+## 🔐 Sudoers Permissions
 
-ServerBond Panel, sistem kaynaklarını yönetebilmek için `www-data` kullanıcısına sudo yetkileri verir. Tüm izinler güvenli bir şekilde `/etc/sudoers.d/` dizininde yapılandırılır.
+ServerBond Panel grants sudo privileges to the `www-data` user to manage system resources. All permissions are securely configured in the `/etc/sudoers.d/` directory.
 
-### Otomatik Oluşturulan Sudoers Dosyaları
+### Automatically Created Sudoers Files
 
-| Dosya | Servis | İzinler |
-|-------|--------|---------|
-| `serverbond-nginx` | Nginx | Servis yönetimi, config düzenleme, log okuma |
-| `serverbond-php` | PHP-FPM | Servis yönetimi, pool config, Composer |
-| `serverbond-mysql` | MySQL | Servis yönetimi, veritabanı işlemleri |
-| `serverbond-redis` | Redis | Servis yönetimi, redis-cli komutları |
-| `serverbond-supervisor` | Supervisor | Process yönetimi, config düzenleme |
-| `serverbond-certbot` | Certbot/SSL | SSL sertifika yönetimi |
-| `serverbond-cloudflare` | Cloudflared | Tunnel yönetimi, config düzenleme |
-| `serverbond-docker` | Docker | Container yönetimi, Docker komutları |
-| `serverbond-nodejs` | Node.js/PM2 | NPM, PM2 komutları |
-| `serverbond-python` | Python | Python3, pip3, venv yönetimi |
-| `serverbond-system` | Sistem | Genel sistem yönetimi, UFW, cron |
+| File | Service | Permissions |
+|------|---------|-------------|
+| `serverbond-nginx` | Nginx | Service management, config editing, log reading |
+| `serverbond-php` | PHP-FPM | Service management, pool config, Composer |
+| `serverbond-mysql` | MySQL | Service management, database operations |
+| `serverbond-redis` | Redis | Service management, redis-cli commands |
+| `serverbond-supervisor` | Supervisor | Process management, config editing |
+| `serverbond-certbot` | Certbot/SSL | SSL certificate management |
+| `serverbond-cloudflare` | Cloudflared | Tunnel management, config editing |
+| `serverbond-docker` | Docker | Container management, Docker commands |
+| `serverbond-nodejs` | Node.js/PM2 | NPM, PM2 commands |
+| `serverbond-python` | Python | Python3, pip3, venv management |
+| `serverbond-system` | System | General system management, UFW, cron |
 
-### Güvenlik Özellikleri
+### Security Features
 
-- ✅ Her servis için ayrı sudoers dosyası (modüler yapı)
-- ✅ Tüm dosyalar `440` izinleriyle korunur
-- ✅ `visudo -c` ile otomatik doğrulama
-- ✅ Geçersiz dosyalar otomatik silinir
-- ✅ Minimal izin prensibi (sadece gerekli olan)
-- ✅ `NOPASSWD` - Panel otomasyonu için
+- ✅ Separate sudoers file for each service (modular structure)
+- ✅ All files protected with `440` permissions
+- ✅ Automatic validation with `visudo -c`
+- ✅ Invalid files automatically deleted
+- ✅ Principle of least privilege (only what's necessary)
+- ✅ `NOPASSWD` - For panel automation
 
-### Detaylı Döküman
+### Detailed Documentation
 
-Tüm sudoers izinlerinin detaylı listesi için:
+For detailed list of all sudoers permissions:
 
 👉 **[SUDOERS-PERMISSIONS.md](SUDOERS-PERMISSIONS.md)**
 
-### Manuel Kontrol
+### Manual Check
 
 ```bash
-# Tüm sudoers dosyalarını listele
+# List all sudoers files
 ls -la /etc/sudoers.d/serverbond-*
 
-# Belirli bir dosyayı görüntüle
+# View specific file
 sudo cat /etc/sudoers.d/serverbond-nginx
 
-# www-data kullanıcısı olarak test
+# Test as www-data user
 sudo -u www-data sudo systemctl status nginx
 ```
 
-## 📚 Dokümantasyon
+## 📚 Documentation
 
-- **Panel**: Tüm site yönetimi web arayüzünden
+- **Panel**: All site management from web interface
 - **Docker**: [`templates/docker/DOCKER-README.md`](templates/docker/DOCKER-README.md)
 - **Templates**: [`templates/docker/README.md`](templates/docker/README.md)
 - **Sudoers**: [`SUDOERS-PERMISSIONS.md`](SUDOERS-PERMISSIONS.md)
 
-Panel kurulumu sonrasında tüm site yönetimi işlemlerini web arayüzünden yapabilirsiniz.
+After panel installation, you can perform all site management operations from the web interface.
 
-## 🤝 Destek
+## 🤝 Support
 
 - **GitHub**: [beyazitkolemen/serverbond-agent](https://github.com/beyazitkolemen/serverbond-agent)
-- **Issues**: [Sorun Bildir](https://github.com/beyazitkolemen/serverbond-agent/issues)
+- **Issues**: [Report Issue](https://github.com/beyazitkolemen/serverbond-agent/issues)
 - **Panel**: [serverbond-panel](https://github.com/beyazitkolemen/serverbond-panel)
 
-## 📝 Lisans
+## 📝 License
 
 MIT License

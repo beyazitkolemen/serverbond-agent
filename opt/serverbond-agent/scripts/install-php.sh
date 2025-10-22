@@ -5,26 +5,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 PHP_SCRIPT_DIR="${SCRIPT_DIR}/php"
 
-# --- Varsayılanlar ---
+# --- Defaults ---
 PHP_VERSION="${PHP_VERSION:-8.3}"
 PHP_MEMORY_LIMIT="${PHP_MEMORY_LIMIT:-256M}"
 PHP_UPLOAD_MAX="${PHP_UPLOAD_MAX:-100M}"
 PHP_MAX_EXECUTION="${PHP_MAX_EXECUTION:-300}"
-PHP_TIMEZONE="${PHP_TIMEZONE:-Europe/Istanbul}"
+PHP_TIMEZONE="${PHP_TIMEZONE:-Europe/London}"
 PHP_FPM_SERVICE="php${PHP_VERSION}-fpm"
 
-log_info "=== PHP ${PHP_VERSION} kurulumu başlıyor ==="
+log_info "=== Starting PHP ${PHP_VERSION} installation ==="
 export DEBIAN_FRONTEND=noninteractive
 
-# --- PPA ekle (ondrej/php) ---
+# --- Add PPA (ondrej/php) ---
 if ! grep -q "ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
-    log_info "PHP PPA ekleniyor..."
+    log_info "Adding PHP PPA..."
     add-apt-repository -y ppa:ondrej/php > /dev/null
     apt-get update -qq
 fi
 
-# --- Paket kurulumu ---
-log_info "PHP ve gerekli eklentiler yükleniyor..."
+# --- Package installation ---
+log_info "Installing PHP and required extensions..."
 apt-get install -y -qq \
     php${PHP_VERSION}-fpm \
     php${PHP_VERSION}-cli \

@@ -88,7 +88,7 @@ check_command() {
 # --- Require root privileges ---
 require_root() {
     if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
-        log_error "Bu script root yetkisi ile çalıştırılmalıdır."
+        log_error "This script must be run with root privileges."
         exit 1
     fi
 }
@@ -99,12 +99,12 @@ run_as_user() {
     shift || true
 
     if [[ -z "$user" ]]; then
-        log_error "run_as_user: kullanıcı belirtilmedi"
+        log_error "run_as_user: user not specified"
         return 1
     fi
 
     if [[ $# -eq 0 ]]; then
-        log_error "run_as_user: çalıştırılacak komut belirtilmedi"
+        log_error "run_as_user: command to execute not specified"
         return 1
     fi
 
@@ -126,12 +126,12 @@ create_script_sudoers() {
     shift || true
 
     if [[ -z "$name" ]]; then
-        log_error "create_script_sudoers: isim belirtilmedi"
+        log_error "create_script_sudoers: name not specified"
         return 1
     fi
 
     if [[ $# -eq 0 ]]; then
-        log_error "create_script_sudoers: en az bir script dizini belirtilmelidir"
+        log_error "create_script_sudoers: at least one script directory must be specified"
         return 1
     fi
 
@@ -141,7 +141,7 @@ create_script_sudoers() {
 
     for dir in "$@"; do
         if [[ -z "$dir" || ! -d "$dir" ]]; then
-            log_warning "create_script_sudoers: dizin bulunamadı veya geçersiz: $dir"
+            log_warning "create_script_sudoers: directory not found or invalid: $dir"
             continue
         fi
 
@@ -150,13 +150,13 @@ create_script_sudoers() {
     done
 
     if ((${#entries[@]} == 0)); then
-        log_error "create_script_sudoers: geçerli script dizini bulunamadı"
+        log_error "create_script_sudoers: no valid script directory found"
         return 1
     fi
 
     {
-        echo "# ServerBond Panel - ${name} script yetkileri"
-        echo "# Bu dosya otomatik olarak oluşturulmuştur"
+        echo "# ServerBond Panel - ${name} script permissions"
+        echo "# This file was automatically created"
         echo ""
         local entry
         for entry in "${entries[@]}"; do
@@ -167,12 +167,12 @@ create_script_sudoers() {
     chmod 440 "${target_file}"
 
     if ! visudo -c -f "${target_file}" >/dev/null 2>&1; then
-        log_error "Sudoers doğrulaması başarısız: ${target_file}"
+        log_error "Sudoers validation failed: ${target_file}"
         rm -f "${target_file}"
         return 1
     fi
 
-    log_success "Sudoers güncellendi: ${target_file}"
+    log_success "Sudoers updated: ${target_file}"
     return 0
 }
 
@@ -180,7 +180,7 @@ create_script_sudoers() {
 find_systemd_unit() {
     local pattern="${1:-}"
     if [[ -z "$pattern" ]]; then
-        log_warning "find_systemd_unit: arama deseni eksik"
+        log_warning "find_systemd_unit: search pattern missing"
         return 1
     fi
 

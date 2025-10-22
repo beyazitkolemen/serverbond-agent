@@ -7,7 +7,7 @@ ROOT_DIR="$(cd "${SCRIPTS_DIR}/.." && pwd)"
 LIB_SH="${SCRIPTS_DIR}/lib.sh"
 
 if [[ ! -f "${LIB_SH}" ]]; then
-    echo "lib.sh bulunamadı: ${LIB_SH}" >&2
+    echo "lib.sh not found: ${LIB_SH}" >&2
     exit 1
 fi
 
@@ -21,36 +21,36 @@ export DEBIAN_FRONTEND=noninteractive
 
 case "$MODE" in
     upgrade)
-        log_info "Paket listeleri güncelleniyor..."
+        log_info "Updating package lists..."
         apt-get update -qq
-        log_info "Yüklü paketler yükseltiliyor..."
+        log_info "Upgrading installed packages..."
         apt-get upgrade -y -qq
         ;;
     dist-upgrade)
-        log_info "Paket listeleri güncelleniyor..."
+        log_info "Updating package lists..."
         apt-get update -qq
-        log_info "Dağıtım yükseltmesi uygulanıyor..."
+        log_info "Applying distribution upgrade..."
         apt-get dist-upgrade -y -qq
         ;;
     security)
-        log_info "Sadece güvenlik güncellemeleri taranıyor..."
+        log_info "Scanning for security updates only..."
         apt-get update -qq
         if check_command unattended-upgrade; then
             unattended-upgrade -d
         else
-            log_warning "unattended-upgrade bulunamadı, standart upgrade uygulanıyor."
+            log_warning "unattended-upgrade not found, applying standard upgrade."
             apt-get upgrade -y -qq
         fi
         ;;
     *)
-        log_error "Bilinmeyen mod: ${MODE}"
-        echo "Kullanım: system/update_os.sh [upgrade|dist-upgrade|security]" >&2
+        log_error "Unknown mode: ${MODE}"
+        echo "Usage: system/update_os.sh [upgrade|dist-upgrade|security]" >&2
         exit 1
         ;;
 esac
 
-log_info "Gereksiz paketler temizleniyor..."
+log_info "Cleaning up unnecessary packages..."
 apt-get autoremove -y -qq
 apt-get autoclean -y -qq
 
-log_success "Sistem güncellemesi tamamlandı."
+log_success "System update completed."

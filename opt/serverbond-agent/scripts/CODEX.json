@@ -13,10 +13,10 @@
             }
         },
         "conventions": [
-            "Her script tek i\u015f yapar (UNIX felsefesi).",
-            "Idempotent: Birden \u00e7ok kez \u00e7al\u0131\u015fsa da sistem tutarl\u0131 kalmal\u0131.",
-            "Parametre yoksa g\u00fcvenli varsay\u0131lanlar\u0131 kullan.",
-            "T\u00fcm riskli i\u015flemler \u00f6ncesi config test, dry-run ve yedek al.",
+            "Each script does one thing (UNIX philosophy).",
+            "Idempotent: System should remain consistent even if run multiple times.",
+            "Use safe defaults if no parameters provided.",
+            "Before all risky operations: config test, dry-run and backup.",
             "Log: /opt/serverbond-agent/logs/script_exec.log"
         ]
     },
@@ -94,7 +94,7 @@
                     "name": "tz",
                     "type": "string",
                     "required": false,
-                    "example": "Europe/Istanbul"
+                    "example": "Europe/London"
                 }
             ]
         },
