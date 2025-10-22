@@ -77,8 +77,8 @@ DROP DATABASE IF EXISTS test;
 FLUSH PRIVILEGES;
 EOSQL
 
-# --- Sudoers yapılandırması ---
-log_info "Sudoers yapılandırması oluşturuluyor..."
+# --- Sudoers configuration ---
+log_info "Creating sudoers configuration..."
 
 if ! create_script_sudoers "mysql" "${MYSQL_SCRIPT_DIR}"; then
     exit 1
