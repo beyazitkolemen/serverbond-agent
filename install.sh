@@ -42,6 +42,17 @@ readonly BACKUPS_DIR="${INSTALL_DIR}/backups"
 readonly SCRIPTS_DIR="${INSTALL_DIR}/scripts"
 readonly TEMPLATES_DIR="${INSTALL_DIR}/templates"
 
+# Development/Test Mode - Override paths for workspace testing
+if [[ -d "/workspace/opt/serverbond-agent" ]]; then
+    readonly INSTALL_DIR="/workspace/opt/serverbond-agent"
+    readonly SITES_DIR="${INSTALL_DIR}/sites"
+    readonly CONFIG_DIR="${INSTALL_DIR}/config"
+    readonly LOGS_DIR="${INSTALL_DIR}/logs"
+    readonly BACKUPS_DIR="${INSTALL_DIR}/backups"
+    readonly SCRIPTS_DIR="${INSTALL_DIR}/scripts"
+    readonly TEMPLATES_DIR="/workspace/templates"
+fi
+
 # System Paths
 readonly NGINX_SITES_AVAILABLE="/etc/nginx/sites-available"
 readonly NGINX_SITES_ENABLED="/etc/nginx/sites-enabled"
