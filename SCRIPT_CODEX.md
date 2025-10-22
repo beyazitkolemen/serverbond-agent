@@ -269,6 +269,47 @@ $command = '/opt/serverbond-agent/scripts/mysql/status.sh';
 exec($command, $output, $return_code);
 ```
 
+### 2.8. Veritabanı Listeleme (list_databases.sh)
+**Amaç:** MySQL veritabanlarını listeler.
+
+**Opsiyonel Parametreler:**
+- `--format`: Çıktı formatı (table|list, varsayılan: table)
+- `--show-system`: Sistem veritabanlarını da göster
+
+**PHP Örneği:**
+```php
+$command = '/opt/serverbond-agent/scripts/mysql/list_databases.sh --format table --show-system';
+exec($command, $output, $return_code);
+```
+
+### 2.9. Tablo Listeleme (list_tables.sh)
+**Amaç:** Belirtilen veritabanındaki tabloları listeler.
+
+**Zorunlu Parametreler:**
+- `--database`: Veritabanı adı
+
+**Opsiyonel Parametreler:**
+- `--format`: Çıktı formatı (table|list, varsayılan: table)
+
+**PHP Örneği:**
+```php
+$command = '/opt/serverbond-agent/scripts/mysql/list_tables.sh --database myapp_db --format table';
+exec($command, $output, $return_code);
+```
+
+### 2.10. Kullanıcı Listeleme (list_users.sh)
+**Amaç:** MySQL kullanıcılarını listeler.
+
+**Opsiyonel Parametreler:**
+- `--format`: Çıktı formatı (table|list, varsayılan: table)
+- `--show-passwords`: Şifre bilgilerini de göster
+
+**PHP Örneği:**
+```php
+$command = '/opt/serverbond-agent/scripts/mysql/list_users.sh --format table';
+exec($command, $output, $return_code);
+```
+
 ## 3. Kullanıcı Yönetimi Scripts
 
 ### 3.1. Sistem Kullanıcısı Ekleme (add_user.sh)
@@ -565,6 +606,69 @@ exec($command, $output, $return_code);
 **PHP Örneği:**
 ```php
 $command = '/opt/serverbond-agent/scripts/php/change_version.sh --version 8.1';
+exec($command, $output, $return_code);
+```
+
+### 8.3. Çoklu PHP Versiyon Kurulumu (install_multiple_versions.sh)
+**Amaç:** Birden fazla PHP versiyonunu paralel olarak kurar.
+
+**Zorunlu Parametreler:**
+- `--versions`: Kurulacak PHP versiyonları (virgülle ayrılmış)
+
+**Opsiyonel Parametreler:**
+- `--default`: Varsayılan PHP versiyonu
+- `--skip-fpm`: PHP-FPM kurulumunu atla
+- `--skip-cli`: PHP-CLI kurulumunu atla
+- `--skip-extensions`: Extension kurulumunu atla
+- `--custom-extensions`: Özel extension'lar (virgülle ayrılmış)
+
+**PHP Örneği:**
+```php
+$command = '/opt/serverbond-agent/scripts/php/install_multiple_versions.sh --versions "8.1,8.2,8.3" --default 8.3 --custom-extensions "redis,imagick"';
+exec($command, $output, $return_code);
+```
+
+### 8.4. PHP Versiyon Listeleme (list_versions.sh)
+**Amaç:** Kurulu PHP versiyonlarını listeler.
+
+**Opsiyonel Parametreler:**
+- `--format`: Çıktı formatı (table|list, varsayılan: table)
+- `--detailed`: Detaylı bilgi göster
+
+**PHP Örneği:**
+```php
+$command = '/opt/serverbond-agent/scripts/php/list_versions.sh --format table --detailed';
+exec($command, $output, $return_code);
+```
+
+### 8.5. PHP Optimizasyon (optimize.sh)
+**Amaç:** PHP performans optimizasyonu yapar.
+
+**Opsiyonel Parametreler:**
+- `--memory-limit`: Memory limit ayarla
+- `--max-execution-time`: Max execution time ayarla
+- `--opcache`: OPcache optimizasyonu
+- `--upload-limit`: Upload limit ayarla
+- `--no-backup`: Yedek oluşturma
+- `--scope`: Konfigürasyon kapsamı (fpm|cli)
+
+**PHP Örneği:**
+```php
+$command = '/opt/serverbond-agent/scripts/php/optimize.sh --memory-limit 512M --opcache';
+exec($command, $output, $return_code);
+```
+
+### 8.6. PHP Cache Temizleme (clear_cache.sh)
+**Amaç:** PHP cache'lerini temizler.
+
+**Opsiyonel Parametreler:**
+- `--type`: Cache türü (opcache|composer|all, varsayılan: all)
+- `--path`: Proje dizini
+- `--force`: Zorla temizle
+
+**PHP Örneği:**
+```php
+$command = '/opt/serverbond-agent/scripts/php/clear_cache.sh --type all --path /var/www/myapp';
 exec($command, $output, $return_code);
 ```
 
