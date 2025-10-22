@@ -89,10 +89,10 @@ EOF
     if systemctl is-active --quiet cloudflared; then
         log_success "Cloudflare Tunnel başarıyla başlatıldı!"
     else
-        log_warn "Cloudflare Tunnel başlatılamadı. Lütfen 'journalctl -u cloudflared' ile kontrol edin."
+        log_warning "Cloudflare Tunnel başlatılamadı. Lütfen 'journalctl -u cloudflared' ile kontrol edin."
     fi
 else
-    log_warn "CLOUDFLARED_TOKEN tanımlanmadı - Manuel yapılandırma gerekiyor"
+    log_warning "CLOUDFLARED_TOKEN tanımlanmadı - Manuel yapılandırma gerekiyor"
     log_info ""
     log_info "Cloudflare Tunnel kurulumu için:"
     log_info "1. Cloudflare Dashboard'a gidin: https://one.dash.cloudflare.com/"

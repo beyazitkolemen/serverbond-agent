@@ -19,19 +19,51 @@ apt-get install -y -qq curl git ca-certificates build-essential > /dev/null
 
 # --- NVM kurulumu ---
 log_info "NVM kuruluyor..."
-export NVM_DIR="$HOME/.nvm"
+export NVM_DIR="/root/.nvm"
 if [ ! -d "$NVM_DIR" ]; then
     curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
 fi
 
 # NVM'i yükle
-source "$NVM_DIR/nvm.sh"
+if [[ -f "$NVM_DIR/nvm.sh" ]]; then
+    source "$NVM_DIR/nvm.sh"
+else
+    log_error "NVM kurulumu başarısız!"
+    exit 1
+fi
 
 # --- Node.js kurulumu ---
 log_info "Node.js kurulumu yapılıyor..."
 nvm install "$NODE_VERSION"
 nvm use "$NODE_VERSION"
 nvm alias default "$NODE_VERSION"
+
+# --- Global symlinks oluştur ---
+log_info "Global symlinks oluşturuluyor..."
+NODE_PATH="$(which node 2>/dev/null || echo '')"
+NPM_PATH="$(which npm 2>/dev/null || echo '')"
+
+if [[ -n "$NODE_PATH" && -n "$NPM_PATH" ]]; then
+    # Global symlinks oluştur
+    ln -sf "$NODE_PATH" /usr/local/bin/node 2>/dev/null || true
+    ln -sf "$NPM_PATH" /usr/local/bin/npm 2>/dev/null || true
+    
+    # Yarn varsa onu da linkle
+    if command -v yarn >/dev/null 2>&1; then
+        YARN_PATH="$(which yarn)"
+        ln -sf "$YARN_PATH" /usr/local/bin/yarn 2>/dev/null || true
+    fi
+    
+    # PM2 varsa onu da linkle
+    if command -v pm2 >/dev/null 2>&1; then
+        PM2_PATH="$(which pm2)"
+        ln -sf "$PM2_PATH" /usr/local/bin/pm2 2>/dev/null || true
+    fi
+    
+    log_success "Global symlinks oluşturuldu"
+else
+    log_warning "Node.js veya NPM bulunamadı, symlink oluşturulamadı"
+fi
 
 # --- Versiyon doğrulama ---
 NODE_CURRENT="$(node -v || echo 'unknown')"
@@ -66,8 +98,15 @@ if ! create_script_sudoers "nodejs" "${NODE_SCRIPT_DIR}"; then
     exit 1
 fi
 
-# --- Son durum ---
+# --- Son durum ve doğrulama ---
 log_success "Node.js ortamı başarıyla kuruldu"
-log_info "Node: $(node -v)"
-log_info "NPM : $(npm -v)"
-log_info "Global paketler: $(npm list -g --depth=0 | grep '──' | awk '{print $2}' || echo 'Yok')"
+
+# Global komutları test et
+if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+    log_info "Node: $(node -v)"
+    log_info "NPM : $(npm -v)"
+    log_info "Global paketler: $(npm list -g --depth=0 | grep '──' | awk '{print $2}' || echo 'Yok')"
+else
+    log_warning "Node.js veya NPM global olarak bulunamadı"
+    log_info "NVM'den Node: $(nvm current 2>/dev/null || echo 'unknown')"
+fi
