@@ -1,0 +1,307 @@
+version: '3.8'
+
+# Modern Docker Compose Template
+# ServerBond Agent ile kullanım için optimize edilmiş
+
+services:
+  
+  # Web Uygulaması (Nginx + PHP-FPM)
+  web:
+    image: nginx:1.25-alpine
+    container_name: ${PROJECT_NAME:-app}-web
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - app-data:/var/www/html:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./logs/nginx:/var/log/nginx
+    networks:
+      - app-network
+    depends_on:
+      php:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.serverbond.service=web"
+      - "com.serverbond.environment=${ENVIRONMENT:-production}"
+      - "com.serverbond.backup=enabled"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+
+  # PHP-FPM
+  php:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - PHP_VERSION=${PHP_VERSION:-8.2}
+        - NODE_VERSION=${NODE_VERSION:-18}
+    image: ${PROJECT_NAME:-app}-php:${VERSION:-latest}
+    container_name: ${PROJECT_NAME:-app}-php
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - app-data:/var/www/html
+      - ./php/php.ini:/usr/local/etc/php/php.ini:ro
+      - ./php/www.conf:/usr/local/etc/php-fpm.d/www.conf:ro
+      - ./logs/php:/var/log/php
+    networks:
+      - app-network
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - APP_URL=${APP_URL:-http://localhost}
+      - DB_HOST=${DB_HOST:-mysql}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_DATABASE=${DB_DATABASE:-app}
+      - DB_USERNAME=${DB_USERNAME:-app}
+      - DB_PASSWORD=${DB_PASSWORD:-secret}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - CACHE_DRIVER=${CACHE_DRIVER:-redis}
+      - SESSION_DRIVER=${SESSION_DRIVER:-redis}
+      - QUEUE_CONNECTION=${QUEUE_CONNECTION:-redis}
+      - MAIL_MAILER=${MAIL_MAILER:-smtp}
+      - MAIL_HOST=${MAIL_HOST:-mailhog}
+      - MAIL_PORT=${MAIL_PORT:-1025}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "php", "-m"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      - "com.serverbond.service=php"
+      - "com.serverbond.backup=enabled"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+          cpus: '0.5'
+
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: ${PROJECT_NAME:-app}-mysql
+    restart: unless-stopped
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_DATABASE:-app}
+      MYSQL_USER: ${DB_USERNAME:-app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
+      - ./backups/mysql:/backups
+      - ./logs/mysql:/var/log/mysql
+    networks:
+      - app-network
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --innodb-buffer-pool-size=256M
+      --innodb-log-file-size=64M
+      --slow-query-log=1
+      --slow-query-log-file=/var/log/mysql/mysql-slow.log
+      --long-query-time=2
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    labels:
+      - "com.serverbond.service=mysql"
+      - "com.serverbond.backup=enabled"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: ${PROJECT_NAME:-app}-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - app-network
+    command: >
+      redis-server /usr/local/etc/redis/redis.conf
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:-}
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "com.serverbond.service=redis"
+      - "com.serverbond.backup=enabled"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+
+  # Queue Worker (Laravel)
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${PROJECT_NAME:-app}-php:${VERSION:-latest}
+    container_name: ${PROJECT_NAME:-app}-queue
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - app-data:/var/www/html
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - DB_HOST=${DB_HOST:-mysql}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+    networks:
+      - app-network
+    depends_on:
+      - mysql
+      - redis
+    command: >
+      php artisan queue:work
+      --sleep=3
+      --tries=3
+      --max-time=3600
+      --timeout=60
+      --memory=256
+    labels:
+      - "com.serverbond.service=queue"
+    deploy:
+      replicas: ${QUEUE_WORKERS:-2}
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+
+  # Scheduler (Laravel Cron)
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${PROJECT_NAME:-app}-php:${VERSION:-latest}
+    container_name: ${PROJECT_NAME:-app}-scheduler
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - app-data:/var/www/html
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - DB_HOST=${DB_HOST:-mysql}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+    networks:
+      - app-network
+    depends_on:
+      - mysql
+      - redis
+    command: >
+      sh -c "while true; do
+        php artisan schedule:run --verbose --no-interaction
+        sleep 60
+      done"
+    labels:
+      - "com.serverbond.service=scheduler"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+        reservations:
+          memory: 64M
+          cpus: '0.1'
+
+  # MailHog (Development)
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: ${PROJECT_NAME:-app}-mailhog
+    restart: unless-stopped
+    ports:
+      - "${MAILHOG_PORT:-1025}:1025"
+      - "${MAILHOG_UI_PORT:-8025}:8025"
+    networks:
+      - app-network
+    profiles:
+      - development
+    labels:
+      - "com.serverbond.service=mailhog"
+      - "com.serverbond.environment=development"
+
+# Networks
+networks:
+  app-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+    labels:
+      - "com.serverbond.network=app"
+
+# Volumes
+volumes:
+  app-data:
+    driver: local
+    labels:
+      - "com.serverbond.volume=app"
+      - "com.serverbond.backup=enabled"
+  
+  mysql-data:
+    driver: local
+    labels:
+      - "com.serverbond.volume=mysql"
+      - "com.serverbond.backup=enabled"
+  
+  redis-data:
+    driver: local
+    labels:
+      - "com.serverbond.volume=redis"
+      - "com.serverbond.backup=enabled"

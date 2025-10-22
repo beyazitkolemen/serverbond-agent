@@ -45,54 +45,114 @@ run_docker_steps() {
     local release_dir="$1"
     
     # Varsayılan değerleri ayarla
-    local default_shared=("file:.env" "file:docker-compose.yml" "file:docker-compose.override.yml")
+    local default_shared=("file:.env" "file:docker-compose.yml" "file:docker-compose.override.yml" "file:docker-compose.prod.yml" "file:Dockerfile" "file:.dockerignore")
     
     # Paylaşılan kaynakları kur
     setup_shared_resources "${release_dir}" "${SHARED_DIR}" "${default_shared[@]}" "${CUSTOM_SHARED[@]}"
     
-    # Docker build
-    log_info "Docker build çalıştırılıyor..."
-    local docker_script="${DEPLOY_DIR}/../docker/build_image.sh"
-    if [[ ! -x "${docker_script}" ]]; then
-        log_error "Docker build scripti bulunamadı."
+    # Docker Compose komutunu belirle
+    local compose_bin=""
+    if command -v docker-compose >/dev/null 2>&1; then
+        compose_bin="docker-compose"
+        log_info "docker-compose kullanılıyor"
+    elif docker compose version >/dev/null 2>&1; then
+        compose_bin="docker compose"
+        log_info "docker compose kullanılıyor"
+    else
+        log_error "docker-compose veya docker compose komutu bulunamadı."
         return 1
     fi
     
     # Docker Compose dosyası kontrolü
     if [[ -f "${release_dir}/docker-compose.yml" ]]; then
-        log_info "Docker Compose ile build yapılıyor..."
+        log_info "Docker Compose ile deployment yapılıyor..."
+        
+        # Environment dosyası kontrolü
+        local env_file=""
+        if [[ -f "${release_dir}/.env.production" ]]; then
+            env_file=".env.production"
+        elif [[ -f "${release_dir}/.env" ]]; then
+            env_file=".env"
+        fi
+        
+        # Compose argümanlarını hazırla
+        local compose_args=()
+        [[ -n "${env_file}" ]] && compose_args+=(--env-file "${env_file}")
+        
+        # Önceki servisleri durdur
+        log_info "Önceki servisler durduruluyor..."
         (
             cd "${release_dir}"
-            if ! docker-compose build --no-cache; then
-                log_error "Docker Compose build başarısız"
-                return 1
-            fi
+            ${compose_bin} "${compose_args[@]}" down --remove-orphans --timeout 30
+        ) || log_warning "Önceki servisler durdurulamadı"
+        
+        # Build işlemi
+        log_info "Docker Compose build çalıştırılıyor..."
+        if ! (
+            cd "${release_dir}"
+            ${compose_bin} "${compose_args[@]}" build --no-cache --parallel
+        ); then
+            log_error "Docker Compose build başarısız"
+            return 1
+        fi
+        
+        # Servisleri başlat
+        log_info "Docker Compose servisleri başlatılıyor..."
+        if ! (
+            cd "${release_dir}"
+            ${compose_bin} "${compose_args[@]}" up -d --remove-orphans
+        ); then
+            log_error "Docker Compose deploy başarısız"
+            return 1
+        fi
+        
+        # Health check
+        log_info "Container health check yapılıyor..."
+        local health_script="${DEPLOY_DIR}/../docker/health_check.sh"
+        if [[ -x "${health_script}" ]]; then
+            # Tüm çalışan container'ları kontrol et
+            local containers
+            containers=$(docker ps --format "{{.Names}}" --filter "label=com.docker.compose.project")
+            
+            for container in ${containers}; do
+                if ! "${health_script}" --name "${container}" --timeout 60 --verbose; then
+                    log_warning "Container health check başarısız: ${container}"
+                fi
+            done
+        fi
+        
+        # Servis durumunu göster
+        log_info "Çalışan servisler:"
+        (
+            cd "${release_dir}"
+            ${compose_bin} "${compose_args[@]}" ps
         )
+        
     else
         log_info "Dockerfile ile build yapılıyor..."
-        if ! "${docker_script}" --path "${release_dir}"; then
+        local docker_script="${DEPLOY_DIR}/../docker/build_image.sh"
+        if [[ ! -x "${docker_script}" ]]; then
+            log_error "Docker build scripti bulunamadı."
+            return 1
+        fi
+        
+        # Image tag oluştur
+        local image_tag="${PROJECT_NAME:-app}:${RELEASE_ID:-latest}"
+        
+        if ! "${docker_script}" --tag "${image_tag}" --path "${release_dir}"; then
             log_error "Docker build başarısız"
             return 1
         fi
-    fi
-    log_success "Docker build tamamlandı"
-    
-    # Docker deploy
-    log_info "Docker deploy çalıştırılıyor..."
-    if [[ -f "${release_dir}/docker-compose.yml" ]]; then
-        log_info "Docker Compose ile deploy yapılıyor..."
-        (
-            cd "${release_dir}"
-            docker-compose down
-            if ! docker-compose up -d; then
-                log_error "Docker Compose deploy başarısız"
-                return 1
-            fi
-        )
-    else
+        
         log_warning "Docker Compose dosyası bulunamadı, manuel deploy gerekli."
+        log_info "Build edilen image: ${image_tag}"
     fi
-    log_success "Docker deploy tamamlandı"
+    
+    # Cleanup - eski image'ları temizle
+    log_info "Eski Docker image'ları temizleniyor..."
+    docker image prune -f || log_warning "Image cleanup başarısız"
+    
+    log_success "Docker deployment tamamlandı"
     
     return 0
 }
