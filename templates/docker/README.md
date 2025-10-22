@@ -1,287 +1,189 @@
-# Docker Template Dosyaları
+# Docker Templates ve Scripts
 
-Bu klasör Docker kurulumu ve yönetimi için gerekli tüm template dosyalarını içerir.
+Bu dizin ServerBond Agent için optimize edilmiş Docker template'leri ve script'leri içerir.
 
-## 📁 İçerik
+## Template Dosyaları
 
-### Yapılandırma Dosyaları
+### Docker Compose Templates
 
-- **`docker-daemon.json`** - Docker daemon yapılandırma template'i
-- **`docker-compose-example.yml`** - Tam özellikli Docker Compose örneği
-- **`docker-env-example`** - Environment variables template'i
-- **`.dockerignore`** - Docker build için ignore dosyası
+- **docker-compose-example.yml**: Kapsamlı örnek template (tüm servisler)
+- **docker-compose-laravel-simple.yml**: Laravel için basit template
+- **docker-compose-modern.yml**: Modern, production-ready template
 
-### Nginx Yapılandırması
+### Dockerfile Templates
 
-- **`docker-nginx-laravel.conf`** - Laravel için Nginx yapılandırması
+- **Dockerfile-laravel**: Laravel için production Dockerfile
+- **Dockerfile-modern**: Modern, multi-stage build Dockerfile
 
-### Dockerfile'lar
+### Konfigürasyon Dosyaları
 
-- **`Dockerfile-laravel`** - Laravel production Dockerfile (multi-stage)
+- **docker-nginx-laravel.conf**: Nginx konfigürasyonu
+- **docker-php-custom.ini**: PHP optimizasyon ayarları
+- **docker-mysql-my.cnf**: MySQL performans ayarları
 
-### Yardımcı Araçlar
+## Docker Scripts
 
-- **`docker-makefile`** - Docker yönetimi için Makefile
-- **`DOCKER-README.md`** - Kapsamlı Docker kullanım kılavuzu
+### Temel Scripts
 
-## 🚀 Hızlı Başlangıç
+- **build_image.sh**: Docker image build scripti
+- **compose_up.sh**: Docker Compose servisleri başlatma
+- **compose_down.sh**: Docker Compose servisleri durdurma
+- **list_containers.sh**: Container listeleme
+- **restart_container.sh**: Container yeniden başlatma
 
-### 1. Docker Kurulumu
+### Gelişmiş Scripts
+
+- **monitor.sh**: Container monitoring ve izleme
+- **backup.sh**: Container ve volume backup
+- **health_check.sh**: Container sağlık kontrolü
+
+## Kullanım Örnekleri
+
+### Docker Image Build
 
 ```bash
-# Temel kurulum
-sudo ./scripts/install-docker.sh
+# Basit build
+sudo opt/serverbond-agent/scripts/docker/build_image.sh --tag myapp:latest
 
-# Kullanıcı ile kurulum
-sudo DOCKER_USER=$USER ./scripts/install-docker.sh
-
-# Tüm özelliklerle
-sudo DOCKER_USER=$USER \
-  ENABLE_DOCKER_SWARM=true \
-  ENABLE_DOCKER_BUILDX=true \
-  ENABLE_TRIVY=true \
-  ./scripts/install-docker.sh
+# Gelişmiş build
+sudo opt/serverbond-agent/scripts/docker/build_image.sh \
+  --tag myapp:latest \
+  --path ./app \
+  --platform linux/amd64 \
+  --build-arg NODE_ENV=production \
+  --push
 ```
 
-### 2. Laravel Projesi için Docker Setup
+### Docker Compose
 
 ```bash
-# Proje dizinine geç
-cd /var/www/myproject
-
-# Template dosyalarını kopyala
-cp /opt/serverbond-agent/templates/docker/docker-compose-example.yml docker-compose.yml
-cp /opt/serverbond-agent/templates/docker/docker-env-example .env
-cp /opt/serverbond-agent/templates/docker/Dockerfile-laravel Dockerfile
-cp /opt/serverbond-agent/templates/docker/.dockerignore .dockerignore
-cp /opt/serverbond-agent/templates/docker/docker-makefile Makefile
-
-# Nginx config oluştur
-mkdir -p docker/nginx
-cp /opt/serverbond-agent/templates/docker/docker-nginx-laravel.conf docker/nginx/default.conf
-
-# Environment dosyasını düzenle
-nano .env
-
 # Servisleri başlat
-docker compose up -d
+sudo opt/serverbond-agent/scripts/docker/compose_up.sh \
+  --path /app \
+  --file docker-compose.yml \
+  --build
+
+# Servisleri durdur
+sudo opt/serverbond-agent/scripts/docker/compose_down.sh \
+  --path /app \
+  --volumes
 ```
 
-### 3. Makefile ile Yönetim
+### Monitoring
 
 ```bash
-# Yardım
-make help
+# Anlık durum
+sudo opt/serverbond-agent/scripts/docker/monitor.sh
 
-# Container'ları başlat
-make up
+# Sürekli izleme
+sudo opt/serverbond-agent/scripts/docker/monitor.sh --watch --interval 10
 
-# Container'ları durdur
-make down
-
-# Log'ları görüntüle
-make logs
-
-# Laravel komutları
-make artisan CMD="migrate"
-make composer CMD="install"
-make test
-
-# Optimizasyon
-make optimize
-
-# Yedekleme
-make backup
+# JSON formatında çıktı
+sudo opt/serverbond-agent/scripts/docker/monitor.sh --format json
 ```
 
-## 📚 Template Açıklamaları
+### Backup
 
-### docker-daemon.json
+```bash
+# Container backup
+sudo opt/serverbond-agent/scripts/docker/backup.sh \
+  --container web-server \
+  --compress
 
-Docker daemon'un global yapılandırmasını içerir:
+# Volume backup
+sudo opt/serverbond-agent/scripts/docker/backup.sh \
+  --volume mysql-data \
+  --retention 30
+```
 
-- **Log yönetimi**: JSON file driver, 10MB max size, 3 dosya
-- **Storage**: overlay2 driver
-- **Network**: Özel address pool'lar
-- **Security**: seccomp profili, no-new-privileges
-- **Performance**: live-restore, userland-proxy kapalı
-- **Monitoring**: Metrics endpoint (127.0.0.1:9323)
+### Health Check
 
-### docker-compose-example.yml
+```bash
+# Container sağlık kontrolü
+sudo opt/serverbond-agent/scripts/docker/health_check.sh \
+  --name web-server \
+  --timeout 60
 
-Production-ready multi-service setup:
+# HTTP endpoint ile kontrol
+sudo opt/serverbond-agent/scripts/docker/health_check.sh \
+  --name api-server \
+  --endpoint http://localhost:8080/health
+```
 
-- **Web**: Nginx (Alpine)
-- **PHP**: PHP-FPM 8.2
-- **Database**: MySQL 8.0 ve PostgreSQL 15
-- **Cache**: Redis 7
-- **Queue**: RabbitMQ 3
-- **Search**: Elasticsearch 8
-- **Monitoring**: Prometheus + Grafana
+## Pipeline Kullanımı
 
-Her servis için:
-- ✅ Health checks
-- ✅ Resource limits
-- ✅ Restart policies
-- ✅ Volume mounts
-- ✅ Network isolation
-- ✅ Labels
+```bash
+# Docker pipeline ile deployment
+pipelines/docker.sh \
+  --repo https://github.com/user/repo.git \
+  --branch main \
+  --shared "file:.env" "file:docker-compose.yml"
+```
 
-### Dockerfile-laravel
+## Özellikler
 
-Multi-stage Laravel production build:
-
-**Stage 1: Composer**
-- Bağımlılıkları indir
-- Autoloader optimize et
-
-**Stage 2: Node.js**
-- Frontend build
-- Asset compilation
-
-**Stage 3: Production**
-- PHP 8.2-FPM Alpine
-- Nginx + Supervisor
-- Optimized PHP extensions
-- Health check endpoint
-- Non-root user
-
-### docker-nginx-laravel.conf
-
-Production-ready Nginx config:
-
-- Laravel routing desteği
-- PHP-FPM integration
+### Güvenlik
+- Non-root user kullanımı
 - Security headers
-- Gzip compression
-- Static file caching
-- Health check endpoint
-- Rate limiting hazır
+- Resource limits
+- Health checks
 
-### docker-makefile
+### Performans
+- Multi-stage builds
+- Opcache optimizasyonu
+- Nginx gzip compression
+- MySQL optimizasyonu
 
-Tüm Docker operasyonları için shortcuts:
+### Monitoring
+- Container health checks
+- Resource monitoring
+- Log aggregation
+- Backup automation
 
-```bash
-make build          # Build containers
-make up            # Start all
-make down          # Stop all
-make logs          # Show logs
-make shell         # Enter shell
-make clean         # Cleanup
-make backup        # Backup DBs
-make migrate       # Run migrations
-make test          # Run tests
-make optimize      # Optimize Laravel
-make security-scan # Trivy scan
-```
+### Scalability
+- Horizontal scaling
+- Load balancing
+- Service discovery
+- Auto-restart policies
 
-## 🔧 Özelleştirme
+## Best Practices
 
-### Custom Registry Mirror
+1. **Environment Variables**: Tüm hassas bilgileri environment variables olarak tanımlayın
+2. **Health Checks**: Her servis için uygun health check'ler ekleyin
+3. **Resource Limits**: Memory ve CPU limitlerini belirleyin
+4. **Logging**: Centralized logging kullanın
+5. **Backup**: Düzenli backup stratejisi uygulayın
+6. **Security**: Güvenlik güncellemelerini takip edin
+7. **Monitoring**: Production'da monitoring aktif edin
 
-```bash
-DOCKER_REGISTRY_MIRROR=https://mirror.gcr.io \
-sudo ./scripts/install-docker.sh
-```
+## Troubleshooting
 
-### Private Registry
+### Yaygın Sorunlar
 
-```bash
-DOCKER_INSECURE_REGISTRIES=registry.local:5000,10.0.0.1:5000 \
-sudo ./scripts/install-docker.sh
-```
+1. **Permission Denied**: Script'leri root olarak çalıştırın
+2. **Port Conflicts**: Port çakışmalarını kontrol edin
+3. **Memory Issues**: Resource limitlerini artırın
+4. **Health Check Failures**: Health check endpoint'lerini kontrol edin
 
-### Custom Data Directory
+### Log Dosyaları
 
-```bash
-DOCKER_DATA_ROOT=/mnt/docker \
-sudo ./scripts/install-docker.sh
-```
+- Container logs: `docker logs <container_name>`
+- Nginx logs: `./logs/nginx/`
+- PHP logs: `./logs/php/`
+- MySQL logs: `./logs/mysql/`
 
-### Log Limitleri
-
-```bash
-DOCKER_LOG_MAX_SIZE=50m \
-DOCKER_LOG_MAX_FILE=5 \
-sudo ./scripts/install-docker.sh
-```
-
-## 📖 Ek Kaynaklar
-
-- **`DOCKER-README.md`** - Kapsamlı kullanım kılavuzu
-- **`docker-env-example`** - Tüm environment variables
-- Docker resmi dokümantasyon: https://docs.docker.com/
-
-## 🔒 Güvenlik
-
-Kurulum otomatik olarak şunları içerir:
-
-- ✅ Seccomp security profili
-- ✅ No-new-privileges flag
-- ✅ User namespace remapping
-- ✅ ICC (Inter-Container Communication) kapalı
-- ✅ Userland proxy kapalı
-- ✅ Resource limits
-- ✅ Log rotation
-- ✅ Network isolation
-
-Trivy ile güvenlik taraması:
+### Debug Komutları
 
 ```bash
-# Image tarama
-trivy image myapp:latest
+# Container durumu
+docker ps -a
 
-# Filesystem tarama
-trivy fs .
+# Resource kullanımı
+docker stats
 
-# Kritik güvenlik açıkları
-trivy image --severity HIGH,CRITICAL myapp:latest
+# Volume bilgileri
+docker volume ls
+
+# Network bilgileri
+docker network ls
 ```
-
-## 🛠️ Sorun Giderme
-
-### Docker servisi başlamıyor
-
-```bash
-# Log'ları kontrol et
-sudo journalctl -xu docker
-
-# Daemon config'i test et
-dockerd --validate
-
-# Yeniden başlat
-sudo systemctl restart docker
-```
-
-### Disk doldu
-
-```bash
-# Temizlik yap
-docker-cleanup
-
-# Manuel temizlik
-docker system prune -a --volumes -f
-```
-
-### Permission hataları
-
-```bash
-# Kullanıcıyı docker grubuna ekle
-sudo usermod -aG docker $USER
-newgrp docker
-```
-
-## 📞 Destek
-
-Sorun yaşarsanız:
-
-1. `docker-monitor` ile sistem durumunu kontrol edin
-2. `docker logs <container>` ile logları inceleyin
-3. `DOCKER-README.md` dosyasına bakın
-4. GitHub Issues'da rapor edin
-
----
-
-**ServerBond Agent** - Professional Docker Management
-
