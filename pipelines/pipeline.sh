@@ -51,14 +51,20 @@ ENV_MAPPINGS=()
 STATIC_BUILD_SCRIPT=""
 STATIC_OUTPUT_DIR=""
 FORCE_WP_PERMISSIONS=""
+ROLLBACK_ON_FAILURE=false
+HEALTH_CHECK_URL=""
+HEALTH_CHECK_TIMEOUT=30
+NOTIFICATION_WEBHOOK=""
+NOTIFICATION_TYPE=""
 
 print_usage() {
     cat <<'USAGE'
-Kullanım: pipelines/pipeline.sh --type <laravel|next|nuxt|wordpress|static> --repo <GIT_URL> [seçenekler]
+Kullanım: pipelines/pipeline.sh --type <laravel|next|nuxt|wordpress|static|react|vue|symfony|docker> --repo <GIT_URL> [seçenekler]
 
 Not: `pipelines/laravel.sh`, `pipelines/next.sh`, `pipelines/nuxt.sh`,
-`pipelines/wordpress.sh` ve `pipelines/static.sh` scriptleri ilgili tür için
-bu dosyayı otomatik olarak çağırır.
+`pipelines/wordpress.sh`, `pipelines/static.sh`, `pipelines/react.sh`,
+`pipelines/vue.sh`, `pipelines/symfony.sh` ve `pipelines/docker.sh` scriptleri 
+ilgili tür için bu dosyayı otomatik olarak çağırır.
 
 Genel Seçenekler:
   --branch BRANCH           Dağıtılacak Git dalı (varsayılan: main)
@@ -100,6 +106,13 @@ Test Seçenekleri:
 WordPress Seçenekleri:
   --skip-wp-permissions     WordPress izin scriptini çalıştırma
   --wp-permissions          WordPress izin scriptini zorla (varsayılan: aktif)
+
+Gelişmiş Seçenekler:
+  --rollback-on-failure     Hata durumunda otomatik rollback yap
+  --health-check URL        Deployment sonrası health check URL'i
+  --health-timeout SECONDS  Health check timeout süresi (varsayılan: 30)
+  --webhook URL             Deployment bildirim webhook URL'i
+  --notification TYPE       Bildirim türü (slack|discord|email)
 USAGE
 }
 
@@ -242,6 +255,26 @@ while [[ $# -gt 0 ]]; do
             INIT_SUBMODULES=true
             shift
             ;;
+        --rollback-on-failure)
+            ROLLBACK_ON_FAILURE=true
+            shift
+            ;;
+        --health-check)
+            HEALTH_CHECK_URL="${2:-}"
+            shift 2
+            ;;
+        --health-timeout)
+            HEALTH_CHECK_TIMEOUT="${2:-30}"
+            shift 2
+            ;;
+        --webhook)
+            NOTIFICATION_WEBHOOK="${2:-}"
+            shift 2
+            ;;
+        --notification)
+            NOTIFICATION_TYPE="${2:-}"
+            shift 2
+            ;;
         --help|-h)
             print_usage
             exit 0
@@ -261,7 +294,7 @@ if [[ -z "${PROJECT_TYPE}" || -z "${REPO_URL}" ]]; then
 fi
 
 case "${PROJECT_TYPE}" in
-    laravel|next|nuxt|wordpress|static)
+    laravel|next|nuxt|wordpress|static|react|vue|symfony|docker)
         ;;
     *)
         log_error "Geçersiz proje türü: ${PROJECT_TYPE}"
@@ -321,6 +354,25 @@ case "${PROJECT_TYPE}" in
         ;;
     static)
         DEFAULT_SHARED=("file:.env")
+        ;;
+    react)
+        DEFAULT_RUN_NPM=true
+        DEFAULT_TEST_COMMAND="npm test"
+        DEFAULT_SHARED=("file:.env" "file:.env.local" "file:.env.production")
+        ;;
+    vue)
+        DEFAULT_RUN_NPM=true
+        DEFAULT_TEST_COMMAND="npm run test:unit"
+        DEFAULT_SHARED=("file:.env" "file:.env.local")
+        ;;
+    symfony)
+        DEFAULT_RUN_COMPOSER=true
+        DEFAULT_RUN_NPM=true
+        DEFAULT_TEST_COMMAND="php bin/phpunit"
+        DEFAULT_SHARED=("file:.env" "file:.env.local" "dir:var/cache" "dir:var/log" "dir:var/sessions")
+        ;;
+    docker)
+        DEFAULT_SHARED=("file:.env" "file:docker-compose.yml" "file:docker-compose.override.yml")
         ;;
 esac
 
@@ -509,24 +561,24 @@ done
 
 run_composer() {
     if [[ "${RUN_COMPOSER}" != true ]]; then
-        return
+        return 0
     fi
     local composer_script="${DEPLOY_DIR}/composer_install.sh"
     if [[ ! -x "${composer_script}" ]]; then
         log_error "composer_install.sh bulunamadı."
-        exit 1
+        return 1
     fi
     "${composer_script}" --path "${RELEASE_DIR}" --no-dev --optimize
 }
 
 run_npm_tasks() {
     if [[ "${RUN_NPM}" != true ]]; then
-        return
+        return 0
     fi
     local npm_script="${DEPLOY_DIR}/npm_build.sh"
     if [[ ! -x "${npm_script}" ]]; then
         log_error "npm_build.sh bulunamadı."
-        exit 1
+        return 1
     fi
     local args=("--path" "${RELEASE_DIR}" "--script" "${NPM_SCRIPT}")
     if [[ "${NPM_SKIP_INSTALL}" == true ]]; then
@@ -537,12 +589,12 @@ run_npm_tasks() {
 
 run_static_build() {
     if [[ -z "${STATIC_BUILD_SCRIPT}" ]]; then
-        return
+        return 0
     fi
     local npm_script="${DEPLOY_DIR}/npm_build.sh"
     if [[ ! -x "${npm_script}" ]]; then
         log_error "npm_build.sh bulunamadı."
-        exit 1
+        return 1
     fi
     local args=("--path" "${RELEASE_DIR}" "--script" "${STATIC_BUILD_SCRIPT}")
     local skip_install="${NPM_SKIP_INSTALL}"
@@ -557,12 +609,12 @@ run_static_build() {
 
 run_laravel_migrate() {
     if [[ "${RUN_MIGRATIONS}" != true ]]; then
-        return
+        return 0
     fi
     local migrate_script="${DEPLOY_DIR}/artisan_migrate.sh"
     if [[ ! -x "${migrate_script}" ]]; then
         log_error "artisan_migrate.sh bulunamadı."
-        exit 1
+        return 1
     fi
     local args=("--path" "${RELEASE_DIR}" "--force")
     if [[ "${LARAVEL_SEED}" == true ]]; then
@@ -573,19 +625,19 @@ run_laravel_migrate() {
 
 run_laravel_cache() {
     if [[ "${RUN_CACHE}" != true ]]; then
-        return
+        return 0
     fi
     local cache_script="${DEPLOY_DIR}/cache_clear.sh"
     if [[ ! -x "${cache_script}" ]]; then
         log_error "cache_clear.sh bulunamadı."
-        exit 1
+        return 1
     fi
     "${cache_script}" --path "${RELEASE_DIR}"
 }
 
 run_tests() {
     if [[ "${RUN_TESTS}" != true ]]; then
-        return
+        return 0
     fi
     log_info "Test komutu çalıştırılıyor: ${TEST_COMMAND}"
     (
@@ -596,13 +648,13 @@ run_tests() {
 
 sync_static_output() {
     if [[ -z "${STATIC_OUTPUT_DIR}" ]]; then
-        return
+        return 0
     fi
     local source_path="${RELEASE_DIR}/${STATIC_OUTPUT_DIR}"
     local shared_target="${SHARED_DIR}/${STATIC_OUTPUT_DIR}"
     if [[ ! -d "${source_path}" ]]; then
         log_warning "Belirtilen static çıktı dizini bulunamadı: ${STATIC_OUTPUT_DIR}"
-        return
+        return 0
     fi
     mkdir -p "${shared_target}"
     rsync -a --delete "${source_path}/" "${shared_target}/"
@@ -611,12 +663,12 @@ sync_static_output() {
 
 apply_wp_permissions() {
     if [[ "${RUN_WP_PERMISSIONS}" != true ]]; then
-        return
+        return 0
     fi
     local perm_script="${WORDPRESS_DIR}/set_permissions.sh"
     if [[ ! -x "${perm_script}" ]]; then
         log_error "WordPress izin scripti bulunamadı."
-        exit 1
+        return 1
     fi
     local args=("--path" "${RELEASE_DIR}")
     [[ -n "${OWNER}" ]] && args+=("--owner" "${OWNER}")
@@ -626,7 +678,7 @@ apply_wp_permissions() {
 
 set_release_owner() {
     if [[ -z "${OWNER}" && -z "${GROUP}" ]]; then
-        return
+        return 0
     fi
     local owner_spec="${OWNER:-}"
     if [[ -n "${GROUP}" ]]; then
@@ -647,23 +699,242 @@ run_post_commands() {
     done
 }
 
+rollback_to_previous() {
+    local current_real=""
+    if [[ -L "${CURRENT_LINK}" ]]; then
+        current_real="$(readlink -f "${CURRENT_LINK}")"
+    fi
+    
+    if [[ -z "${current_real}" || ! -d "${current_real}" ]]; then
+        log_error "Rollback için önceki sürüm bulunamadı."
+        return 1
+    fi
+    
+    log_warning "Rollback yapılıyor: ${current_real}"
+    
+    # Eğer yeni sürüm aktif edilmişse, önceki sürüme geri dön
+    if [[ "${ACTIVATE_RELEASE}" == true ]]; then
+        switch_release "${current_real}"
+        log_success "Rollback tamamlandı: ${current_real}"
+    else
+        log_info "Yeni sürüm aktif edilmemişti, rollback gerekmiyor."
+    fi
+}
+
+run_health_check() {
+    if [[ -z "${HEALTH_CHECK_URL}" ]]; then
+        return
+    fi
+    
+    log_info "Health check yapılıyor: ${HEALTH_CHECK_URL}"
+    
+    local max_attempts=5
+    local attempt=1
+    local success=false
+    
+    while [[ ${attempt} -le ${max_attempts} ]]; do
+        if curl -f -s --max-time "${HEALTH_CHECK_TIMEOUT}" "${HEALTH_CHECK_URL}" >/dev/null 2>&1; then
+            success=true
+            break
+        fi
+        
+        log_info "Health check denemesi ${attempt}/${max_attempts} başarısız, 10 saniye bekleniyor..."
+        sleep 10
+        ((attempt++))
+    done
+    
+    if [[ "${success}" == true ]]; then
+        log_success "Health check başarılı"
+    else
+        log_error "Health check başarısız (${max_attempts} deneme)"
+        if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
+            rollback_to_previous
+            exit 1
+        fi
+    fi
+}
+
+send_notification() {
+    local status="$1"
+    local message="$2"
+    
+    if [[ -z "${NOTIFICATION_WEBHOOK}" || -z "${NOTIFICATION_TYPE}" ]]; then
+        return
+    fi
+    
+    local payload=""
+    case "${NOTIFICATION_TYPE}" in
+        slack)
+            payload="{\"text\":\"${message}\"}"
+            ;;
+        discord)
+            payload="{\"content\":\"${message}\"}"
+            ;;
+        email)
+            # Email için basit bir webhook payload'ı
+            payload="{\"subject\":\"Deployment ${status}\",\"body\":\"${message}\"}"
+            ;;
+        *)
+            log_warning "Desteklenmeyen bildirim türü: ${NOTIFICATION_TYPE}"
+            return
+            ;;
+    esac
+    
+    if curl -f -s -X POST -H "Content-Type: application/json" \
+           -d "${payload}" "${NOTIFICATION_WEBHOOK}" >/dev/null 2>&1; then
+        log_info "Bildirim gönderildi: ${NOTIFICATION_TYPE}"
+    else
+        log_warning "Bildirim gönderilemedi: ${NOTIFICATION_TYPE}"
+    fi
+}
+
+run_docker_build() {
+    if [[ "${PROJECT_TYPE}" != "docker" ]]; then
+        return 0
+    fi
+    
+    local docker_script="${DEPLOY_DIR}/../docker/build_image.sh"
+    if [[ ! -x "${docker_script}" ]]; then
+        log_error "Docker build scripti bulunamadı."
+        return 1
+    fi
+    
+    # Docker Compose dosyası kontrolü
+    if [[ -f "${RELEASE_DIR}/docker-compose.yml" ]]; then
+        log_info "Docker Compose ile build yapılıyor..."
+        (
+            cd "${RELEASE_DIR}"
+            docker-compose build --no-cache
+        )
+    else
+        log_info "Dockerfile ile build yapılıyor..."
+        "${docker_script}" --path "${RELEASE_DIR}"
+    fi
+}
+
+run_docker_deploy() {
+    if [[ "${PROJECT_TYPE}" != "docker" ]]; then
+        return 0
+    fi
+    
+    if [[ -f "${RELEASE_DIR}/docker-compose.yml" ]]; then
+        log_info "Docker Compose ile deploy yapılıyor..."
+        (
+            cd "${RELEASE_DIR}"
+            docker-compose down
+            docker-compose up -d
+        )
+    else
+        log_warning "Docker Compose dosyası bulunamadı, manuel deploy gerekli."
+    fi
+}
+
 # Dağıtım adımları
-run_composer
-run_npm_tasks
-run_static_build
-run_tests
-run_laravel_migrate
-run_laravel_cache
-sync_static_output
-apply_wp_permissions
-set_release_owner
+if ! run_composer; then
+    log_error "Composer adımı başarısız"
+    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
+        rollback_to_previous
+    fi
+    exit 1
+fi
+
+if ! run_npm_tasks; then
+    log_error "NPM adımı başarısız"
+    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
+        rollback_to_previous
+    fi
+    exit 1
+fi
+
+if ! run_static_build; then
+    log_error "Static build adımı başarısız"
+    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
+        rollback_to_previous
+    fi
+    exit 1
+fi
+
+if ! run_tests; then
+    log_error "Test adımı başarısız"
+    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
+        rollback_to_previous
+    fi
+    exit 1
+fi
+
+if ! run_laravel_migrate; then
+    log_error "Laravel migrate adımı başarısız"
+    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
+        rollback_to_previous
+    fi
+    exit 1
+fi
+
+if ! run_laravel_cache; then
+    log_error "Laravel cache adımı başarısız"
+    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
+        rollback_to_previous
+    fi
+    exit 1
+fi
+
+if ! run_docker_build; then
+    log_error "Docker build adımı başarısız"
+    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
+        rollback_to_previous
+    fi
+    exit 1
+fi
+
+if ! sync_static_output; then
+    log_error "Static output sync adımı başarısız"
+    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
+        rollback_to_previous
+    fi
+    exit 1
+fi
+
+if ! apply_wp_permissions; then
+    log_error "WordPress permissions adımı başarısız"
+    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
+        rollback_to_previous
+    fi
+    exit 1
+fi
+
+if ! set_release_owner; then
+    log_error "Set release owner adımı başarısız"
+    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
+        rollback_to_previous
+    fi
+    exit 1
+fi
 
 if [[ "${ACTIVATE_RELEASE}" == true ]]; then
     log_info "Yeni sürüm aktif ediliyor..."
-    switch_release "${RELEASE_DIR}"
+    if ! switch_release "${RELEASE_DIR}"; then
+        log_error "Release activation başarısız"
+        if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
+            rollback_to_previous
+        fi
+        exit 1
+    fi
 else
     log_info "Yeni sürüm hazırladı ancak current link güncellenmedi: ${RELEASE_DIR}"
 fi
+
+# Docker deploy
+if ! run_docker_deploy; then
+    log_error "Docker deploy adımı başarısız"
+    if [[ "${ROLLBACK_ON_FAILURE}" == true ]]; then
+        rollback_to_previous
+    fi
+    exit 1
+fi
+
+# Health check ve bildirimler
+run_health_check
+send_notification "success" "Deployment başarılı: ${RELEASE_DIR}"
 
 run_post_commands
 
